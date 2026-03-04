@@ -104,7 +104,6 @@ export const oscalModels: OscalModel[] = [
     path: "/ssp",
     description: "System Security Plan — documents the security controls for a system.",
     color: colors.darkGreen,
-    disabled: true,
   },
   {
     key: "assessment-plan",

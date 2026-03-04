@@ -277,10 +277,6 @@ export default function CatalogPage() {
     contentRef.current?.scrollTo(0, 0);
   }, []);
 
-  const toggleGroup = useCallback((id: string) => {
-    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
-
   const loadFile = useCallback((file: File) => {
     setError("");
     const reader = new FileReader();
@@ -307,6 +303,37 @@ export default function CatalogPage() {
     setView("overview");
     setSearchTerm("");
   }, [oscal]);
+
+  /* ── Default all groups/controls-with-enhancements to collapsed ── */
+  const defaultCollapsed = useMemo(() => {
+    if (!catalog) return {} as Record<string, boolean>;
+    const dc: Record<string, boolean> = {};
+    function walkGroups(groups: Group[]) {
+      groups.forEach((g) => {
+        dc[`group-${g.id}`] = true;
+        walkGroups(g.groups ?? []);
+        (g.controls ?? []).forEach((c) => {
+          if ((c.controls ?? []).length > 0) dc[`ctrl-${c.id}`] = true;
+        });
+      });
+    }
+    walkGroups(catalog.groups ?? []);
+    (catalog.controls ?? []).forEach((c) => {
+      if ((c.controls ?? []).length > 0) dc[`ctrl-${c.id}`] = true;
+    });
+    return dc;
+  }, [catalog]);
+
+  const mergedCollapsed = useMemo(() => {
+    return { ...defaultCollapsed, ...collapsed };
+  }, [defaultCollapsed, collapsed]);
+
+  const toggleGroup = useCallback((id: string) => {
+    setCollapsed((prev) => {
+      const current = prev[id] ?? defaultCollapsed[id] ?? false;
+      return { ...prev, [id]: !current };
+    });
+  }, [defaultCollapsed]);
 
   /* ── If no file loaded, show drop zone ── */
   if (!catalog) {
@@ -362,7 +389,7 @@ export default function CatalogPage() {
           <SidebarTree
             catalog={catalog}
             view={view}
-            collapsed={collapsed}
+            collapsed={mergedCollapsed}
             searchTerm={searchTerm}
             navigate={navigate}
             toggleGroup={toggleGroup}

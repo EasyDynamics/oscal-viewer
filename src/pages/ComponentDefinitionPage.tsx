@@ -484,10 +484,6 @@ export default function ComponentDefinitionPage() {
     [],
   );
 
-  const toggleGroup = useCallback((id: string) => {
-    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
-
   const loadFile = useCallback((file: File) => {
     setError("");
     const reader = new FileReader();
@@ -619,19 +615,38 @@ export default function ComponentDefinitionPage() {
     return counts;
   }, [navTree]);
 
+  /* ── Default all groups to collapsed when navTree first populates ── */
+  const defaultCollapsed = useMemo(() => {
+    const dc: Record<string, boolean> = {};
+    const parentSet = new Set(navTree.filter((n) => n.parent).map((n) => n.parent!));
+    parentSet.forEach((id) => { dc[id] = true; });
+    return dc;
+  }, [navTree]);
+
+  const mergedCollapsed = useMemo(() => {
+    return { ...defaultCollapsed, ...collapsed };
+  }, [defaultCollapsed, collapsed]);
+
+  const toggleGroup = useCallback((id: string) => {
+    setCollapsed((prev) => {
+      const current = prev[id] ?? defaultCollapsed[id] ?? false;
+      return { ...prev, [id]: !current };
+    });
+  }, [defaultCollapsed]);
+
   /* ── Visible nav items (collapse logic) ── */
   const visibleNav = useMemo(() => {
     return navTree.filter((item) => {
       if (!item.parent) return true;
       let pid: string | undefined = item.parent;
       while (pid) {
-        if (collapsed[pid]) return false;
+        if (mergedCollapsed[pid]) return false;
         const parentItem = navTree.find((n) => n.id === pid);
         pid = parentItem?.parent;
       }
       return true;
     });
-  }, [navTree, collapsed]);
+  }, [navTree, mergedCollapsed]);
 
   /* ── If no file loaded, show drop zone ── */
   if (!cdef) {
@@ -698,7 +713,7 @@ export default function ComponentDefinitionPage() {
           {visibleNav.map((item) => {
             const hasChildren = !!childCounts[item.id];
             const isActive = view === item.id;
-            const isCollapsed = !!collapsed[item.id];
+            const isCollapsed = !!mergedCollapsed[item.id];
 
             return (
               <div
