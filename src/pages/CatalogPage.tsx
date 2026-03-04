@@ -1060,7 +1060,12 @@ function ControlView({ control, catalog, navigate }: {
         const chips: ResolvedLink[] = resolvedLinks.map((lk) => {
           if (lk.resource) {
             const r = lk.resource;
-            return { text: r.title ?? r.citation?.text ?? "Untitled", href: r.rlinks?.[0]?.href, rel: lk.rel };
+            const frag = lk["resource-fragment"];
+            const baseTitle = r.title ?? r.citation?.text ?? "Untitled";
+            const text = frag ? `${baseTitle} — ${frag}` : baseTitle;
+            const baseHref = r.rlinks?.[0]?.href;
+            const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
+            return { text, href, rel: lk.rel };
           }
           if (!lk.href.startsWith("#")) {
             return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
@@ -1144,15 +1149,19 @@ function PartTree({ part, depth, paramMap }: { part: Part; depth: number; paramM
       {/* Links within a part */}
       {part.links && part.links.length > 0 && (
         <div style={{ marginTop: 4 }}>
-          {part.links.map((lk, i) => (
-            <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
-              <IcoLink size={11} style={{ color: colors.brightBlue }} />
-              <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
-                style={{ fontSize: 11, color: colors.brightBlue }}>
-                {lk.text ?? lk.href}
-              </a>
-            </div>
-          ))}
+          {part.links.map((lk, i) => {
+            const frag = lk["resource-fragment"];
+            const display = frag ? `${lk.text ?? lk.href} — ${frag}` : (lk.text ?? lk.href);
+            return (
+              <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
+                <IcoLink size={11} style={{ color: colors.brightBlue }} />
+                <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: colors.brightBlue }}>
+                  {display}
+                </a>
+              </div>
+            );
+          })}
         </div>
       )}
 

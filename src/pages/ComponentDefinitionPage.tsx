@@ -2146,11 +2146,16 @@ function RequirementView({
         const chips: ResolvedLink[] = resolvedLinks.map((lk) => {
           if (lk.resolved) {
             const r = lk.resolved;
+            const frag = lk["resource-fragment"];
+            const baseTitle = r.title ?? "Untitled";
+            const text = frag ? `${baseTitle} — ${frag}` : baseTitle;
+            const baseHref = r.rlinks?.[0]?.href;
+            const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
             return {
-              text: r.title ?? "Untitled",
-              href: r.rlinks?.[0]?.href,
+              text,
+              href,
               rel: lk.rel,
-              onClick: !r.rlinks?.[0]?.href ? () => navigate(`res-${r.uuid}`) : undefined,
+              onClick: !href ? () => navigate(`res-${r.uuid}`) : undefined,
             };
           }
           if (!lk.href.startsWith("#")) {

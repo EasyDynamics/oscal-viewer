@@ -1467,11 +1467,12 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
       {ir.links.length > 0 && (
         <Card>
           <LinkChips
-            links={ir.links.map((l) => ({
-              text: l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : l.href),
-              href: l.href,
-              rel: l.rel,
-            }))}
+            links={ir.links.map((l) => {
+              const frag = (l as { "resource-fragment"?: string })["resource-fragment"];
+              const baseText = l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : l.href);
+              const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
+              return { text, href: l.href, rel: l.rel };
+            })}
           />
         </Card>
       )}

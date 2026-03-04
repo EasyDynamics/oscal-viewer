@@ -125,6 +125,5 @@ export const oscalModels: OscalModel[] = [
     path: "/poam",
     description: "Plan of Action and Milestones — tracks remediation of findings.",
     color: colors.red,
-    disabled: true,
   },
 ];

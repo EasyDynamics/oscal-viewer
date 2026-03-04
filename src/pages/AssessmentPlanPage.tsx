@@ -438,11 +438,12 @@ function StepCard({ step, index, hCtrl, onCtrl }: {
       )}
       {step.links.length > 0 && (
         <LinkChips
-          links={step.links.map((l) => ({
-            text: l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : "Reference"),
-            href: l.href,
-            rel: l.rel || undefined,
-          }))}
+          links={step.links.map((l) => {
+            const frag = (l as { "resource-fragment"?: string })["resource-fragment"];
+            const baseText = l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : "Reference");
+            const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
+            return { text, href: l.href, rel: l.rel || undefined };
+          })}
           label={null}
           style={{ marginTop: 5, marginLeft: 30 }}
         />

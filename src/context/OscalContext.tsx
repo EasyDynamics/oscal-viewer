@@ -24,6 +24,7 @@ export interface OscalLink {
   href: string;
   rel?: string;
   text?: string;
+  "resource-fragment"?: string;
 }
 
 export interface Party {

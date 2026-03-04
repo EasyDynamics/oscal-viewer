@@ -41,6 +41,7 @@ interface Link {
   href: string;
   rel?: string;
   text?: string;
+  "resource-fragment"?: string;
 }
 
 interface Metadata {
@@ -1370,11 +1371,14 @@ function ObservationView({ obs, navigate, catalog }: {
 
       {/* Links */}
       {obs.links && obs.links.length > 0 && (() => {
-        const chips: ResolvedLink[] = obs.links.map((lk) => ({
-          text: lk.text ?? lk.href,
-          href: lk.href.startsWith("#") ? undefined : lk.href,
-          rel: lk.rel,
-        }));
+        const chips: ResolvedLink[] = obs.links.map((lk) => {
+          const frag = lk["resource-fragment"];
+          const baseText = lk.text ?? lk.href;
+          const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
+          const baseHref = lk.href.startsWith("#") ? undefined : lk.href;
+          const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
+          return { text, href, rel: lk.rel };
+        });
         return (
           <Card>
             <LinkChips links={chips} />
