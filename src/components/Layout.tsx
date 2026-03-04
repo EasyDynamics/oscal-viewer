@@ -7,9 +7,11 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { CSSProperties } from "react";
 import { colors, fonts, oscalModels, shadows } from "../theme/tokens";
 import { IconShield } from "./Icons";
+import { useOscal } from "../context/OscalContext";
 
 export default function Layout() {
   const location = useLocation();
+  const { isLoaded } = useOscal();
 
   return (
     <div style={styles.shell}>
@@ -28,28 +30,46 @@ export default function Layout() {
         <NavLink to="/" end style={() => tabStyle(location.pathname === "/")}>
           Home
         </NavLink>
-        {oscalModels.map((m) => (
-          <NavLink
-            key={m.key}
-            to={m.path}
-            style={() =>
-              tabStyle(location.pathname.startsWith(m.path))
-            }
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor: m.color,
-                display: "inline-block",
-                marginRight: 6,
-                flexShrink: 0,
-              }}
-            />
-            {m.label}
-          </NavLink>
-        ))}
+        {oscalModels.map((m) => {
+          const loaded = isLoaded(m.key);
+          return (
+            <NavLink
+              key={m.key}
+              to={m.path}
+              style={() =>
+                tabStyle(location.pathname.startsWith(m.path))
+              }
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor: m.color,
+                  display: "inline-block",
+                  marginRight: 6,
+                  flexShrink: 0,
+                }}
+              />
+              {m.label}
+              {loaded && (
+                <span
+                  title={`${m.label} file loaded`}
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    backgroundColor: "#22c55e",
+                    display: "inline-block",
+                    marginLeft: 6,
+                    flexShrink: 0,
+                    boxShadow: "0 0 4px #22c55e88",
+                  }}
+                />
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* ── Page Content ── */}

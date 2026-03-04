@@ -13,7 +13,16 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
+import { Marked } from "marked";
 import { colors, fonts, shadows, radii } from "../theme/tokens";
+import { useOscal } from "../context/OscalContext";
+import type {
+  Catalog as OscalCatalog,
+  Control as CatalogControl,
+  Group as CatalogGroup,
+  Part as CatalogPart,
+  Param as CatalogParam,
+} from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -170,6 +179,136 @@ function resType(res: Resource) {
 }
 function trunc(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "\u2026" : s;
+}
+
+/* ── Catalog lookup helpers ── */
+
+/** Find a control by ID anywhere in the catalog (groups, sub-groups, and enhancements) */
+function findCatalogControl(catalog: OscalCatalog | null, controlId: string): CatalogControl | undefined {
+  if (!catalog) return undefined;
+  function searchGroup(g: CatalogGroup): CatalogControl | undefined {
+    for (const c of g.controls ?? []) {
+      if (c.id === controlId) return c;
+      for (const enh of c.controls ?? []) {
+        if (enh.id === controlId) return enh;
+      }
+    }
+    for (const sg of g.groups ?? []) {
+      const found = searchGroup(sg);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  for (const g of catalog.groups ?? []) {
+    const found = searchGroup(g);
+    if (found) return found;
+  }
+  for (const c of catalog.controls ?? []) {
+    if (c.id === controlId) return c;
+    for (const enh of c.controls ?? []) {
+      if (enh.id === controlId) return enh;
+    }
+  }
+  return undefined;
+}
+
+/** Find a specific part by id anywhere in a control's part tree */
+function findPartById(parts: CatalogPart[], partId: string): CatalogPart | undefined {
+  for (const p of parts) {
+    if (p.id === partId) return p;
+    if (p.parts) {
+      const found = findPartById(p.parts, partId);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+/** Build a param map from a catalog control (including parent for enhancements) */
+function buildCatalogParamMap(catalog: OscalCatalog | null, control: CatalogControl): Record<string, CatalogParam> {
+  const map: Record<string, CatalogParam> = {};
+  // If this is an enhancement, also include parent params
+  if (catalog) {
+    function searchParent(g: CatalogGroup): CatalogControl | undefined {
+      for (const c of g.controls ?? []) {
+        for (const enh of c.controls ?? []) {
+          if (enh.id === control.id) return c;
+        }
+      }
+      for (const sg of g.groups ?? []) {
+        const f = searchParent(sg);
+        if (f) return f;
+      }
+      return undefined;
+    }
+    for (const g of catalog.groups ?? []) {
+      const parent = searchParent(g);
+      if (parent) { (parent.params ?? []).forEach(p => { map[p.id] = p; }); break; }
+    }
+  }
+  (control.params ?? []).forEach(p => { map[p.id] = p; });
+  (control.controls ?? []).forEach(enh => (enh.params ?? []).forEach(p => { map[p.id] = p; }));
+  return map;
+}
+
+/** Render a single catalog param to text per OSCAL rules */
+function renderCatalogParamText(param: CatalogParam, paramMap: Record<string, CatalogParam>): string {
+  if (param.select) {
+    const howMany = param.select["how-many"];
+    const prefix = howMany === "one-or-more" ? "Selection (one or more)" : "Selection";
+    const choices = (param.select.choice ?? []).map(c => resolveCatalogInlineParams(c, paramMap));
+    return `[${prefix}: ${choices.join("; ")}]`;
+  }
+  const label = param.label ? resolveCatalogInlineParams(param.label, paramMap) : param.id;
+  return `[Assignment: ${label}]`;
+}
+
+/** Replace {{ insert: param, <id> }} tokens in prose */
+function resolveCatalogInlineParams(text: string, paramMap: Record<string, CatalogParam>): string {
+  return text.replace(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/g, (_match, id: string) => {
+    const param = paramMap[id.trim()];
+    if (!param) return `[Assignment: ${id.trim()}]`;
+    return renderCatalogParamText(param, paramMap);
+  });
+}
+
+/** Get the label prop from a catalog control/part */
+function getCatalogLabel(props?: { name: string; value: string }[]): string {
+  if (!props) return "";
+  const lbl = props.find(p => p.name === "label" && (p as { class?: string }).class !== "zero-padded");
+  return lbl?.value ?? props.find(p => p.name === "label")?.value ?? "";
+}
+
+/** Convert OSCAL markup-multiline / markup-line to HTML via marked */
+const markedInstance = new Marked({ async: false, gfm: true, breaks: false });
+function renderMarkup(text: string): string {
+  // marked.parse in sync mode returns string
+  const html = markedInstance.parse(text) as string;
+  // Strip wrapping <p>…</p> for single-line content to avoid extra spacing
+  const trimmed = html.trim();
+  if (trimmed.startsWith("<p>") && trimmed.endsWith("</p>") && trimmed.indexOf("<p>", 1) === -1) {
+    return trimmed.slice(3, -4);
+  }
+  return trimmed;
+}
+
+/** Renders an OSCAL description / prose value as styled HTML (markdown) */
+function MarkupBlock({ value, style }: { value: unknown; style?: CSSProperties }) {
+  const raw = txt(value);
+  if (!raw) return null;
+  const html = renderMarkup(raw);
+  return (
+    <div
+      className="oscal-markup"
+      style={{
+        fontSize: 13,
+        color: colors.black,
+        lineHeight: 1.75,
+        ...style,
+      }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -329,8 +468,9 @@ interface NavItem {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function ComponentDefinitionPage() {
-  const [cdef, setCdef] = useState<ComponentDefinition | null>(null);
-  const [fileName, setFileName] = useState("");
+  const oscal = useOscal();
+  const cdef = (oscal.componentDefinition?.data as ComponentDefinition) ?? null;
+  const fileName = oscal.componentDefinition?.fileName ?? "";
   const [error, setError] = useState("");
   const [view, setView] = useState("overview");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -357,8 +497,7 @@ export default function ComponentDefinitionPage() {
         const data = json["component-definition"] ?? json;
         if (!data.metadata)
           throw new Error("Not an OSCAL component-definition — no metadata found.");
-        setCdef(data as ComponentDefinition);
-        setFileName(file.name);
+        oscal.setComponentDefinition(data as ComponentDefinition, file.name);
         setView("overview");
         setCollapsed({});
       } catch (err) {
@@ -366,14 +505,13 @@ export default function ComponentDefinitionPage() {
       }
     };
     reader.readAsText(file);
-  }, []);
+  }, [oscal]);
 
   const handleNewFile = useCallback(() => {
-    setCdef(null);
-    setFileName("");
+    oscal.clearComponentDefinition();
     setError("");
     setView("overview");
-  }, []);
+  }, [oscal]);
 
   /* ── Resources map for link resolution ── */
   const bmRes = useMemo(() => cdef?.["back-matter"]?.resources ?? [], [cdef]);
@@ -607,6 +745,7 @@ export default function ComponentDefinitionPage() {
             resMap={resMap}
             bmRes={bmRes}
             parties={parties}
+            catalog={oscal.catalog?.data ?? null}
           />
         </div>
       </div>
@@ -625,9 +764,10 @@ interface ViewRouterProps {
   resMap: Record<string, Resource>;
   bmRes: Resource[];
   parties: Party[];
+  catalog: OscalCatalog | null;
 }
 
-function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties }: ViewRouterProps) {
+function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog }: ViewRouterProps) {
   const comps = cdef.components ?? [];
 
   if (view === "overview")
@@ -694,6 +834,7 @@ function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties }: ViewRouter
               parties={parties}
               navigate={navigate}
               resMap={resMap}
+              catalog={catalog}
             />
           );
       }
@@ -791,7 +932,7 @@ function Card({
   );
 }
 
-function SectionLabel({ children }: { children: ReactNode }) {
+function SectionLabel({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
     <div
       style={{
@@ -801,6 +942,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
         letterSpacing: 1,
         color: colors.gray,
         marginBottom: 8,
+        ...style,
       }}
     >
       {children}
@@ -1328,16 +1470,7 @@ function ComponentView({
       {comp.description && (
         <Card>
           <SectionLabel>Description</SectionLabel>
-          <p
-            style={{
-              fontSize: 13,
-              lineHeight: 1.75,
-              color: colors.black,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {txt(comp.description)}
-          </p>
+          <MarkupBlock value={comp.description} />
         </Card>
       )}
 
@@ -1501,9 +1634,7 @@ function ControlImplView({
       {impl.description && (
         <Card>
           <SectionLabel>Description</SectionLabel>
-          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
-            {txt(impl.description)}
-          </p>
+          <MarkupBlock value={impl.description} />
         </Card>
       )}
 
@@ -1590,6 +1721,187 @@ function ControlImplView({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   CATALOG PROSE WITH PARAMS — renders prose with styled inline parameter
+   pills + markdown markup rendering
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function CatalogProseWithParams({
+  text,
+  paramMap,
+}: {
+  text: string;
+  paramMap: Record<string, CatalogParam>;
+}) {
+  // Split on {{ insert: param, <id> }} keeping the token as a capture group
+  const segments = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
+
+  return (
+    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
+      {segments.map((segment, i) => {
+        const match = segment.match(
+          /\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/,
+        );
+        if (match) {
+          const paramId = match[1].trim();
+          const param = paramMap[paramId];
+          const rendered = param
+            ? renderCatalogParamText(param, paramMap)
+            : `[Assignment: ${paramId}]`;
+          const isSelection = param?.select != null;
+          return (
+            <span
+              key={i}
+              title={`Parameter: ${paramId}`}
+              style={{
+                display: "inline",
+                fontSize: 12,
+                fontFamily: fonts.mono,
+                fontWeight: 600,
+                color: isSelection ? colors.cobalt : colors.orange,
+                backgroundColor: isSelection
+                  ? `${colors.cobalt}12`
+                  : `${colors.orange}12`,
+                padding: "1px 6px",
+                borderRadius: radii.sm,
+                border: `1px solid ${
+                  isSelection ? `${colors.cobalt}33` : `${colors.orange}33`
+                }`,
+                whiteSpace: "nowrap" as const,
+              }}
+            >
+              {rendered}
+            </span>
+          );
+        }
+        // Render non-param segments as markdown
+        const html = renderMarkup(segment);
+        return (
+          <span
+            key={i}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CATALOG CONTROL CARD — shows catalog prose when a catalog is loaded
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function CatalogControlCard({
+  control,
+  paramMap,
+}: {
+  control: CatalogControl;
+  paramMap: Record<string, CatalogParam>;
+}) {
+  const [guidanceOpen, setGuidanceOpen] = useState(false);
+  const label = getCatalogLabel(control.props as { name: string; value: string }[] | undefined);
+  const title = control.title ?? "";
+
+  // Break parts into the 5 standard OSCAL classes
+  const stmtParts = (control.parts ?? []).filter((p) => p.name === "statement");
+  const guidanceParts = (control.parts ?? []).filter((p) => p.name === "guidance");
+
+  function renderPartTree(part: CatalogPart, depth = 0): ReactNode {
+    const partLabel = getCatalogLabel(part.props as { name: string; value: string }[] | undefined);
+    return (
+      <div key={part.id ?? Math.random()} style={{ marginLeft: depth * 16, marginBottom: 4 }}>
+        {part.prose && (
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4, margin: "2px 0" }}>
+            {partLabel && (
+              <span style={{ fontWeight: 600, color: colors.cobalt, marginRight: 2, fontSize: 13, fontFamily: fonts.mono }}>
+                {partLabel}
+              </span>
+            )}
+            <CatalogProseWithParams text={part.prose} paramMap={paramMap} />
+          </div>
+        )}
+        {(part.parts ?? []).map((child) => renderPartTree(child, depth + 1))}
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <SectionLabel style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 14 }}>📖</span>
+        <span>
+          Catalog Control{" "}
+          <span style={{ fontFamily: fonts.mono, color: colors.brightBlue }}>
+            {label ? `${label} — ` : ""}{title}
+          </span>
+        </span>
+      </SectionLabel>
+      {stmtParts.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: "uppercase" as const,
+              color: colors.cobalt,
+              letterSpacing: 0.5,
+              marginBottom: 6,
+            }}
+          >
+            Control Statement
+          </div>
+          {stmtParts.map((p) => renderPartTree(p))}
+        </div>
+      )}
+      {guidanceParts.length > 0 && (
+        <div
+          style={{
+            borderTop: `1px solid ${colors.paleGray}`,
+            paddingTop: 8,
+            marginTop: 4,
+          }}
+        >
+          <button
+            onClick={() => setGuidanceOpen((v) => !v)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 0",
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: "uppercase" as const,
+              color: colors.cobalt,
+              letterSpacing: 0.5,
+              fontFamily: fonts.sans,
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                transition: "transform 0.2s",
+                transform: guidanceOpen ? "rotate(90deg)" : "rotate(0deg)",
+                fontSize: 10,
+              }}
+            >
+              ▶
+            </span>
+            Supplemental Guidance
+          </button>
+          {guidanceOpen && (
+            <div style={{ marginTop: 6, paddingLeft: 4 }}>
+              {guidanceParts.map((p) => renderPartTree(p))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    REQUIREMENT VIEW — main detail page per the reference screenshot
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1601,6 +1913,7 @@ function RequirementView({
   parties,
   navigate,
   resMap,
+  catalog,
 }: {
   req: ImplementedRequirement;
   comp: Component;
@@ -1609,12 +1922,23 @@ function RequirementView({
   parties: Party[];
   navigate: (id: string) => void;
   resMap: Record<string, Resource>;
+  catalog: OscalCatalog | null;
 }) {
   const status =
     (req.props ?? []).find((p) => p.name === "implementation-status")?.value ??
     "unknown";
   const statements = req.statements ?? [];
   const links = req.links ?? [];
+
+  // Catalog enrichment
+  const catalogControl = useMemo(
+    () => findCatalogControl(catalog, req["control-id"]),
+    [catalog, req],
+  );
+  const catalogParamMap = useMemo(
+    () => catalogControl ? buildCatalogParamMap(catalog, catalogControl) : {},
+    [catalog, catalogControl],
+  );
 
   // Resolve links to back-matter resources (href="#uuid" pattern)
   const resolvedLinks = links.map((lk) => {
@@ -1625,18 +1949,6 @@ function RequirementView({
     }
     return { ...lk, resolved: undefined as Resource | undefined };
   });
-
-  // Extract MITRE ATT&CK technique tags
-  const attackTags = links
-    .filter((lk) => lk.href.includes("attack.mitre.org/techniques"))
-    .map((lk) => {
-      const tid = lk.href.match(/techniques\/(T\d+(?:\.\d+)?)/)?.[1];
-      return {
-        tid: tid ?? lk.href,
-        text: lk.text ?? tid ?? lk.href,
-        href: lk.href,
-      };
-    });
 
   return (
     <div>
@@ -1692,36 +2004,31 @@ function RequirementView({
         <StatusBadge status={status} />
       </div>
 
-      {/* Catalog notice */}
-      <Card
-        style={{
-          backgroundColor: "#FFF8F0",
-          borderLeft: `4px solid ${colors.yellow}`,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>📙</span>
-          <span style={{ fontSize: 13, color: colors.black }}>
-            <strong>Catalog not loaded.</strong> Load an OSCAL catalog to see
-            control prose for {req["control-id"].toUpperCase()}.
-          </span>
-        </div>
-      </Card>
+      {/* Catalog control details */}
+      {catalogControl ? (
+        <CatalogControlCard control={catalogControl} paramMap={catalogParamMap} />
+      ) : (
+        <Card
+          style={{
+            backgroundColor: "#FFF8F0",
+            borderLeft: `4px solid ${colors.yellow}`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14 }}>📙</span>
+            <span style={{ fontSize: 13, color: colors.black }}>
+              <strong>Catalog not loaded.</strong> Load an OSCAL catalog to see
+              control prose for {req["control-id"].toUpperCase()}.
+            </span>
+          </div>
+        </Card>
+      )}
 
       {/* Implementation description */}
       {req.description && (
         <Card>
           <SectionLabel>Implementation Description</SectionLabel>
-          <p
-            style={{
-              fontSize: 13,
-              lineHeight: 1.75,
-              color: colors.black,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {txt(req.description)}
-          </p>
+          <MarkupBlock value={req.description} />
         </Card>
       )}
 
@@ -1729,40 +2036,60 @@ function RequirementView({
       {statements.length > 0 && (
         <Card>
           <SectionLabel>Statements ({statements.length})</SectionLabel>
-          {statements.map((stmt) => (
-            <div
-              key={stmt.uuid}
-              style={{
-                backgroundColor: colors.bg,
-                borderRadius: radii.sm,
-                padding: "12px 16px",
-                marginBottom: 8,
-              }}
-            >
+          {statements.map((stmt) => {
+            // Resolve the statement-id to catalog prose
+            const catalogPart = catalogControl
+              ? findPartById(catalogControl.parts ?? [], stmt["statement-id"])
+              : undefined;
+            return (
               <div
+                key={stmt.uuid}
                 style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: colors.brightBlue,
-                  fontFamily: fonts.mono,
-                  marginBottom: 4,
+                  backgroundColor: colors.bg,
+                  borderRadius: radii.sm,
+                  padding: "12px 16px",
+                  marginBottom: 8,
                 }}
               >
-                {stmt["statement-id"]}
-              </div>
-              {stmt.description && (
-                <p
+                {/* Show raw statement-id only when no catalog prose was found */}
+                {!catalogPart?.prose && (
+                <div
                   style={{
-                    fontSize: 13,
-                    color: colors.black,
-                    lineHeight: 1.75,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: colors.brightBlue,
+                    fontFamily: fonts.mono,
+                    marginBottom: 4,
                   }}
                 >
-                  {txt(stmt.description)}
-                </p>
-              )}
-            </div>
-          ))}
+                  {stmt["statement-id"]}
+                </div>
+                )}
+                {/* Catalog prose for this statement */}
+                {catalogPart?.prose && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: colors.cobalt,
+                      lineHeight: 1.7,
+                      padding: "6px 10px",
+                      backgroundColor: `${colors.cobalt}08`,
+                      border: `1px solid ${colors.cobalt}22`,
+                      borderRadius: radii.sm,
+                      marginBottom: 8,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    <CatalogProseWithParams text={catalogPart.prose} paramMap={catalogParamMap} />
+                  </div>
+                )}
+                {/* Implementation description for this statement */}
+                {stmt.description && (
+                  <MarkupBlock value={stmt.description} />
+                )}
+              </div>
+            );
+          })}
         </Card>
       )}
 
@@ -1797,134 +2124,122 @@ function RequirementView({
           </Card>
         )}
 
-      {/* Links / references */}
-      {resolvedLinks.length > 0 && (
-        <Card>
-          <SectionLabel>Links ({resolvedLinks.length})</SectionLabel>
-          {resolvedLinks.map((lk, i) => {
-            if (lk.resolved) {
-              const r = lk.resolved;
-              const href = r.rlinks?.[0]?.href;
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 0",
-                    borderBottom: `1px solid ${colors.bg}`,
-                  }}
-                >
-                  <IcoLink
-                    size={13}
-                    style={{ color: colors.brightBlue, flexShrink: 0 }}
-                  />
-                  {href ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: 13,
-                        color: colors.brightBlue,
-                        flex: 1,
-                      }}
-                    >
-                      {r.title ?? "Untitled"}
-                    </a>
-                  ) : (
-                    <span
-                      onClick={() => navigate(`res-${r.uuid}`)}
-                      style={{
-                        fontSize: 13,
-                        color: colors.brightBlue,
-                        cursor: "pointer",
-                        flex: 1,
-                      }}
-                    >
-                      {r.title ?? "Untitled"}
-                    </span>
-                  )}
-                  <span style={{ fontSize: 11, color: colors.gray }}>
-                    {lk.rel ?? ""}
-                  </span>
-                </div>
-              );
-            }
-            if (!lk.href.startsWith("#")) {
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 0",
-                    borderBottom: `1px solid ${colors.bg}`,
-                  }}
-                >
-                  <IcoLink
-                    size={13}
-                    style={{ color: colors.brightBlue, flexShrink: 0 }}
-                  />
+      {/* Links / references — colored pill buttons */}
+      {resolvedLinks.length > 0 && (() => {
+        // Categorize links by rel type
+        const linkCategories: Record<string, { label: string; bg: string; fg: string; border: string }> = {
+          mitre:     { label: "MITRE ATT&CK",  bg: colors.darkNavy,   fg: colors.white,     border: colors.darkNavy },
+          reference: { label: "Reference",      bg: `${colors.cobalt}14`, fg: colors.cobalt,    border: `${colors.cobalt}44` },
+          related:   { label: "Related",        bg: `${colors.darkGreen}14`, fg: colors.darkGreen, border: `${colors.darkGreen}44` },
+          required:  { label: "Required",       bg: `${colors.orange}14`, fg: colors.orange,   border: `${colors.orange}44` },
+          _default:  { label: "Link",           bg: `${colors.blueGray}14`, fg: colors.blueGray, border: `${colors.blueGray}44` },
+        };
+
+        function relCategory(lk: { rel?: string; href: string }) {
+          if (lk.rel === "mitre" || lk.href.includes("attack.mitre.org")) return "mitre";
+          if (lk.rel === "reference") return "reference";
+          if (lk.rel === "related") return "related";
+          if (lk.rel === "required") return "required";
+          if (lk.rel) return lk.rel;
+          return "_default";
+        }
+
+        // Collect the unique categories actually present
+        const usedCategories = new Set<string>();
+        resolvedLinks.forEach((lk) => usedCategories.add(relCategory(lk)));
+
+        return (
+          <Card>
+            <SectionLabel>Links ({resolvedLinks.length})</SectionLabel>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {resolvedLinks.map((lk, i) => {
+                const cat = relCategory(lk);
+                const style = linkCategories[cat] ?? linkCategories._default;
+                // Determine display text and href
+                let displayText: string;
+                let targetHref: string | undefined;
+                let onClick: (() => void) | undefined;
+                if (lk.resolved) {
+                  const r = lk.resolved;
+                  displayText = r.title ?? "Untitled";
+                  targetHref = r.rlinks?.[0]?.href;
+                  if (!targetHref) onClick = () => navigate(`res-${r.uuid}`);
+                } else if (!lk.href.startsWith("#")) {
+                  displayText = lk.text ?? lk.href;
+                  targetHref = lk.href;
+                } else {
+                  return null;
+                }
+                const common: CSSProperties = {
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "5px 14px",
+                  borderRadius: radii.pill,
+                  backgroundColor: style.bg,
+                  color: style.fg,
+                  border: `1px solid ${style.border}`,
+                  textDecoration: "none",
+                  cursor: "pointer",
+                  transition: "filter 0.15s",
+                  whiteSpace: "nowrap",
+                };
+                return targetHref ? (
                   <a
-                    href={lk.href}
+                    key={i}
+                    href={targetHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                      fontSize: 13,
-                      color: colors.brightBlue,
-                      flex: 1,
-                    }}
+                    style={common}
                   >
-                    {lk.text ?? lk.href}
+                    {displayText}
                   </a>
-                  <span style={{ fontSize: 11, color: colors.gray }}>
-                    {lk.rel ?? ""}
+                ) : (
+                  <span key={i} onClick={onClick} style={common}>
+                    {displayText}
                   </span>
-                </div>
-              );
-            }
-            return null;
-          })}
-        </Card>
-      )}
+                );
+              })}
+            </div>
 
-      {/* ATT&CK technique tags */}
-      {attackTags.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            marginTop: 8,
-          }}
-        >
-          {attackTags.map((t, i) => (
-            <a
-              key={i}
-              href={t.href}
-              target="_blank"
-              rel="noopener noreferrer"
+            {/* Legend */}
+            <div
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 11,
-                padding: "4px 10px",
-                borderRadius: radii.sm,
-                backgroundColor: colors.darkNavy,
-                color: colors.white,
-                fontWeight: 600,
-                textDecoration: "none",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 14,
+                paddingTop: 8,
+                borderTop: `1px solid ${colors.bg}`,
               }}
             >
-              {t.text}
-            </a>
-          ))}
-        </div>
-      )}
+              {[...usedCategories].map((cat) => {
+                const s = linkCategories[cat] ?? linkCategories._default;
+                return (
+                  <div
+                    key={cat}
+                    style={{ display: "flex", alignItems: "center", gap: 5 }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        backgroundColor: s.bg === colors.darkNavy ? s.bg : s.fg,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: 11, color: colors.gray }}>
+                      {s.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Properties */}
       {req.props && req.props.length > 0 && (
@@ -2079,9 +2394,7 @@ function ResourceView({
       {res.description && (
         <Card>
           <SectionLabel>Description</SectionLabel>
-          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
-            {txt(res.description)}
-          </p>
+          <MarkupBlock value={res.description} />
         </Card>
       )}
 

@@ -85,3 +85,59 @@ button:focus-visible {
   outline: 2px solid #FF6600;
   outline-offset: 2px;
 }
+
+/* ── OSCAL Markup Rendering ── */
+.oscal-markup p { margin: 0 0 0.5em; }
+.oscal-markup p:last-child { margin-bottom: 0; }
+.oscal-markup ul,
+.oscal-markup ol {
+  margin: 0.25em 0 0.5em 1.5em;
+  padding: 0;
+}
+.oscal-markup li { margin-bottom: 0.15em; }
+.oscal-markup code {
+  font-size: 0.85em;
+  background: #F4F5F7;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid #CFCED3;
+}
+.oscal-markup pre {
+  background: #F4F5F7;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #CFCED3;
+  overflow-x: auto;
+  font-size: 0.85em;
+  margin: 0.5em 0;
+}
+.oscal-markup pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.oscal-markup a { color: #02317F; text-decoration: underline; }
+.oscal-markup a:hover { color: #FF6600; }
+.oscal-markup strong { font-weight: 600; }
+.oscal-markup em { font-style: italic; }
+.oscal-markup blockquote {
+  border-left: 3px solid #CFCED3;
+  margin: 0.5em 0;
+  padding: 0.25em 0 0.25em 12px;
+  color: #6D8CA4;
+}
+.oscal-markup table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 0.9em;
+}
+.oscal-markup th,
+.oscal-markup td {
+  border: 1px solid #CFCED3;
+  padding: 4px 8px;
+  text-align: left;
+}
+.oscal-markup th {
+  background: #F4F5F7;
+  font-weight: 600;
+}
