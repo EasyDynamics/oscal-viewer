@@ -32,12 +32,13 @@ export default function HomePage() {
       </div>
 
       <div style={styles.grid}>
-        {oscalModels.map((m) => (
-          <Link key={m.key} to={m.path} style={{ textDecoration: "none" }}>
+        {oscalModels.map((m) => {
+          const inner = (
             <div
               style={{
                 ...styles.card,
-                borderTop: `4px solid ${m.color}`,
+                borderTop: `4px solid ${m.disabled ? colors.gray : m.color}`,
+                ...(m.disabled ? { opacity: 0.45, cursor: "default", filter: "grayscale(50%)" } : {}),
               }}
             >
               <span
@@ -46,16 +47,23 @@ export default function HomePage() {
                   width: 10,
                   height: 10,
                   borderRadius: "50%",
-                  backgroundColor: m.color,
+                  backgroundColor: m.disabled ? colors.gray : m.color,
                   marginBottom: 8,
                 }}
               />
-              <h3 style={{ ...styles.cardTitle, color: m.color }}>{m.label}</h3>
+              <h3 style={{ ...styles.cardTitle, color: m.disabled ? colors.gray : m.color }}>{m.label}</h3>
               <p style={styles.cardDesc}>{m.description}</p>
-              <span style={styles.cardLink}>Open viewer →</span>
+              {m.disabled
+                ? <span style={{ fontSize: 12, fontWeight: 500, color: colors.gray, fontStyle: "italic" }}>Coming soon</span>
+                : <span style={styles.cardLink}>Open viewer →</span>}
             </div>
-          </Link>
-        ))}
+          );
+          return m.disabled ? (
+            <div key={m.key} style={{ textDecoration: "none" }}>{inner}</div>
+          ) : (
+            <Link key={m.key} to={m.path} style={{ textDecoration: "none" }}>{inner}</Link>
+          );
+        })}
       </div>
     </div>
   );

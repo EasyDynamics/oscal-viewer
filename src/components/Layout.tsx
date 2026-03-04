@@ -32,6 +32,34 @@ export default function Layout() {
         </NavLink>
         {oscalModels.map((m) => {
           const loaded = isLoaded(m.key);
+          if (m.disabled) {
+            return (
+              <span
+                key={m.key}
+                style={{
+                  ...tabStyle(false),
+                  opacity: 0.4,
+                  cursor: "default",
+                  pointerEvents: "none",
+                }}
+                title="Coming soon"
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    backgroundColor: m.color,
+                    display: "inline-block",
+                    marginRight: 6,
+                    flexShrink: 0,
+                    filter: "grayscale(60%)",
+                  }}
+                />
+                {m.label}
+              </span>
+            );
+          }
           return (
             <NavLink
               key={m.key}

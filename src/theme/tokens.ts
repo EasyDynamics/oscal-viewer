@@ -72,6 +72,7 @@ export interface OscalModel {
   path: string;
   description: string;
   color: string;
+  disabled?: boolean;
 }
 
 export const oscalModels: OscalModel[] = [
@@ -88,6 +89,7 @@ export const oscalModels: OscalModel[] = [
     path: "/profile",
     description: "A selection and tailoring of controls from one or more catalogs.",
     color: colors.brightBlue,
+    disabled: true,
   },
   {
     key: "component-definition",
@@ -102,6 +104,7 @@ export const oscalModels: OscalModel[] = [
     path: "/ssp",
     description: "System Security Plan — documents the security controls for a system.",
     color: colors.darkGreen,
+    disabled: true,
   },
   {
     key: "assessment-plan",
@@ -116,6 +119,7 @@ export const oscalModels: OscalModel[] = [
     path: "/assessment-results",
     description: "Captures the results of a security control assessment.",
     color: colors.orange,
+    disabled: true,
   },
   {
     key: "poam",
@@ -123,5 +127,6 @@ export const oscalModels: OscalModel[] = [
     path: "/poam",
     description: "Plan of Action and Milestones — tracks remediation of findings.",
     color: colors.red,
+    disabled: true,
   },
 ];
