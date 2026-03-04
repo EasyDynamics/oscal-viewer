@@ -16,6 +16,8 @@ import {
 import { Marked } from "marked";
 import { colors, fonts, shadows, radii } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import LinkChips from "../components/LinkChips";
+import type { ResolvedLink } from "../components/LinkChips";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -2139,121 +2141,28 @@ function RequirementView({
           </Card>
         )}
 
-      {/* Links / references — colored pill buttons */}
+      {/* Links / references */}
       {resolvedLinks.length > 0 && (() => {
-        // Categorize links by rel type
-        const linkCategories: Record<string, { label: string; bg: string; fg: string; border: string }> = {
-          mitre:     { label: "MITRE ATT&CK",  bg: colors.darkNavy,   fg: colors.white,     border: colors.darkNavy },
-          reference: { label: "Reference",      bg: `${colors.cobalt}14`, fg: colors.cobalt,    border: `${colors.cobalt}44` },
-          related:   { label: "Related",        bg: `${colors.darkGreen}14`, fg: colors.darkGreen, border: `${colors.darkGreen}44` },
-          required:  { label: "Required",       bg: `${colors.orange}14`, fg: colors.orange,   border: `${colors.orange}44` },
-          _default:  { label: "Link",           bg: `${colors.blueGray}14`, fg: colors.blueGray, border: `${colors.blueGray}44` },
-        };
-
-        function relCategory(lk: { rel?: string; href: string }) {
-          if (lk.rel === "mitre" || lk.href.includes("attack.mitre.org")) return "mitre";
-          if (lk.rel === "reference") return "reference";
-          if (lk.rel === "related") return "related";
-          if (lk.rel === "required") return "required";
-          if (lk.rel) return lk.rel;
-          return "_default";
-        }
-
-        // Collect the unique categories actually present
-        const usedCategories = new Set<string>();
-        resolvedLinks.forEach((lk) => usedCategories.add(relCategory(lk)));
-
-        return (
+        const chips: ResolvedLink[] = resolvedLinks.map((lk) => {
+          if (lk.resolved) {
+            const r = lk.resolved;
+            return {
+              text: r.title ?? "Untitled",
+              href: r.rlinks?.[0]?.href,
+              rel: lk.rel,
+              onClick: !r.rlinks?.[0]?.href ? () => navigate(`res-${r.uuid}`) : undefined,
+            };
+          }
+          if (!lk.href.startsWith("#")) {
+            return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
+          }
+          return null;
+        }).filter(Boolean) as ResolvedLink[];
+        return chips.length > 0 ? (
           <Card>
-            <SectionLabel>Links ({resolvedLinks.length})</SectionLabel>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              {resolvedLinks.map((lk, i) => {
-                const cat = relCategory(lk);
-                const style = linkCategories[cat] ?? linkCategories._default;
-                // Determine display text and href
-                let displayText: string;
-                let targetHref: string | undefined;
-                let onClick: (() => void) | undefined;
-                if (lk.resolved) {
-                  const r = lk.resolved;
-                  displayText = r.title ?? "Untitled";
-                  targetHref = r.rlinks?.[0]?.href;
-                  if (!targetHref) onClick = () => navigate(`res-${r.uuid}`);
-                } else if (!lk.href.startsWith("#")) {
-                  displayText = lk.text ?? lk.href;
-                  targetHref = lk.href;
-                } else {
-                  return null;
-                }
-                const common: CSSProperties = {
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: "5px 14px",
-                  borderRadius: radii.pill,
-                  backgroundColor: style.bg,
-                  color: style.fg,
-                  border: `1px solid ${style.border}`,
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  transition: "filter 0.15s",
-                  whiteSpace: "nowrap",
-                };
-                return targetHref ? (
-                  <a
-                    key={i}
-                    href={targetHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={common}
-                  >
-                    {displayText}
-                  </a>
-                ) : (
-                  <span key={i} onClick={onClick} style={common}>
-                    {displayText}
-                  </span>
-                );
-              })}
-            </div>
-
-            {/* Legend */}
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 14,
-                paddingTop: 8,
-                borderTop: `1px solid ${colors.bg}`,
-              }}
-            >
-              {[...usedCategories].map((cat) => {
-                const s = linkCategories[cat] ?? linkCategories._default;
-                return (
-                  <div
-                    key={cat}
-                    style={{ display: "flex", alignItems: "center", gap: 5 }}
-                  >
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        backgroundColor: s.bg === colors.darkNavy ? s.bg : s.fg,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ fontSize: 11, color: colors.gray }}>
-                      {s.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <LinkChips links={chips} />
           </Card>
-        );
+        ) : null;
       })()}
 
       {/* Properties */}

@@ -15,6 +15,8 @@ import {
 } from "react";
 import { colors, fonts, shadows, radii } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import LinkChips from "../components/LinkChips";
+import type { ResolvedLink } from "../components/LinkChips";
 import type {
   Catalog,
   Control,
@@ -1054,42 +1056,23 @@ function ControlView({ control, catalog, navigate }: {
       )}
 
       {/* Links / references */}
-      {resolvedLinks.length > 0 && (
-        <Card>
-          <SectionLabel>References ({resolvedLinks.length})</SectionLabel>
-          {resolvedLinks.map((lk, i) => {
-            if (lk.resource) {
-              const r = lk.resource;
-              const href = r.rlinks?.[0]?.href;
-              const title = r.title ?? r.citation?.text ?? "Untitled";
-              return (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${colors.bg}` }}>
-                  <IcoLink size={13} style={{ color: colors.brightBlue, flexShrink: 0 }} />
-                  {href ? (
-                    <a href={href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: colors.brightBlue, flex: 1 }}>
-                      {title}
-                    </a>
-                  ) : (
-                    <span style={{ fontSize: 13, color: colors.black, flex: 1 }}>{title}</span>
-                  )}
-                  {lk.rel && <span style={{ fontSize: 11, color: colors.gray }}>{lk.rel}</span>}
-                </div>
-              );
-            }
-            if (!lk.href.startsWith("#")) {
-              return (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${colors.bg}` }}>
-                  <IcoLink size={13} style={{ color: colors.brightBlue, flexShrink: 0 }} />
-                  <a href={lk.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: colors.brightBlue, flex: 1 }}>
-                    {lk.text ?? lk.href}
-                  </a>
-                </div>
-              );
-            }
-            return null;
-          })}
-        </Card>
-      )}
+      {resolvedLinks.length > 0 && (() => {
+        const chips: ResolvedLink[] = resolvedLinks.map((lk) => {
+          if (lk.resource) {
+            const r = lk.resource;
+            return { text: r.title ?? r.citation?.text ?? "Untitled", href: r.rlinks?.[0]?.href, rel: lk.rel };
+          }
+          if (!lk.href.startsWith("#")) {
+            return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
+          }
+          return null;
+        }).filter(Boolean) as ResolvedLink[];
+        return chips.length > 0 ? (
+          <Card>
+            <LinkChips links={chips} />
+          </Card>
+        ) : null;
+      })()}
 
       {/* Enhancements */}
       {enhancements.length > 0 && (

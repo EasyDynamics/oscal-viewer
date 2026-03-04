@@ -15,6 +15,7 @@ import {
 import { Marked } from "marked";
 import { colors, fonts, radii, shadows } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import LinkChips from "../components/LinkChips";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -241,15 +242,6 @@ function IcoHome({ size = 16, style }: IconProps) {
     </svg>
   );
 }
-function IcoLink({ size = 13, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-    </svg>
-  );
-}
 function IcoRight({ size = 14, style }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -415,8 +407,6 @@ function StepCard({ step, index, hCtrl, onCtrl }: {
   step: StepParsed; index: number; hCtrl: string; onCtrl: (c: string) => void;
 }) {
   const hit = hCtrl && step.controls.includes(hCtrl);
-  const refs = step.links.filter((l) => l.rel === "reference");
-  const mitre = step.links.filter((l) => l.rel === "mitre");
   return (
     <div style={{
       background: hit ? "#FFFAF5" : "#fff",
@@ -446,21 +436,16 @@ function StepCard({ step, index, hCtrl, onCtrl }: {
           {step.remarks}
         </p>
       )}
-      {(refs.length > 0 || mitre.length > 0) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 5, marginLeft: 30, alignItems: "center" }}>
-          {refs.map((l, i) => (
-            <a key={i} href={l.href} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 10.5, color: colors.cobalt, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3, fontFamily: fonts.sans }}>
-              <IcoLink size={11} />{l.text || "Reference"}
-            </a>
-          ))}
-          {mitre.map((l, i) => (
-            <a key={i} href={l.href} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 10, color: colors.white, background: colors.darkNavy, padding: "1px 6px", borderRadius: 2, textDecoration: "none", fontFamily: fonts.mono, fontWeight: 500 }}>
-              {l.text || l.href.split("/").pop()}
-            </a>
-          ))}
-        </div>
+      {step.links.length > 0 && (
+        <LinkChips
+          links={step.links.map((l) => ({
+            text: l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : "Reference"),
+            href: l.href,
+            rel: l.rel || undefined,
+          }))}
+          label={null}
+          style={{ marginTop: 5, marginLeft: 30 }}
+        />
       )}
     </div>
   );

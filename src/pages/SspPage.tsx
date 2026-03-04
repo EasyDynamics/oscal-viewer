@@ -15,6 +15,7 @@ import {
 import { Marked } from "marked";
 import { colors, fonts, radii, shadows } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import LinkChips from "../components/LinkChips";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -88,6 +89,7 @@ interface ImplementedRequirement {
   statements: SspStatement[];
   byComponents: { componentUuid: string; uuid: string; description: string }[];
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
+  links: { href: string; rel?: string; text?: string }[];
 }
 
 interface SystemCharacteristics {
@@ -255,6 +257,9 @@ function parseSsp(raw: any): SspParsed {
     })),
     responsibleRoles: (ir["responsible-roles"] || []).map((rr: any) => ({
       roleId: rr["role-id"] || "", partyUuids: rr["party-uuids"] || [],
+    })),
+    links: (ir.links || []).map((l: any) => ({
+      href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
     })),
   }));
 
@@ -1455,6 +1460,19 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
               </div>
             );
           })()}
+        </Card>
+      )}
+
+      {/* Links */}
+      {ir.links.length > 0 && (
+        <Card>
+          <LinkChips
+            links={ir.links.map((l) => ({
+              text: l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : l.href),
+              href: l.href,
+              rel: l.rel,
+            }))}
+          />
         </Card>
       )}
 

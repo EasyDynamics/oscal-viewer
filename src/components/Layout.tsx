@@ -49,11 +49,10 @@ export default function Layout() {
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    backgroundColor: m.color,
+                    backgroundColor: colors.gray,
                     display: "inline-block",
                     marginRight: 6,
                     flexShrink: 0,
-                    filter: "grayscale(60%)",
                   }}
                 />
                 {m.label}
@@ -69,32 +68,21 @@ export default function Layout() {
               }
             >
               <span
+                title={loaded ? `${m.label} file loaded` : undefined}
                 style={{
                   width: 8,
                   height: 8,
                   borderRadius: "50%",
-                  backgroundColor: m.color,
+                  backgroundColor: loaded ? m.color : colors.gray,
                   display: "inline-block",
                   marginRight: 6,
                   flexShrink: 0,
+                  boxSizing: "content-box" as const,
+                  border: loaded ? "2px solid #22c55e" : "2px solid transparent",
+                  boxShadow: loaded ? "0 0 4px #22c55e88" : "none",
                 }}
               />
               {m.label}
-              {loaded && (
-                <span
-                  title={`${m.label} file loaded`}
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    backgroundColor: "#22c55e",
-                    display: "inline-block",
-                    marginLeft: 6,
-                    flexShrink: 0,
-                    boxShadow: "0 0 4px #22c55e88",
-                  }}
-                />
-              )}
             </NavLink>
           );
         })}
