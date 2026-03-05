@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { Marked } from "marked";
-import { colors, fonts, radii, shadows } from "../theme/tokens";
+import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import LinkChips from "../components/LinkChips";
 
@@ -374,7 +374,7 @@ function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string 
       <div style={{ marginBottom: 24 }}>
         <IcoShield size={48} style={{ color: colors.purple }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>OSCAL Assessment Plan Viewer</h2>
-        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>Easy Dynamics — Client-Side Viewer</p>
+        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>{brand.footerText}</p>
       </div>
       <div onClick={handleClick}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -674,7 +674,7 @@ function OverviewView({ plan, stats, allControls, hCtrl, onCtrl, onSelectActivit
             background: "#fff", borderRadius: 8,
             border: `1px solid ${matchCount > 0 ? colors.orange : colors.paleGray}`,
             padding: "14px 18px", marginBottom: 10, cursor: "pointer", transition: "all 0.15s",
-            boxShadow: matchCount > 0 ? `0 0 0 1px ${colors.orange}22` : "0 1px 3px rgba(0,0,0,0.04)",
+            boxShadow: matchCount > 0 ? `0 0 0 1px ${alpha(colors.orange, 13)}` : "0 1px 3px rgba(0,0,0,0.04)",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -919,10 +919,10 @@ export default function AssessmentPlanPage() {
       {/* Top bar */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>ED</div>
+          <div style={S.topBarLogo}>{brand.logoText}</div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>OSCAL Assessment Plan Viewer</div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>Easy Dynamics</div>
+            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>

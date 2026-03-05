@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Global Styles — Easy Dynamics Brand
+   Global Styles
    Imported once in main.tsx; every page inherits these styles.
+   Colors use CSS custom properties injected by applyTheme().
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap');
@@ -19,8 +20,8 @@
   font-family: 'Roboto', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-weight: 400;
   line-height: 1.5;
-  color: #1C2327;
-  background-color: #F4F5F7;
+  color: var(--color-black);
+  background-color: var(--color-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -37,7 +38,7 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Roboto', sans-serif;
   font-weight: 700;
-  color: #002868;
+  color: var(--color-navy);
   line-height: 1.25;
 }
 
@@ -52,12 +53,12 @@ p {
 }
 
 a {
-  color: #02317F;
+  color: var(--color-bright-blue);
   text-decoration: none;
   font-weight: 500;
 }
 a:hover {
-  color: #FF6600;
+  color: var(--color-orange);
 }
 
 code, pre {
@@ -67,8 +68,8 @@ code, pre {
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #CFCED3; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #9B9DAA; }
+::-webkit-scrollbar-thumb { background: var(--color-pale-gray); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-gray); }
 
 /* ── Buttons ── */
 button {
@@ -82,7 +83,7 @@ button:hover {
   filter: brightness(1.05);
 }
 button:focus-visible {
-  outline: 2px solid #FF6600;
+  outline: 2px solid var(--color-orange);
   outline-offset: 2px;
 }
 
@@ -97,16 +98,16 @@ button:focus-visible {
 .oscal-markup li { margin-bottom: 0.15em; }
 .oscal-markup code {
   font-size: 0.85em;
-  background: #F4F5F7;
+  background: var(--color-bg);
   padding: 1px 5px;
   border-radius: 3px;
-  border: 1px solid #CFCED3;
+  border: 1px solid var(--color-pale-gray);
 }
 .oscal-markup pre {
-  background: #F4F5F7;
+  background: var(--color-bg);
   padding: 8px 12px;
   border-radius: 4px;
-  border: 1px solid #CFCED3;
+  border: 1px solid var(--color-pale-gray);
   overflow-x: auto;
   font-size: 0.85em;
   margin: 0.5em 0;
@@ -116,15 +117,15 @@ button:focus-visible {
   border: none;
   padding: 0;
 }
-.oscal-markup a { color: #02317F; text-decoration: underline; }
-.oscal-markup a:hover { color: #FF6600; }
+.oscal-markup a { color: var(--color-bright-blue); text-decoration: underline; }
+.oscal-markup a:hover { color: var(--color-orange); }
 .oscal-markup strong { font-weight: 600; }
 .oscal-markup em { font-style: italic; }
 .oscal-markup blockquote {
-  border-left: 3px solid #CFCED3;
+  border-left: 3px solid var(--color-pale-gray);
   margin: 0.5em 0;
   padding: 0.25em 0 0.25em 12px;
-  color: #6D8CA4;
+  color: var(--color-blue-gray);
 }
 .oscal-markup table {
   border-collapse: collapse;
@@ -133,11 +134,11 @@ button:focus-visible {
 }
 .oscal-markup th,
 .oscal-markup td {
-  border: 1px solid #CFCED3;
+  border: 1px solid var(--color-pale-gray);
   padding: 4px 8px;
   text-align: left;
 }
 .oscal-markup th {
-  background: #F4F5F7;
+  background: var(--color-bg);
   font-weight: 600;
 }

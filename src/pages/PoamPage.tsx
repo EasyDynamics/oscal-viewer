@@ -13,7 +13,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { colors, fonts, shadows, radii } from "../theme/tokens";
+import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
@@ -436,12 +436,12 @@ export default function PoamPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>ED</div>
+          <div style={S.topBarLogo}>{brand.logoText}</div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
               OSCAL POA&amp;M Viewer
             </div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>Easy Dynamics</div>
+            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -612,7 +612,7 @@ function NavRow({ id: _id, label, icon, active, onClick, depth, badge, statusCol
       style={{
         ...S.navItem,
         paddingLeft: 12 + depth * 16,
-        backgroundColor: active ? `${colors.red}11` : "transparent",
+        backgroundColor: active ? alpha(colors.red, 7) : "transparent",
         borderLeft: active ? `3px solid ${colors.red}` : statusColor ? `3px solid ${statusColor}` : "3px solid transparent",
         fontWeight: active ? 600 : 400,
         color: active ? colors.red : colors.black,
@@ -859,7 +859,7 @@ function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string 
       <div style={{ marginBottom: 24 }}>
         <IcoAlert size={48} style={{ color: colors.red }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>OSCAL POA&amp;M Viewer</h2>
-        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>Easy Dynamics — Client-Side Viewer</p>
+        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>{brand.footerText}</p>
       </div>
       <div
         onClick={handleClick}
@@ -1000,12 +1000,12 @@ function OverviewView({ poam, navigate, riskStatusCounts, obsMap, riskMap, findi
                   <RiskStatusBadge key={r.uuid} status={r.status} />
                 ))}
                 {relFindings.map((f) => (
-                  <span key={f.uuid} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: `${colors.cobalt}15`, color: colors.cobalt, fontWeight: 600 }}>
+                  <span key={f.uuid} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.cobalt, 8), color: colors.cobalt, fontWeight: 600 }}>
                     {f.target?.["target-id"]?.toUpperCase() ?? "Finding"}
                   </span>
                 ))}
                 {relObs.length > 0 && (
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: `${colors.brightBlue}15`, color: colors.brightBlue, fontWeight: 600 }}>
+                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.brightBlue, 8), color: colors.brightBlue, fontWeight: 600 }}>
                     {relObs.length} observation{relObs.length > 1 ? "s" : ""}
                   </span>
                 )}
@@ -1381,14 +1381,14 @@ function RiskView({ risk, navigate, obsMap }: {
                   <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{rem.title}</span>
                   <span style={{
                     fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: radii.pill,
-                    backgroundColor: `${colors.cobalt}15`, color: colors.cobalt, textTransform: "capitalize",
+                    backgroundColor: alpha(colors.cobalt, 8), color: colors.cobalt, textTransform: "capitalize",
                   }}>
                     {rem.lifecycle}
                   </span>
                   {remType && (
                     <span style={{
                       fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: radii.pill,
-                      backgroundColor: `${colors.orange}15`, color: colors.orange, textTransform: "capitalize",
+                      backgroundColor: alpha(colors.orange, 8), color: colors.orange, textTransform: "capitalize",
                     }}>
                       {remType}
                     </span>
@@ -1398,7 +1398,7 @@ function RiskView({ risk, navigate, obsMap }: {
 
                 {/* Milestones / Tasks */}
                 {rem.tasks && rem.tasks.length > 0 && (
-                  <div style={{ paddingLeft: 16, borderLeft: `3px solid ${colors.cobalt}22` }}>
+                  <div style={{ paddingLeft: 16, borderLeft: `3px solid ${alpha(colors.cobalt, 13)}` }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: colors.cobalt, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.8 }}>
                       Milestones ({rem.tasks.length})
                     </div>
@@ -1409,7 +1409,7 @@ function RiskView({ risk, navigate, obsMap }: {
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                             <IcoCheckCircle size={14} style={{ color: colors.cobalt }} />
                             <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{task.title}</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: `${colors.brightBlue}15`, color: colors.brightBlue }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: alpha(colors.brightBlue, 8), color: colors.brightBlue }}>
                               {task.type}
                             </span>
                           </div>
@@ -1502,7 +1502,7 @@ function FindingView({ finding, navigate, obsMap, riskMap }: {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {finding.target?.status?.state && <FindingStatusBadge state={finding.target.status.state} />}
         {finding.target?.["target-id"] && (
-          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: radii.pill, backgroundColor: `${colors.cobalt}15`, color: colors.cobalt }}>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: radii.pill, backgroundColor: alpha(colors.cobalt, 8), color: colors.cobalt }}>
             {finding.target["target-id"].toUpperCase()}
           </span>
         )}
@@ -1615,7 +1615,7 @@ function ObservationView({ obs, navigate }: {
         {obs.methods.map((m) => (
           <span key={m} style={{
             fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: radii.pill,
-            backgroundColor: `${colors.brightBlue}15`, color: colors.brightBlue, textTransform: "uppercase",
+            backgroundColor: alpha(colors.brightBlue, 8), color: colors.brightBlue, textTransform: "uppercase",
           }}>
             {m}
           </span>
@@ -1623,7 +1623,7 @@ function ObservationView({ obs, navigate }: {
         {obs.types?.map((t) => (
           <span key={t} style={{
             fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: radii.pill,
-            backgroundColor: `${colors.navy}15`, color: colors.navy,
+            backgroundColor: alpha(colors.navy, 8), color: colors.navy,
           }}>
             {t}
           </span>

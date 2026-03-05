@@ -1,38 +1,25 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Easy Dynamics Brand — Design Tokens
+   Design Tokens
    Centralized color palette, typography, and spacing constants.
+   Colors resolve to CSS custom properties injected by applyTheme().
    All pages/components import from here to stay on-brand.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Tier 1: Primary Colors ── */
-export const colors = {
-  navy: "#002868",
-  orange: "#FF6600",
-  yellow: "#FEB300",
-  gray: "#9B9DAA",
+import { buildCssVarColors } from "./applyTheme";
+import { brand } from "./themeConfig";
 
-  /* ── Tier 2: Secondary Colors ── */
-  darkNavy: "#0A1352",
-  brightBlue: "#02317F",
-  paleGray: "#CFCED3",
-  black: "#1C2327",
+/* ── Colors (CSS variable references) ── */
+export const colors = buildCssVarColors();
 
-  /* ── Tier 3: Accent Colors ── */
-  cobalt: "#4166C5",
-  mint: "#48CDB6",
-  darkGreen: "#216570",
-  brightCyan: "#00B0F0",
-  purple: "#3A00A1",
-  blueGray: "#6D8CA4",
-  paleOrange: "#FF8E0F",
-  neonYellow: "#FFF33E",
-
-  /* ── Semantic / UI Colors ── */
-  white: "#FFFFFF",
-  bg: "#F4F5F7",
-  card: "#FFFFFF",
-  red: "#D32F2F",
-} as const;
+/**
+ * Create a transparent variant of any CSS variable color.
+ * Uses `color-mix()` so it works with `var(--color-*)` references.
+ * @param cssVar  e.g. `colors.navy`  (which is `"var(--color-navy)"`)
+ * @param pct     opacity percentage 0-100 (default 5)
+ */
+export function alpha(cssVar: string, pct: number = 5): string {
+  return `color-mix(in srgb, ${cssVar} ${pct}%, transparent)`;
+}
 
 /* ── Typography ── */
 export const fonts = {
@@ -127,3 +114,6 @@ export const oscalModels: OscalModel[] = [
     color: colors.red,
   },
 ];
+
+/* ── Re-export brand info for convenience ── */
+export { brand };

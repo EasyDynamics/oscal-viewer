@@ -4,7 +4,7 @@
 
 import { Link } from "react-router-dom";
 import type { CSSProperties } from "react";
-import { colors, fonts, oscalModels, shadows, radii } from "../theme/tokens";
+import { colors, fonts, oscalModels, shadows, radii, brand } from "../theme/tokens";
 import { IconShield, IconGrid } from "../components/Icons";
 
 export default function HomePage() {
@@ -14,7 +14,7 @@ export default function HomePage() {
       <div style={styles.banner}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <IconShield size={28} style={{ color: colors.orange }} />
-          <h1 style={styles.heading}>Edge OSCAL Viewer</h1>
+          <h1 style={styles.heading}>{brand.heading}</h1>
         </div>
         <p style={styles.subtitle}>
           A client-side tool for viewing and exploring OSCAL (Open Security

@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { Marked } from "marked";
-import { colors, fonts, radii, shadows } from "../theme/tokens";
+import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import LinkChips from "../components/LinkChips";
 import type {
@@ -669,9 +669,9 @@ function CatalogProseWithParams({
             <span key={i} title={`Parameter: ${paramId}`} style={{
               display: "inline", fontSize: 12, fontFamily: fonts.mono, fontWeight: 600,
               color: isSelection ? colors.cobalt : colors.orange,
-              backgroundColor: isSelection ? `${colors.cobalt}12` : `${colors.orange}12`,
+              backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
               padding: "1px 6px", borderRadius: radii.sm,
-              border: `1px solid ${isSelection ? `${colors.cobalt}33` : `${colors.orange}33`}`,
+              border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
               whiteSpace: "nowrap" as const,
             }}>
               {rendered}
@@ -781,7 +781,7 @@ function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string 
       <div style={{ marginBottom: 24 }}>
         <IcoShield size={48} style={{ color: colors.darkGreen }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>OSCAL System Security Plan Viewer</h2>
-        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>Easy Dynamics — Client-Side Viewer</p>
+        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>{brand.footerText}</p>
       </div>
       <div onClick={handleClick}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -1381,7 +1381,7 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                   display: "inline-flex", alignItems: "center", gap: 5,
                   padding: "8px 16px", fontSize: 12, fontWeight: isActive ? 700 : 500,
                   color: isActive ? colors.cobalt : colors.gray,
-                  background: isActive ? `${colors.cobalt}0A` : "transparent",
+                  background: isActive ? alpha(colors.cobalt, 4) : "transparent",
                   border: "none", borderBottom: isActive ? `2px solid ${colors.cobalt}` : "2px solid transparent",
                   cursor: "pointer", transition: "all .12s", marginBottom: -2, fontFamily: fonts.sans,
                 }}>
@@ -1435,8 +1435,8 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                           {catalogPart?.prose ? (
                             <div style={{
                               fontSize: 12, color: colors.cobalt, lineHeight: 1.7,
-                              padding: "6px 10px", backgroundColor: `${colors.cobalt}08`,
-                              border: `1px solid ${colors.cobalt}22`, borderRadius: radii.sm,
+                              padding: "6px 10px", backgroundColor: alpha(colors.cobalt, 3),
+                              border: `1px solid ${alpha(colors.cobalt, 13)}`, borderRadius: radii.sm,
                               marginBottom: 8, fontStyle: "italic",
                             }}>
                               <CatalogProseWithParams text={catalogPart.prose} paramMap={catalogParamMap} />
@@ -1801,10 +1801,10 @@ export default function SspPage() {
       {/* Top Bar */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>ED</div>
+          <div style={S.topBarLogo}>{brand.logoText}</div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>OSCAL System Security Plan Viewer</div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>Easy Dynamics</div>
+            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -1831,7 +1831,7 @@ export default function SspPage() {
                 style={{
                   ...S.navItem,
                   paddingLeft: 12 + item.depth * 16,
-                  backgroundColor: isActive ? `${colors.orange}11` : "transparent",
+                  backgroundColor: isActive ? alpha(colors.orange, 7) : "transparent",
                   borderLeft: isActive ? `3px solid ${colors.orange}` : "3px solid transparent",
                   fontWeight: isActive ? 600 : 400,
                   color: isActive ? colors.orange : colors.black,

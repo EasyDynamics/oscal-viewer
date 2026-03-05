@@ -9,6 +9,11 @@ import { colors, fonts } from "../theme/tokens";
 
 /* ── Category color map ── */
 
+/** Create a near-transparent background from a CSS variable color */
+function alphaBg(cssVar: string): string {
+  return `color-mix(in srgb, ${cssVar} 5%, transparent)`;
+}
+
 const LINK_CATEGORIES: Record<
   string,
   { label: string; border: string; fg: string; bg: string; mono?: boolean }
@@ -17,32 +22,32 @@ const LINK_CATEGORIES: Record<
     label: "MITRE ATT&CK",
     border: colors.darkNavy,
     fg: colors.darkNavy,
-    bg: `${colors.darkNavy}0C`,
+    bg: alphaBg(colors.darkNavy),
     mono: true,
   },
   reference: {
     label: "Reference",
     border: colors.cobalt,
     fg: colors.cobalt,
-    bg: `${colors.cobalt}0C`,
+    bg: alphaBg(colors.cobalt),
   },
   related: {
     label: "Related",
     border: colors.darkGreen,
     fg: colors.darkGreen,
-    bg: `${colors.darkGreen}0C`,
+    bg: alphaBg(colors.darkGreen),
   },
   required: {
     label: "Required",
     border: colors.orange,
     fg: colors.orange,
-    bg: `${colors.orange}0C`,
+    bg: alphaBg(colors.orange),
   },
   _default: {
     label: "Link",
     border: colors.blueGray,
     fg: colors.blueGray,
-    bg: `${colors.blueGray}0C`,
+    bg: alphaBg(colors.blueGray),
   },
 };
 

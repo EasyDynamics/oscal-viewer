@@ -14,7 +14,7 @@ import {
   type ReactNode,
 } from "react";
 import { Marked } from "marked";
-import { colors, fonts, shadows, radii } from "../theme/tokens";
+import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
@@ -693,12 +693,12 @@ export default function ComponentDefinitionPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>ED</div>
+          <div style={S.topBarLogo}>{brand.logoText}</div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
               OSCAL Component Definition Viewer
             </div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>Easy Dynamics</div>
+            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -727,7 +727,7 @@ export default function ComponentDefinitionPage() {
                 style={{
                   ...S.navItem,
                   paddingLeft: 12 + item.depth * 16,
-                  backgroundColor: isActive ? `${colors.orange}11` : "transparent",
+                  backgroundColor: isActive ? alpha(colors.orange, 7) : "transparent",
                   borderLeft: isActive
                     ? `3px solid ${colors.orange}`
                     : "3px solid transparent",
@@ -1082,7 +1082,7 @@ function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string 
           OSCAL Component Definition Viewer
         </h2>
         <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>
-          Easy Dynamics — Client-Side Viewer
+          {brand.footerText}
         </p>
       </div>
       <div
@@ -1776,12 +1776,12 @@ function CatalogProseWithParams({
                 fontWeight: 600,
                 color: isSelection ? colors.cobalt : colors.orange,
                 backgroundColor: isSelection
-                  ? `${colors.cobalt}12`
-                  : `${colors.orange}12`,
+                  ? alpha(colors.cobalt, 7)
+                  : alpha(colors.orange, 7),
                 padding: "1px 6px",
                 borderRadius: radii.sm,
                 border: `1px solid ${
-                  isSelection ? `${colors.cobalt}33` : `${colors.orange}33`
+                  isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)
                 }`,
                 whiteSpace: "nowrap" as const,
               }}
@@ -2090,8 +2090,8 @@ function RequirementView({
                       color: colors.cobalt,
                       lineHeight: 1.7,
                       padding: "6px 10px",
-                      backgroundColor: `${colors.cobalt}08`,
-                      border: `1px solid ${colors.cobalt}22`,
+                      backgroundColor: alpha(colors.cobalt, 3),
+                      border: `1px solid ${alpha(colors.cobalt, 13)}`,
                       borderRadius: radii.sm,
                       marginBottom: 8,
                       fontStyle: "italic",

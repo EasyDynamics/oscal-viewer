@@ -5,7 +5,7 @@
 
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { CSSProperties } from "react";
-import { colors, fonts, oscalModels, shadows } from "../theme/tokens";
+import { colors, fonts, oscalModels, shadows, brand } from "../theme/tokens";
 import { IconShield } from "./Icons";
 import { useOscal } from "../context/OscalContext";
 
@@ -19,10 +19,10 @@ export default function Layout() {
       <header style={styles.header}>
         <NavLink to="/" style={styles.brand}>
           <IconShield size={22} style={{ color: colors.orange, marginRight: 8 }} />
-          <span style={styles.brandText}>Edge OSCAL</span>
+          <span style={styles.brandText}>{brand.appName}</span>
         </NavLink>
 
-        <span style={styles.tagline}>Easy Dynamics</span>
+        <span style={styles.tagline}>{brand.tagline}</span>
       </header>
 
       {/* ── Tab Navigation ── */}

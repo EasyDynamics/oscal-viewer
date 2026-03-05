@@ -14,7 +14,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { colors, fonts, shadows, radii } from "../theme/tokens";
+import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
@@ -111,19 +111,19 @@ interface AssessmentResults {
 
 /** Status color mapping for observation results */
 const STATUS_COLORS: Record<string, { bg: string; fg: string; border: string }> = {
-  Pass:                  { bg: "#e8f5e9", fg: "#2e7d32", border: "#4caf50" },
-  Fail:                  { bg: "#ffebee", fg: "#c62828", border: "#ef5350" },
-  Error:                 { bg: "#fff3e0", fg: "#e65100", border: "#ff9800" },
-  "N/A":                 { bg: "#f3e5f5", fg: "#6a1b9a", border: "#ab47bc" },
-  "Error - Test results missing": { bg: "#fff3e0", fg: "#e65100", border: "#ff9800" },
+  Pass:                  { bg: colors.statusPassBg, fg: colors.statusPassFg, border: colors.statusPassBorder },
+  Fail:                  { bg: colors.statusFailBg, fg: colors.statusFailFg, border: colors.statusFailBorder },
+  Error:                 { bg: colors.statusErrorBg, fg: colors.statusErrorFg, border: colors.statusErrorBorder },
+  "N/A":                 { bg: colors.statusNaBg, fg: colors.statusNaFg, border: colors.statusNaBorder },
+  "Error - Test results missing": { bg: colors.statusErrorBg, fg: colors.statusErrorFg, border: colors.statusErrorBorder },
 };
 
 const CRITICALITY_COLORS: Record<string, { bg: string; fg: string }> = {
-  Shall:                                { bg: `${colors.red}15`, fg: colors.red },
-  "Shall/Not-Implemented":              { bg: `${colors.red}15`, fg: colors.red },
-  Should:                               { bg: `${colors.orange}15`, fg: colors.orange },
-  "Should/Not-Implemented":             { bg: `${colors.orange}15`, fg: colors.orange },
-  May:                                  { bg: `${colors.cobalt}15`, fg: colors.cobalt },
+  Shall:                                { bg: alpha(colors.red, 8), fg: colors.red },
+  "Shall/Not-Implemented":              { bg: alpha(colors.red, 8), fg: colors.red },
+  Should:                               { bg: alpha(colors.orange, 8), fg: colors.orange },
+  "Should/Not-Implemented":             { bg: alpha(colors.orange, 8), fg: colors.orange },
+  May:                                  { bg: alpha(colors.cobalt, 8), fg: colors.cobalt },
   "-":                                  { bg: colors.bg, fg: colors.gray },
 };
 
@@ -442,12 +442,12 @@ export default function AssessmentResultsPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>ED</div>
+          <div style={S.topBarLogo}>{brand.logoText}</div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
               OSCAL Assessment Results Viewer
             </div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>Easy Dynamics</div>
+            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -598,7 +598,7 @@ function NavRow({ id: _id, label, icon, active, onClick, depth, badge, hasChildr
       style={{
         ...S.navItem,
         paddingLeft: 12 + depth * 16,
-        backgroundColor: active ? `${colors.orange}11` : "transparent",
+        backgroundColor: active ? alpha(colors.orange, 7) : "transparent",
         borderLeft: active ? `3px solid ${colors.orange}` : statusColor ? `3px solid ${statusColor}` : "3px solid transparent",
         fontWeight: active ? 600 : 400,
         color: active ? colors.orange : colors.black,
@@ -872,7 +872,7 @@ function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string 
       <div style={{ marginBottom: 24 }}>
         <IcoCheck size={48} style={{ color: colors.orange }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>OSCAL Assessment Results Viewer</h2>
-        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>Easy Dynamics — Client-Side Viewer</p>
+        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>{brand.footerText}</p>
       </div>
       <div
         onClick={handleClick}
@@ -1413,7 +1413,7 @@ function CatalogContextCard({ catalog }: { catalog: OscalCatalog | null }) {
   }
 
   return (
-    <Card style={{ borderLeft: `4px solid ${colors.cobalt}22` }}>
+    <Card style={{ borderLeft: `4px solid ${alpha(colors.cobalt, 13)}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <IcoBook size={16} style={{ color: colors.cobalt }} />
         <div>
@@ -1490,10 +1490,10 @@ function CatalogProseWithParams({ text, paramMap }: { text: string; paramMap: Re
                 fontFamily: fonts.mono,
                 fontWeight: 600,
                 color: isSelection ? colors.cobalt : colors.orange,
-                backgroundColor: isSelection ? `${colors.cobalt}12` : `${colors.orange}12`,
+                backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
                 padding: "1px 6px",
                 borderRadius: radii.sm,
-                border: `1px solid ${isSelection ? `${colors.cobalt}33` : `${colors.orange}33`}`,
+                border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
                 whiteSpace: "nowrap",
               }}
             >

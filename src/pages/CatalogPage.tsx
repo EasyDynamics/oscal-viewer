@@ -13,7 +13,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { colors, fonts, shadows, radii } from "../theme/tokens";
+import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
@@ -351,12 +351,12 @@ export default function CatalogPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>ED</div>
+          <div style={S.topBarLogo}>{brand.logoText}</div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
               OSCAL Catalog Viewer
             </div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>Easy Dynamics</div>
+            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -422,7 +422,7 @@ function NavRow({ id: _id, label, icon, active, onClick, depth, badge, hasChildr
       style={{
         ...S.navItem,
         paddingLeft: 12 + depth * 16,
-        backgroundColor: active ? `${colors.orange}11` : "transparent",
+        backgroundColor: active ? alpha(colors.orange, 7) : "transparent",
         borderLeft: active ? `3px solid ${colors.orange}` : "3px solid transparent",
         fontWeight: active ? 600 : 400,
         color: active ? colors.orange : colors.black,
@@ -661,7 +661,7 @@ function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string 
       <div style={{ marginBottom: 24 }}>
         <IcoBook size={48} style={{ color: colors.navy }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>OSCAL Catalog Viewer</h2>
-        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>Easy Dynamics — Client-Side Viewer</p>
+        <p style={{ fontSize: 14, color: colors.gray, marginTop: 4 }}>{brand.footerText}</p>
       </div>
       <div
         onClick={handleClick}
@@ -1205,10 +1205,10 @@ function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<st
                 fontFamily: fonts.mono,
                 fontWeight: 600,
                 color: isSelection ? colors.cobalt : colors.orange,
-                backgroundColor: isSelection ? `${colors.cobalt}12` : `${colors.orange}12`,
+                backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
                 padding: "1px 6px",
                 borderRadius: radii.sm,
-                border: `1px solid ${isSelection ? `${colors.cobalt}33` : `${colors.orange}33`}`,
+                border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
                 whiteSpace: "nowrap",
               }}
             >

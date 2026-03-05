@@ -30,7 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build
-        run: npm run build
+        run: npx vite build
+        env:
+          VITE_THEME: ${{ vars.VITE_THEME || 'easydynamics' }}
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
       - name: Get Id Token
