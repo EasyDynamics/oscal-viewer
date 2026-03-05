@@ -1975,6 +1975,7 @@ function RequirementView({
   resMap: Record<string, Resource>;
   catalog: OscalCatalog | null;
 }) {
+  const impl = comp["control-implementations"]?.[implIdx];
   const status =
     (req.props ?? []).find((p) => p.name === "implementation-status")?.value ??
     "unknown";
@@ -2009,7 +2010,7 @@ function RequirementView({
           { id: `comp-${compIdx}`, label: comp.title },
           {
             id: `comp-${compIdx}-ci-${implIdx}`,
-            label: implLabel(impl, implIdx),
+            label: impl ? implLabel(impl, implIdx) : `Control Implementation ${implIdx + 1}`,
           },
           {
             id: `req-${req.uuid}`,
