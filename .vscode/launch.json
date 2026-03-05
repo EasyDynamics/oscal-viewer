@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Edge OSCAL (Edge)",
+      "name": "Launch OSCAL Viewer (Edge)",
       "type": "msedge",
       "request": "launch",
       "url": "http://localhost:5173",
@@ -10,7 +10,7 @@
       "preLaunchTask": "dev"
     },
     {
-      "name": "Launch Edge OSCAL (Chrome)",
+      "name": "Launch OSCAL Viewer (Chrome)",
       "type": "chrome",
       "request": "launch",
       "url": "http://localhost:5173",

@@ -8,11 +8,11 @@ const easydynamics: ThemeDefinition = {
   id: "easydynamics",
 
   brand: {
-    appName: "Edge OSCAL",
-    heading: "Edge OSCAL Viewer",
+    appName: "OSCAL Viewer",
+    heading: "OSCAL Viewer",
     tagline: "Easy Dynamics",
     footerText: "Easy Dynamics — Client-Side Viewer",
-    pageTitle: "Edge OSCAL",
+    pageTitle: "OSCAL Viewer",
     favicon: "/favicon.svg",
     logoText: "ED",
   },

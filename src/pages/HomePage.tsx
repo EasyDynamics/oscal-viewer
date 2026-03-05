@@ -5,7 +5,7 @@
 import { Link } from "react-router-dom";
 import type { CSSProperties } from "react";
 import { colors, fonts, oscalModels, shadows, radii, brand } from "../theme/tokens";
-import { IconShield, IconGrid } from "../components/Icons";
+import { IconShield, IconGrid, IconAlertTriangle } from "../components/Icons";
 
 export default function HomePage() {
   return (
@@ -21,13 +21,33 @@ export default function HomePage() {
           <h1 style={styles.heading}>{brand.heading}</h1>
         </div>
         <p style={styles.subtitle}>A client-side tool for viewing and exploring OSCAL (Open Security Controls Assessment Language) documents. Select a model below to get started.</p>
-      </div>
 
-      {/* Profile disclaimer */}
-      <div style={styles.disclaimer}>
-        <strong>Note:</strong> Profile support is available for viewing profile
-        documents, but all downstream models (SSP, Component Definition, etc.)
-        reference <em>catalogs</em> for control information — not profiles.
+        {/* Inline notes row */}
+        <div style={styles.notesRow}>
+          <div style={styles.noteCard}>
+            <div style={styles.noteHeader}>
+              <IconShield size={16} style={{ color: colors.navy, flexShrink: 0 }} />
+              <span style={styles.noteLabel}>Privacy</span>
+            </div>
+            <p style={styles.noteText}>
+              This tool is self-contained in your browser. Your OSCAL data never leaves your machine.
+              There is no server. There is no database. There is no cloud.
+              There is only your browser tab, doing all the work, asking for nothing in return.
+              Not even a cookie. 🍪
+            </p>
+          </div>
+          <div style={styles.noteCard}>
+            <div style={styles.noteHeader}>
+              <IconAlertTriangle size={16} style={{ color: colors.yellow, flexShrink: 0 }} />
+              <span style={styles.noteLabel}>Heads up</span>
+            </div>
+            <p style={styles.noteText}>
+              Profile support is available for viewing profile documents, but all
+              downstream models (SSP, Component Definition, etc.) reference <em>catalogs</em> for
+              control information — not profiles.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Model cards grid */}
@@ -97,17 +117,38 @@ const styles: Record<string, CSSProperties> = {
     color: colors.black,
     lineHeight: 1.7,
     marginTop: 4,
+    marginBottom: 0,
   },
-  disclaimer: {
+  notesRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 16,
+    marginTop: 20,
+  },
+  noteCard: {
+    backgroundColor: colors.bg,
+    border: `1px solid ${colors.paleGray}`,
+    borderRadius: radii.sm,
+    padding: "12px 14px",
+  },
+  noteHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  noteLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.04em",
+    color: colors.navy,
+  },
+  noteText: {
     fontSize: 13,
     lineHeight: 1.6,
     color: colors.black,
-    backgroundColor: colors.bg,
-    border: `1px solid ${colors.paleGray}`,
-    borderLeft: `4px solid ${colors.yellow}`,
-    borderRadius: radii.sm,
-    padding: "12px 16px",
-    marginBottom: 24,
+    margin: 0,
   },
   grid: {
     display: "grid",

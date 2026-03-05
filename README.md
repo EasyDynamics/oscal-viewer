@@ -1,4 +1,4 @@
-# Edge OSCAL
+# OSCAL Viewer
 
 A client-side React application for viewing and navigating [OSCAL](https://pages.nist.gov/OSCAL/) (Open Security Controls Assessment Language) documents. Built by [Easy Dynamics](https://www.easydynamics.com/).
 
@@ -36,8 +36,8 @@ The **Component Definition** viewer is fully implemented with a sidebar navigati
 
 ```bash
 # Clone the repo
-git clone https://github.com/EasyDynamics/edge-oscal.git
-cd edge-oscal
+git clone https://github.com/EasyDynamics/oscal-viewer.git
+cd oscal-viewer
 
 # Install dependencies
 npm install
