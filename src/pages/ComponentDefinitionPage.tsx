@@ -185,6 +185,22 @@ function trunc(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "\u2026" : s;
 }
 
+/** Derive a human-readable label for a control implementation from its source URI. */
+function implLabel(impl: ControlImplementation, index: number): string {
+  try {
+    const url = new URL(impl.source);
+    // Use the filename without extension, cleaned up
+    const filename = url.pathname.split("/").pop() ?? "";
+    const name = filename.replace(/\.(json|xml|yaml|yml)$/i, "").replace(/[_-]/g, " ").trim();
+    if (name) return name;
+  } catch {
+    // source may not be a full URL — try using it directly
+    const cleaned = impl.source.replace(/\.(json|xml|yaml|yml)$/i, "").replace(/[_-]/g, " ").trim();
+    if (cleaned) return cleaned;
+  }
+  return `Control Implementation ${index + 1}`;
+}
+
 /* ── Catalog lookup helpers ── */
 
 /** Find a control by ID anywhere in the catalog (groups, sub-groups, and enhancements) */
@@ -558,7 +574,7 @@ export default function ComponentDefinitionPage() {
         const reqCount = impl["implemented-requirements"].length;
         items.push({
           id: implId,
-          label: `Control Impl. ${ii + 1}`,
+          label: implLabel(impl, ii),
           icon: "layers",
           color: colors.brightBlue,
           depth: 1,
@@ -715,14 +731,8 @@ export default function ComponentDefinitionPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          {brand.logoUrl
-            ? <img src={brand.logoUrl} alt={brand.appName} style={{ height: 22 }} />
-            : <div style={S.topBarLogo}>{brand.logoText}</div>}
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
-              OSCAL Component Definition Viewer
-            </div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
+            OSCAL Component Definition Viewer
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -1582,7 +1592,7 @@ function ComponentView({
                   color: colors.brightBlue,
                 }}
               >
-                Control Implementation #{ii + 1}
+                {implLabel(impl, ii)}
               </span>
               <span style={{ fontSize: 12, color: colors.gray }}>
                 — {impl["implemented-requirements"].length} requirements
@@ -1639,7 +1649,7 @@ function ControlImplView({
           { id: `comp-${compIdx}`, label: comp.title },
           {
             id: `comp-${compIdx}-ci-${implIdx}`,
-            label: `Control Impl. #${implIdx + 1}`,
+            label: implLabel(impl, implIdx),
           },
         ]}
         navigate={navigate}
@@ -1654,7 +1664,7 @@ function ControlImplView({
       >
         <IcoLayers size={22} style={{ color: colors.brightBlue }} />
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
-          Control Implementation #{implIdx + 1}
+          {implLabel(impl, implIdx)}
         </h1>
       </div>
 
@@ -1999,7 +2009,7 @@ function RequirementView({
           { id: `comp-${compIdx}`, label: comp.title },
           {
             id: `comp-${compIdx}-ci-${implIdx}`,
-            label: `Control Impl. #${implIdx + 1}`,
+            label: implLabel(impl, implIdx),
           },
           {
             id: `req-${req.uuid}`,

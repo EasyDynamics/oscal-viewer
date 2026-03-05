@@ -374,14 +374,8 @@ export default function CatalogPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          {brand.logoUrl
-            ? <img src={brand.logoUrl} alt={brand.appName} style={{ height: 22 }} />
-            : <div style={S.topBarLogo}>{brand.logoText}</div>}
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
-              OSCAL Catalog Viewer
-            </div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
+            OSCAL Catalog Viewer
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -399,7 +393,7 @@ export default function CatalogPage() {
             <IcoSearch size={13} style={{ color: colors.gray, flexShrink: 0 }} />
             <input
               type="text"
-              placeholder="Search controls\u2026"
+              placeholder="Search controls"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={S.searchInput}

@@ -19,6 +19,14 @@ import { useOscal } from "../context/OscalContext";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import type {
+  Catalog as OscalCatalog,
+  Control as CatalogControl,
+  Group as CatalogGroup,
+  Part as CatalogPart,
+  Param as CatalogParam,
+  OscalProp as CatalogOscalProp,
+} from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    OSCAL POA&M TYPES
@@ -232,6 +240,95 @@ function daysUntil(dateStr: string): number {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   CATALOG CONTROL RENDERING — mirrors CatalogPage rendering for consistency
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const PART_SECTIONS: { name: string; label: string; icon: string; color: string }[] = [
+  { name: "overview", label: "Overview", icon: "info", color: colors.cobalt },
+  { name: "statement", label: "Statement", icon: "list", color: colors.navy },
+  { name: "guidance", label: "Guidance", icon: "book", color: colors.brightBlue },
+  { name: "example", label: "Examples", icon: "bulb", color: colors.orange },
+  { name: "assessment-method", label: "Assessment Method", icon: "check", color: colors.mint },
+];
+
+function renderParamText(param: CatalogParam, paramMap: Record<string, CatalogParam>): string {
+  if (param.select) {
+    const howMany = param.select["how-many"];
+    const prefix = howMany === "one-or-more" ? "Selection (one or more)" : "Selection";
+    const choices = (param.select.choice ?? []).map((c) => resolveInlineParams(c, paramMap));
+    return `[${prefix}: ${choices.join("; ")}]`;
+  }
+  const label = param.label ? resolveInlineParams(param.label, paramMap) : param.id;
+  return `[Assignment: ${label}]`;
+}
+
+function resolveInlineParams(text: string, paramMap: Record<string, CatalogParam>): string {
+  return text.replace(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/g, (_match, id: string) => {
+    const param = paramMap[id.trim()];
+    if (!param) return `[Assignment: ${id.trim()}]`;
+    return renderParamText(param, paramMap);
+  });
+}
+
+function getCatalogLabel(props?: CatalogOscalProp[]): string {
+  if (!props) return "";
+  const lbl = props.find((p) => p.name === "label" && p.class !== "zero-padded");
+  return lbl?.value ?? props.find((p) => p.name === "label")?.value ?? "";
+}
+
+function findCatalogControl(catalog: OscalCatalog, id: string): CatalogControl | undefined {
+  function searchGroup(g: CatalogGroup): CatalogControl | undefined {
+    for (const c of g.controls ?? []) {
+      if (c.id === id) return c;
+      for (const enh of c.controls ?? []) {
+        if (enh.id === id) return enh;
+      }
+    }
+    for (const sg of g.groups ?? []) {
+      const found = searchGroup(sg);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  for (const g of catalog.groups ?? []) {
+    const found = searchGroup(g);
+    if (found) return found;
+  }
+  for (const c of catalog.controls ?? []) {
+    if (c.id === id) return c;
+    for (const enh of c.controls ?? []) {
+      if (enh.id === id) return enh;
+    }
+  }
+  return undefined;
+}
+
+function findParentCatalogControl(catalog: OscalCatalog, enhId: string): CatalogControl | undefined {
+  function searchGroup(g: CatalogGroup): CatalogControl | undefined {
+    for (const c of g.controls ?? []) {
+      for (const enh of c.controls ?? []) {
+        if (enh.id === enhId) return c;
+      }
+    }
+    for (const sg of g.groups ?? []) {
+      const found = searchGroup(sg);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  for (const g of catalog.groups ?? []) {
+    const found = searchGroup(g);
+    if (found) return found;
+  }
+  for (const c of catalog.controls ?? []) {
+    for (const enh of c.controls ?? []) {
+      if (enh.id === enhId) return c;
+    }
+  }
+  return undefined;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    INLINE SVG ICONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -285,6 +382,249 @@ function IcoFlag({ size = 16, style }: IconProps) {
   return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" /></svg>;
 }
 
+/* ── Extra icons needed for catalog control rendering ── */
+function IcoList({ size = 16, style }: IconProps) {
+  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
+}
+function IcoBook({ size = 16, style }: IconProps) {
+  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
+}
+function IcoBulb({ size = 16, style }: IconProps) {
+  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z" /></svg>;
+}
+function IcoCheck({ size = 16, style }: IconProps) {
+  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
+}
+function IcoLink({ size = 14, style }: IconProps) {
+  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>;
+}
+
+function ctrlSectionIcon(icon: string, size = 16, style?: CSSProperties): ReactNode {
+  switch (icon) {
+    case "info": return <IcoInfo size={size} style={style} />;
+    case "list": return <IcoList size={size} style={style} />;
+    case "book": return <IcoBook size={size} style={style} />;
+    case "bulb": return <IcoBulb size={size} style={style} />;
+    case "check": return <IcoCheck size={size} style={style} />;
+    default: return <IcoInfo size={size} style={style} />;
+  }
+}
+
+/* ── ProseWithParams — render prose text with inline parameter pills ── */
+function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<string, CatalogParam> }) {
+  const parts = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
+  return (
+    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
+      {parts.map((segment, i) => {
+        const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
+        if (match) {
+          const paramId = match[1].trim();
+          const param = paramMap[paramId];
+          const rendered = param ? renderParamText(param, paramMap) : `[Assignment: ${paramId}]`;
+          const isSelection = param?.select != null;
+          return (
+            <span key={i} title={`Parameter: ${paramId}`} style={{
+              display: "inline", fontSize: 12, fontFamily: fonts.mono, fontWeight: 600,
+              color: isSelection ? colors.cobalt : colors.orange,
+              backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
+              padding: "1px 6px", borderRadius: radii.sm,
+              border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
+              whiteSpace: "nowrap",
+            }}>{rendered}</span>
+          );
+        }
+        return <span key={i}>{segment}</span>;
+      })}
+    </span>
+  );
+}
+
+/* ── PartTree — recursive hierarchical rendering of a control Part ── */
+function CtrlPartTree({ part, depth, paramMap }: { part: CatalogPart; depth: number; paramMap: Record<string, CatalogParam> }) {
+  const subParts = part.parts ?? [];
+  const partLabel = getCatalogLabel(part.props);
+  const depthColors = [colors.navy, colors.brightBlue, colors.cobalt, colors.gray, colors.blueGray];
+  const borderColor = depthColors[depth % depthColors.length];
+
+  return (
+    <div style={{
+      marginTop: depth === 0 ? 0 : 8,
+      paddingLeft: depth > 0 ? 16 : 0,
+      borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
+    }}>
+      {partLabel && (
+        <span style={{ fontSize: 12, fontWeight: 700, color: borderColor, fontFamily: fonts.mono, marginRight: 6 }}>
+          {partLabel}
+        </span>
+      )}
+      {part.prose && <ProseWithParams text={part.prose} paramMap={paramMap} />}
+      {part.links && part.links.length > 0 && (
+        <div style={{ marginTop: 4 }}>
+          {part.links.map((lk, i) => {
+            const frag = lk["resource-fragment"];
+            const display = frag ? `${lk.text ?? lk.href} — ${frag}` : (lk.text ?? lk.href);
+            return (
+              <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
+                <IcoLink size={11} style={{ color: colors.brightBlue }} />
+                <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: colors.brightBlue }}>{display}</a>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {subParts.length > 0 && (
+        <div style={{ marginTop: 6 }}>
+          {subParts.map((sp, i) => (
+            <CtrlPartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── ControlDetailPanel — expandable inline control information ── */
+function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog: OscalCatalog }) {
+  const [expanded, setExpanded] = useState(false);
+  const control = useMemo(() => findCatalogControl(catalog, controlId), [catalog, controlId]);
+
+  if (!control) return null;
+
+  const lbl = getCatalogLabel(control.props);
+  const allParts = control.parts ?? [];
+  const params = control.params ?? [];
+  const enhancements = control.controls ?? [];
+
+  // Build param map
+  const paramMap = useMemo(() => {
+    const map: Record<string, CatalogParam> = {};
+    const parent = findParentCatalogControl(catalog, control.id);
+    if (parent) (parent.params ?? []).forEach((p) => { map[p.id] = p; });
+    params.forEach((p) => { map[p.id] = p; });
+    enhancements.forEach((enh) => (enh.params ?? []).forEach((p) => { map[p.id] = p; }));
+    return map;
+  }, [catalog, control, params, enhancements]);
+
+  const sectionParts: Record<string, CatalogPart[]> = {};
+  PART_SECTIONS.forEach((s) => {
+    sectionParts[s.name] = allParts.filter((p) => p.name === s.name);
+  });
+
+  return (
+    <Card style={{ borderLeft: `4px solid ${colors.navy}` }}>
+      <div
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+          userSelect: "none",
+        }}
+      >
+        <IcoChev open={expanded} style={{ color: colors.navy }} />
+        <IcoShield size={16} style={{ color: colors.navy }} />
+        <span style={{ fontSize: 14, fontWeight: 700, color: colors.navy }}>
+          {lbl ? `${lbl} ` : ""}{control.title}
+        </span>
+        <span style={{
+          fontSize: 11, padding: "1px 8px", borderRadius: radii.pill,
+          backgroundColor: alpha(colors.navy, 8), color: colors.navy, fontWeight: 600,
+        }}>
+          Control Details
+        </span>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 16 }}>
+          {/* Control ID */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: colors.gray, fontFamily: fonts.mono }}>{control.id}</span>
+            {control.class && (
+              <span style={{
+                fontSize: 11, padding: "2px 10px", borderRadius: radii.pill,
+                backgroundColor: colors.bg, color: colors.gray, fontWeight: 600,
+                border: `1px solid ${colors.paleGray}`,
+              }}>{control.class}</span>
+            )}
+          </div>
+
+          {/* Part sections */}
+          {PART_SECTIONS.map((sec) => {
+            const pts = sectionParts[sec.name];
+            if (!pts || pts.length === 0) return null;
+            return (
+              <div key={sec.name} style={{
+                padding: "12px 16px", marginBottom: 12,
+                backgroundColor: colors.white, borderRadius: radii.md,
+                border: `1px solid ${colors.paleGray}`,
+                borderLeft: `4px solid ${sec.color}`,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  {ctrlSectionIcon(sec.icon, 16, { color: sec.color })}
+                  <span style={{ fontSize: 14, fontWeight: 700, color: sec.color }}>{sec.label}</span>
+                </div>
+                {pts.map((part, i) => (
+                  <CtrlPartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} />
+                ))}
+              </div>
+            );
+          })}
+
+          {/* Parameters summary */}
+          {params.length > 0 && (
+            <div style={{
+              padding: "12px 16px", marginBottom: 12,
+              backgroundColor: colors.white, borderRadius: radii.md,
+              border: `1px solid ${colors.paleGray}`,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: colors.orange }}>Parameters ({params.length})</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {params.map((p) => (
+                  <div key={p.id} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12 }}>
+                    <span style={{ fontFamily: fonts.mono, color: colors.gray, fontWeight: 600, minWidth: 100 }}>{p.id}</span>
+                    <span style={{
+                      fontFamily: fonts.mono, fontWeight: 600,
+                      color: p.select ? colors.cobalt : colors.orange,
+                      backgroundColor: p.select ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
+                      padding: "1px 6px", borderRadius: radii.sm,
+                      border: `1px solid ${p.select ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
+                    }}>{renderParamText(p, paramMap)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Enhancements list */}
+          {enhancements.length > 0 && (
+            <div style={{
+              padding: "12px 16px",
+              backgroundColor: colors.white, borderRadius: radii.md,
+              border: `1px solid ${colors.paleGray}`,
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: colors.cobalt }}>
+                Control Enhancements ({enhancements.length})
+              </span>
+              <div style={{ marginTop: 8 }}>
+                {enhancements.map((enh) => {
+                  const eLbl = getCatalogLabel(enh.props);
+                  return (
+                    <div key={enh.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12 }}>
+                      <span style={{ fontWeight: 600, color: colors.navy, minWidth: 70 }}>{eLbl || enh.id.toUpperCase()}</span>
+                      <span style={{ color: colors.black }}>{enh.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN PAGE COMPONENT
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -292,6 +632,7 @@ function IcoFlag({ size = 16, style }: IconProps) {
 export default function PoamPage() {
   const oscal = useOscal();
   const poam = (oscal.poam?.data as Poam) ?? null;
+  const catalog = oscal.catalog?.data ?? null;
   const fileName = oscal.poam?.fileName ?? "";
   const [error, setError] = useState("");
   const [view, setView] = useState("overview");
@@ -461,14 +802,8 @@ export default function PoamPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          {brand.logoUrl
-            ? <img src={brand.logoUrl} alt={brand.appName} style={{ height: 22 }} />
-            : <div style={S.topBarLogo}>{brand.logoText}</div>}
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
-              OSCAL POA&amp;M Viewer
-            </div>
-            <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
+            OSCAL POA&amp;M Viewer
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -486,7 +821,7 @@ export default function PoamPage() {
             <IcoSearch size={13} style={{ color: colors.gray, flexShrink: 0 }} />
             <input
               type="text"
-              placeholder="Search\u2026"
+              placeholder="Search"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={S.searchInput}
@@ -617,6 +952,7 @@ export default function PoamPage() {
             findingMap={findingMap}
             resMap={resMap}
             riskStatusCounts={riskStatusCounts}
+            catalog={catalog}
           />
         </div>
       </div>
@@ -711,9 +1047,10 @@ interface ViewRouterProps {
   findingMap: Record<string, Finding>;
   resMap: Record<string, Resource>;
   riskStatusCounts: Record<string, number>;
+  catalog: OscalCatalog | null;
 }
 
-function ViewRouter({ view, poam, navigate, obsMap, riskMap, findingMap, resMap, riskStatusCounts }: ViewRouterProps) {
+function ViewRouter({ view, poam, navigate, obsMap, riskMap, findingMap, resMap, riskStatusCounts, catalog }: ViewRouterProps) {
   if (view === "overview")
     return <OverviewView poam={poam} navigate={navigate} riskStatusCounts={riskStatusCounts} obsMap={obsMap} riskMap={riskMap} findingMap={findingMap} />;
   if (view === "metadata")
@@ -737,7 +1074,7 @@ function ViewRouter({ view, poam, navigate, obsMap, riskMap, findingMap, resMap,
   if (view.startsWith("finding-")) {
     const uuid = view.slice(8);
     const finding = (poam.findings ?? []).find((f) => f.uuid === uuid);
-    if (finding) return <FindingView finding={finding} navigate={navigate} obsMap={obsMap} riskMap={riskMap} />;
+    if (finding) return <FindingView finding={finding} navigate={navigate} obsMap={obsMap} riskMap={riskMap} catalog={catalog} />;
   }
 
   // obs-<uuid>
@@ -1508,9 +1845,10 @@ function RiskView({ risk, navigate, obsMap }: {
    FINDING VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function FindingView({ finding, navigate, obsMap, riskMap }: {
+function FindingView({ finding, navigate, obsMap, riskMap, catalog }: {
   finding: Finding; navigate: (id: string) => void;
   obsMap: Record<string, Observation>; riskMap: Record<string, Risk>;
+  catalog: OscalCatalog | null;
 }) {
   const relObs = (finding["related-observations"] ?? []).map((ro) => obsMap[ro["observation-uuid"]]).filter(Boolean);
   const relRisks = (finding["related-risks"] ?? []).map((rr) => riskMap[rr["risk-uuid"]]).filter(Boolean);
@@ -1562,6 +1900,11 @@ function FindingView({ finding, navigate, obsMap, riskMap }: {
             </div>
           )}
         </Card>
+      )}
+
+      {/* Control Details — expandable lookup from catalog */}
+      {finding.target?.["target-id"] && catalog && (
+        <ControlDetailPanel controlId={finding.target["target-id"]} catalog={catalog} />
       )}
 
       {/* Related Risks */}
