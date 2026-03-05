@@ -5,6 +5,7 @@
 
 import {
   useState,
+  useEffect,
   useMemo,
   useCallback,
   useRef,
@@ -15,6 +16,7 @@ import {
 import { Marked } from "marked";
 import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import LinkChips from "../components/LinkChips";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -811,6 +813,24 @@ export default function AssessmentPlanPage() {
   const [page, setPage] = useState<PageState>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  /* ── Auto-load from ?url= query param ── */
+  const urlDoc = useUrlDocument();
+  useEffect(() => {
+    if (!urlDoc.json || oscal.assessmentPlan) return;
+    try {
+      const ap = (urlDoc.json as Record<string, unknown>)["assessment-plan"] ?? urlDoc.json;
+      if (!(ap as Record<string, unknown>).metadata)
+        throw new Error("Not a valid OSCAL Assessment Plan — missing metadata.");
+      oscal.setAssessmentPlan(urlDoc.json, fileNameFromUrl(urlDoc.sourceUrl!));
+      setPage(null);
+      setHCtrl("");
+      setSearch("");
+      setMode("activities");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to parse fetched document");
+    }
+  }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Parse data ── */
   const plan = useMemo<PlanParsed | null>(() => {
     if (!raw) return null;
@@ -908,7 +928,11 @@ export default function AssessmentPlanPage() {
   if (!plan) {
     return (
       <div style={S.emptyWrap}>
-        <DropZone onFile={loadFile} error={error} />
+        {urlDoc.isLoading
+          ? <div style={{ textAlign: "center", padding: 48 }}>
+              <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
+            </div>
+          : <DropZone onFile={loadFile} error={urlDoc.error || error} />}
       </div>
     );
   }
@@ -919,7 +943,9 @@ export default function AssessmentPlanPage() {
       {/* Top bar */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>{brand.logoText}</div>
+          {brand.logoUrl
+            ? <img src={brand.logoUrl} alt={brand.appName} style={{ height: 22 }} />
+            : <div style={S.topBarLogo}>{brand.logoText}</div>}
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>OSCAL Assessment Plan Viewer</div>
             <div style={{ fontSize: 11, color: colors.paleGray }}>{brand.tagline}</div>

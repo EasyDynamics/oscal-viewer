@@ -15,6 +15,7 @@ const oscalio: ThemeDefinition = {
     pageTitle: "OSCAL Viewer",
     favicon: "/favicon-oscalio.svg",
     logoText: "O",
+    logoUrl: "/oscalio-logo.svg",
   },
 
   colors: {

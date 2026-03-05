@@ -10,6 +10,8 @@ export interface ThemeBrand {
   pageTitle: string;
   favicon: string;
   logoText: string;
+  /** Optional URL to an image logo (relative to public/) */
+  logoUrl?: string;
 }
 
 export interface ThemeColors {

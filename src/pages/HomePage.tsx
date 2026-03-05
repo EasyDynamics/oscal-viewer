@@ -13,7 +13,11 @@ export default function HomePage() {
       {/* Welcome banner */}
       <div style={styles.banner}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <IconShield size={28} style={{ color: colors.orange }} />
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.appName} style={{ height: 32 }} />
+          ) : (
+            <IconShield size={28} style={{ color: colors.orange }} />
+          )}
           <h1 style={styles.heading}>{brand.heading}</h1>
         </div>
         <p style={styles.subtitle}>
@@ -21,6 +25,11 @@ export default function HomePage() {
           Controls Assessment Language) documents. Select a model below to get
           started.
         </p>
+        <img
+          src="/oscal-layers.svg"
+          alt="OSCAL Layers"
+          style={{ display: "block", maxWidth: 300, marginTop: 16, opacity: 0.85 }}
+        />
       </div>
 
       {/* Model cards grid */}

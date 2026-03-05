@@ -18,11 +18,17 @@ export default function Layout() {
       {/* ── Top Bar ── */}
       <header style={styles.header}>
         <NavLink to="/" style={styles.brand}>
-          <IconShield size={22} style={{ color: colors.orange, marginRight: 8 }} />
+          {brand.favicon && (
+            <img src={brand.favicon} alt="" style={{ height: 22, marginRight: 10 }} />
+          )}
           <span style={styles.brandText}>{brand.appName}</span>
         </NavLink>
 
-        <span style={styles.tagline}>{brand.tagline}</span>
+        {brand.logoUrl ? (
+          <img src={brand.logoUrl} alt={brand.tagline} style={{ height: 20 }} />
+        ) : (
+          <span style={styles.tagline}>{brand.tagline}</span>
+        )}
       </header>
 
       {/* ── Tab Navigation ── */}

@@ -6,6 +6,7 @@
 
 import {
   useState,
+  useEffect,
   useMemo,
   useCallback,
   useRef,
@@ -15,6 +16,7 @@ import {
 } from "react";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -274,6 +276,23 @@ export default function CatalogPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
 
+  /* ── Auto-load from ?url= query param ── */
+  const urlDoc = useUrlDocument();
+  useEffect(() => {
+    if (!urlDoc.json || oscal.catalog) return;
+    try {
+      const data = (urlDoc.json as Record<string, unknown>)["catalog"] ?? urlDoc.json;
+      if (!(data as Record<string, unknown>).metadata)
+        throw new Error("Not an OSCAL Catalog — no metadata found.");
+      oscal.setCatalog(data as Catalog, fileNameFromUrl(urlDoc.sourceUrl!));
+      setView("overview");
+      setCollapsed({});
+      setSearchTerm("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to parse fetched document");
+    }
+  }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const navigate = useCallback((id: string) => {
     setView(id);
     contentRef.current?.scrollTo(0, 0);
@@ -341,7 +360,11 @@ export default function CatalogPage() {
   if (!catalog) {
     return (
       <div style={S.emptyWrap}>
-        <DropZone onFile={loadFile} error={error} />
+        {urlDoc.isLoading
+          ? <div style={{ textAlign: "center", padding: 48 }}>
+              <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
+            </div>
+          : <DropZone onFile={loadFile} error={urlDoc.error || error} />}
       </div>
     );
   }
@@ -351,7 +374,9 @@ export default function CatalogPage() {
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
-          <div style={S.topBarLogo}>{brand.logoText}</div>
+          {brand.logoUrl
+            ? <img src={brand.logoUrl} alt={brand.appName} style={{ height: 22 }} />
+            : <div style={S.topBarLogo}>{brand.logoText}</div>}
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: colors.white }}>
               OSCAL Catalog Viewer
