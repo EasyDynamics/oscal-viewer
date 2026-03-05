@@ -647,8 +647,39 @@ export default function ProfilePage() {
   }, [oscal]);
 
   /* ── Derived data ── */
+  const catalog = oscal.catalog?.data as Catalog | null;
+
   const controlIds = useMemo(() => {
     if (!profile) return [];
+
+    const hasIncludeAll = profile.imports.some((imp) => imp["include-all"]);
+
+    if (hasIncludeAll) {
+      // include-all: pull every control ID from the catalog if loaded,
+      // otherwise fall back to control IDs referenced in modify.alters
+      if (catalog) {
+        const ids: string[] = [];
+        function collectFromGroup(g: Group) {
+          for (const c of g.controls ?? []) {
+            ids.push(c.id);
+            for (const enh of c.controls ?? []) ids.push(enh.id);
+          }
+          for (const sg of g.groups ?? []) collectFromGroup(sg);
+        }
+        for (const g of catalog.groups ?? []) collectFromGroup(g);
+        for (const c of catalog.controls ?? []) {
+          ids.push(c.id);
+          for (const enh of c.controls ?? []) ids.push(enh.id);
+        }
+        return ids;
+      }
+      // No catalog — derive from alters
+      return (profile.modify?.alters ?? [])
+        .map((a) => a["control-id"])
+        .filter(Boolean);
+    }
+
+    // Explicit include-controls
     const ids: string[] = [];
     for (const imp of profile.imports) {
       if (imp["include-controls"]) {
@@ -658,7 +689,7 @@ export default function ProfilePage() {
       }
     }
     return ids;
-  }, [profile]);
+  }, [profile, catalog]);
 
   const familyGroups = useMemo(() => buildFamilyGroups(controlIds), [controlIds]);
 
