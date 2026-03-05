@@ -76,7 +76,6 @@ export const oscalModels: OscalModel[] = [
     path: "/profile",
     description: "A selection and tailoring of controls from one or more catalogs.",
     color: colors.brightBlue,
-    disabled: true,
   },
   {
     key: "component-definition",
@@ -104,7 +103,7 @@ export const oscalModels: OscalModel[] = [
     label: "Assessment Results",
     path: "/assessment-results",
     description: "Captures the results of a security control assessment.",
-    color: colors.orange,
+    color: colors.yellow,
   },
   {
     key: "poam",

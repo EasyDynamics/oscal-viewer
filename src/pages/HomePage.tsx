@@ -12,19 +12,22 @@ export default function HomePage() {
     <div>
       {/* Welcome banner */}
       <div style={styles.banner}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          {brand.logoUrl ? (
-            <img src={brand.logoUrl} alt={brand.appName} style={{ height: 32 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          {brand.favicon ? (
+            <img src={brand.favicon} alt="" style={{ height: 28 }} />
           ) : (
             <IconShield size={28} style={{ color: colors.orange }} />
           )}
           <h1 style={styles.heading}>{brand.heading}</h1>
         </div>
-        <p style={styles.subtitle}>
-          A client-side tool for viewing and exploring OSCAL (Open Security
-          Controls Assessment Language) documents. Select a model below to get
-          started.
-        </p>
+        <p style={styles.subtitle}>A client-side tool for viewing and exploring OSCAL (Open Security Controls Assessment Language) documents. Select a model below to get started.</p>
+      </div>
+
+      {/* Profile disclaimer */}
+      <div style={styles.disclaimer}>
+        <strong>Note:</strong> Profile support is available for viewing profile
+        documents, but all downstream models (SSP, Component Definition, etc.)
+        reference <em>catalogs</em> for control information — not profiles.
       </div>
 
       {/* Model cards grid */}
@@ -93,8 +96,18 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     color: colors.black,
     lineHeight: 1.7,
-    maxWidth: 720,
     marginTop: 4,
+  },
+  disclaimer: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: colors.black,
+    backgroundColor: colors.bg,
+    border: `1px solid ${colors.paleGray}`,
+    borderLeft: `4px solid ${colors.yellow}`,
+    borderRadius: radii.sm,
+    padding: "12px 16px",
+    marginBottom: 24,
   },
   grid: {
     display: "grid",

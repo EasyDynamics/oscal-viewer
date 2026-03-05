@@ -32,7 +32,7 @@ const oscalio: ThemeDefinition = {
     black: "#1C2327",
 
     /* ── Tier 3: Accent ── */
-    cobalt: "#0098B7",
+    cobalt: "#1565C0",
     mint: "#48CDB6",
     darkGreen: "#216570",
     brightCyan: "#00BDE3",
