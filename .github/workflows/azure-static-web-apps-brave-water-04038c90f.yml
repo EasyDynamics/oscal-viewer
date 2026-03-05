@@ -32,7 +32,7 @@ jobs:
       - name: Build
         run: npx vite build
         env:
-          VITE_THEME: ${{ vars.VITE_THEME || 'easydynamics' }}
+          VITE_THEME: ${{ vars.VITE_THEME || 'oscalio' }}
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
       - name: Get Id Token

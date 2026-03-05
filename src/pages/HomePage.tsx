@@ -25,11 +25,6 @@ export default function HomePage() {
           Controls Assessment Language) documents. Select a model below to get
           started.
         </p>
-        <img
-          src="/oscal-layers.svg"
-          alt="OSCAL Layers"
-          style={{ display: "block", maxWidth: 300, marginTop: 16, opacity: 0.85 }}
-        />
       </div>
 
       {/* Model cards grid */}
