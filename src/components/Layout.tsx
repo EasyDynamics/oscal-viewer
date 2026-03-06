@@ -93,6 +93,29 @@ export default function Layout() {
             </NavLink>
           );
         })}
+
+        {/* Examples link — pushed to far right, more subtle */}
+        <NavLink
+          to="/examples"
+          style={() => ({
+            marginLeft: "auto",
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "10px 16px",
+            fontSize: 12,
+            fontWeight: location.pathname === "/examples" ? 600 : 400,
+            fontFamily: fonts.sans,
+            color: location.pathname === "/examples" ? colors.navy : colors.gray,
+            textDecoration: "none",
+            borderBottom: location.pathname === "/examples"
+              ? `3px solid ${colors.navy}`
+              : "3px solid transparent",
+            whiteSpace: "nowrap" as const,
+            transition: "color .15s, border-color .15s",
+          })}
+        >
+          JSON Examples
+        </NavLink>
       </nav>
 
       {/* ── Page Content ── */}
