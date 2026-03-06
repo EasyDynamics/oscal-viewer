@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { useState, useMemo, type CSSProperties } from "react";
-import { colors, fonts, shadows, radii, alpha } from "../theme/tokens";
+import { colors, fonts, shadows, radii } from "../theme/tokens";
 
 /* ── Types ── */
 
