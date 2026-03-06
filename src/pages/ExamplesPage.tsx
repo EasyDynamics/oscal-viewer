@@ -17,8 +17,7 @@ type ModelType =
   | "SSP"
   | "Assessment Plan"
   | "Assessment Results"
-  | "POA&M"
-  | "Mapping";
+  | "POA&M";
 
 type SourceTag =
   | "NIST Official"
@@ -51,7 +50,6 @@ const viewerPath: Record<ModelType, string> = {
   "Assessment Plan": "/assessment-plan",
   "Assessment Results": "/assessment-results",
   "POA&M": "/poam",
-  Mapping: "/catalog",
 };
 
 /* ── Display order ── */
@@ -65,7 +63,6 @@ const MODEL_ORDER: ModelType[] = [
   "Assessment Plan",
   "Assessment Results",
   "POA&M",
-  "Mapping",
 ];
 
 const SOURCE_ORDER: SourceTag[] = [
@@ -89,7 +86,6 @@ const modelColor: Record<ModelType, string> = {
   "Assessment Plan": colors.purple,
   "Assessment Results": colors.yellow,
   "POA&M": colors.red,
-  Mapping: colors.orange,
 };
 
 const sourceColor: Record<SourceTag, string> = {
@@ -143,17 +139,12 @@ const examples: ExampleEntry[] = [
   { filename: "oscal_leveraging-example_ssp.json", modelType: "SSP", framework: "NIST SP 800-53", source: "NIST Official", repo: "https://github.com/usnistgov/oscal-content", rawUrl: "https://raw.githubusercontent.com/usnistgov/oscal-content/main/examples/ssp/json/oscal_leveraging-example_ssp.json", description: "Customer system inheriting provider controls SSP" },
   { filename: "ifa_assessment-plan-example.json", modelType: "Assessment Plan", framework: "NIST SP 800-53 Rev 5", source: "NIST Official", repo: "https://github.com/usnistgov/oscal-content", rawUrl: "https://raw.githubusercontent.com/usnistgov/oscal-content/main/examples/ap/json/ifa_assessment-plan-example.json", description: "IFA GoodRead assessment plan" },
   { filename: "ifa_assessment-results-example.json", modelType: "Assessment Results", framework: "NIST SP 800-53 Rev 5", source: "NIST Official", repo: "https://github.com/usnistgov/oscal-content", rawUrl: "https://raw.githubusercontent.com/usnistgov/oscal-content/main/examples/ar/json/ifa_assessment-results-example.json", description: "IFA GoodRead assessment results" },
-  { filename: "ifa_plan-of-action-and-milestones-example.json", modelType: "POA&M", framework: "NIST SP 800-53 Rev 5", source: "NIST Official", repo: "https://github.com/usnistgov/oscal-content", rawUrl: "https://raw.githubusercontent.com/usnistgov/oscal-content/main/examples/poam/json/ifa_plan-of-action-and-milestones-example.json", description: "IFA GoodRead plan of action and milestones" },
 
   // ── FedRAMP Rev 5 Baselines ──
   { filename: "FedRAMP_rev5_HIGH-baseline_profile.json", modelType: "Profile", framework: "FedRAMP Rev 5 High", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_HIGH-baseline_profile.json", description: "FedRAMP Rev 5 High baseline profile" },
   { filename: "FedRAMP_rev5_MODERATE-baseline_profile.json", modelType: "Profile", framework: "FedRAMP Rev 5 Moderate", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_MODERATE-baseline_profile.json", description: "FedRAMP Rev 5 Moderate baseline profile" },
   { filename: "FedRAMP_rev5_LOW-baseline_profile.json", modelType: "Profile", framework: "FedRAMP Rev 5 Low", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_LOW-baseline_profile.json", description: "FedRAMP Rev 5 Low baseline profile" },
   { filename: "FedRAMP_rev5_LI-SaaS-baseline_profile.json", modelType: "Profile", framework: "FedRAMP Rev 5 LI-SaaS", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_LI-SaaS-baseline_profile.json", description: "FedRAMP Rev 5 LI-SaaS baseline profile" },
-  { filename: "FedRAMP_rev5_HIGH-baseline-resolved-profile-catalog.json", modelType: "Resolved Profile Catalog", framework: "FedRAMP Rev 5 High", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_HIGH-baseline-resolved-profile-catalog.json", description: "Resolved FedRAMP Rev 5 High baseline catalog" },
-  { filename: "FedRAMP_rev5_MODERATE-baseline-resolved-profile-catalog.json", modelType: "Resolved Profile Catalog", framework: "FedRAMP Rev 5 Moderate", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_MODERATE-baseline-resolved-profile-catalog.json", description: "Resolved FedRAMP Rev 5 Moderate baseline catalog" },
-  { filename: "FedRAMP_rev5_LOW-baseline-resolved-profile-catalog.json", modelType: "Resolved Profile Catalog", framework: "FedRAMP Rev 5 Low", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_LOW-baseline-resolved-profile-catalog.json", description: "Resolved FedRAMP Rev 5 Low baseline catalog" },
-  { filename: "FedRAMP_rev5_LI-SaaS-baseline-resolved-profile-catalog.json", modelType: "Resolved Profile Catalog", framework: "FedRAMP Rev 5 LI-SaaS", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/baselines/json/FedRAMP_rev5_LI-SaaS-baseline-resolved-profile-catalog.json", description: "Resolved FedRAMP Rev 5 LI-SaaS baseline catalog" },
 
   // ── FedRAMP Rev 5 Templates ──
   { filename: "FedRAMP-SSP-OSCAL-Template.json", modelType: "SSP", framework: "FedRAMP Rev 5", source: "FedRAMP", repo: "https://github.com/GSA/fedramp-automation", rawUrl: "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev5/templates/ssp/json/FedRAMP-SSP-OSCAL-Template.json", description: "SSP template with FedRAMP extensions and sample data" },
@@ -193,7 +184,6 @@ const examples: ExampleEntry[] = [
   // ── Community ──
   { filename: "CMMC_v2_catalog.json", modelType: "Catalog", framework: "CMMC v2", source: "Community", repo: "https://github.com/ceagan/oscal-cmmc", rawUrl: "https://raw.githubusercontent.com/ceagan/oscal-cmmc/main/CMMC_v2_catalog.json", description: "CMMC v2 control catalog (community)" },
   { filename: "NIST_SP-800-171_rev2_catalog.json", modelType: "Catalog", framework: "SP 800-171 Rev 2", source: "Community", repo: "https://github.com/FATHOM5CORP/oscal", rawUrl: "https://raw.githubusercontent.com/FATHOM5CORP/oscal/main/content/SP800-171/oscal-content/catalogs/NIST_SP-800-171_rev2_catalog.json", description: "SP 800-171 Rev 2 catalog (FATHOM5)" },
-  { filename: "NIST_SP-800-171_rev2_catalog.json", modelType: "Catalog", framework: "SP 800-171 Rev 2", source: "Community", repo: "https://github.com/tbusillo/nist-800-171-oscal", rawUrl: "https://raw.githubusercontent.com/tbusillo/nist-800-171-oscal/main/NIST_SP-800-171_rev2_catalog.json", description: "SP 800-171 Rev 2 catalog (tbusillo)" },
   { filename: "NIST_SP-800-53_rev4_catalog.json", modelType: "Catalog", framework: "SP 800-53 Rev 4", source: "Community", repo: "https://github.com/GovReady/800-171-parse", rawUrl: "https://raw.githubusercontent.com/GovReady/800-171-parse/master/data/NIST_SP-800-53_rev4_catalog.json", description: "SP 800-53 Rev 4 catalog (GovReady)" },
   { filename: "handmade_800-171_rev1_catalog.json", modelType: "Catalog", framework: "SP 800-171 Rev 1", source: "Community", repo: "https://github.com/GovReady/800-171-parse", rawUrl: "https://raw.githubusercontent.com/GovReady/800-171-parse/master/data/handmade_800-171_rev1_catalog.json", description: "Handmade SP 800-171 Rev 1 catalog (GovReady)" },
 
@@ -206,8 +196,6 @@ const examples: ExampleEntry[] = [
   { filename: "basicAP.json", modelType: "Assessment Plan", framework: "Plugfest Test", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/basic/basicAP.json", description: "Simple assessment plan" },
   { filename: "basicAR.json", modelType: "Assessment Results", framework: "Plugfest Test", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/basic/basicAR.json", description: "Simple assessment results" },
   { filename: "basicPOAM.json", modelType: "POA&M", framework: "Plugfest Test", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/basic/basicPOAM.json", description: "Simple plan of action and milestones" },
-  { filename: "basicMappingAtoB.json", modelType: "Mapping", framework: "Plugfest Test", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/basic/basicMappingAtoB.json", description: "Control mapping from catalog A to catalog B" },
-  { filename: "basicMappingBtoA.json", modelType: "Mapping", framework: "Plugfest Test", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/basic/basicMappingBtoA.json", description: "Control mapping from catalog B to catalog A" },
 
   // ── Plugfest: OSCAL Foundation 2025 — Ultra Minimal Edge Cases ──
   { filename: "ultraMinimalCatalog.json", modelType: "Catalog", framework: "Plugfest Edge Case", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/edgecases/ultraminimal/ultraMinimalCatalog.json", description: "Bare minimum valid catalog" },
@@ -218,7 +206,6 @@ const examples: ExampleEntry[] = [
   { filename: "ultraMinimalAP.json", modelType: "Assessment Plan", framework: "Plugfest Edge Case", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/edgecases/ultraminimal/ultraMinimalAP.json", description: "Bare minimum valid assessment plan" },
   { filename: "ultraMinimalAR.json", modelType: "Assessment Results", framework: "Plugfest Edge Case", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/edgecases/ultraminimal/ultraMinimalAR.json", description: "Bare minimum valid assessment results" },
   { filename: "ultraMinimalPOAM.json", modelType: "POA&M", framework: "Plugfest Edge Case", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/edgecases/ultraminimal/ultraMinimalPOAM.json", description: "Bare minimum valid POA&M" },
-  { filename: "ultraMinimalMapping.json", modelType: "Mapping", framework: "Plugfest Edge Case", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/foundation/edgecases/ultraminimal/ultraMinimalMapping.json", description: "Bare minimum valid mapping" },
 
   // ── Plugfest: EasyDynamics Comply0 — CYFUN + FedRAMP 20x ──
   { filename: "cyfun_Framework_oscal_catalog.json", modelType: "Catalog", framework: "CYFUN Framework", source: "Plugfest", repo: "https://github.com/OSCAL-Foundation/plugfest-2025", rawUrl: "https://raw.githubusercontent.com/OSCAL-Foundation/plugfest-2025/main/interop-sharing/easydynamics-comply0/cyfun/cyfun_Framework_oscal_catalog.json", description: "CYFUN control framework catalog" },
