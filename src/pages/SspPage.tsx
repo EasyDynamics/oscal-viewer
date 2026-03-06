@@ -428,6 +428,148 @@ function IcoTag({ size = 14, style }: IconProps) {
   );
 }
 
+/* ── Component-type icons ── */
+function IcoThisSystem({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+function IcoExternalSystem({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" />
+    </svg>
+  );
+}
+function IcoInterconnection({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
+function IcoSoftware({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+function IcoHardware({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
+    </svg>
+  );
+}
+function IcoService({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
+    </svg>
+  );
+}
+function IcoPolicy({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="M12 18v-6" /><path d="M9 15h6" />
+    </svg>
+  );
+}
+function IcoPhysical({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  );
+}
+function IcoProcessProcedure({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  );
+}
+function IcoPlan({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+function IcoGuidance({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+function IcoStandard({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  );
+}
+function IcoValidation({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+function IcoNetwork({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="2" width="6" height="6" /><rect x="16" y="16" width="6" height="6" /><rect x="2" y="16" width="6" height="6" /><path d="M5 16v-4h14v4" /><line x1="12" y1="12" x2="12" y2="8" />
+    </svg>
+  );
+}
+
+/** Map a component type string to its nav icon key */
+function componentTypeNavKey(type: string): string {
+  switch (type) {
+    case "this-system": return "this-system";
+    case "system": return "ext-system";
+    case "interconnection": return "interconnection";
+    case "software": return "software";
+    case "hardware": return "hardware";
+    case "service": return "service";
+    case "policy": return "policy";
+    case "physical": return "physical";
+    case "process-procedure": return "process-procedure";
+    case "plan": return "plan";
+    case "guidance": return "guidance";
+    case "standard": return "standard";
+    case "validation": return "validation";
+    case "network": return "network";
+    default: return "cube";
+  }
+}
+
+/** Component-type color mapping */
+function componentTypeColor(type: string): string {
+  switch (type) {
+    case "this-system": return colors.navy;
+    case "system": return colors.cobalt;
+    case "interconnection": return colors.purple;
+    case "software": return colors.brightBlue;
+    case "hardware": return colors.blueGray;
+    case "service": return colors.mint;
+    case "policy": return colors.orange;
+    case "physical": return colors.darkGreen;
+    case "process-procedure": return colors.cobalt;
+    case "plan": return colors.brightBlue;
+    case "guidance": return colors.yellow;
+    case "standard": return colors.red;
+    case "validation": return colors.darkGreen;
+    case "network": return colors.purple;
+    default: return colors.cobalt;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CONTROL FAMILY HELPERS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -485,6 +627,20 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "box": return <IcoBox size={size} style={st} />;
     case "folder": return <IcoFolder size={size} style={st} />;
     case "tag": return <IcoTag size={size} style={st} />;
+    case "this-system": return <IcoThisSystem size={size} style={st} />;
+    case "ext-system": return <IcoExternalSystem size={size} style={st} />;
+    case "interconnection": return <IcoInterconnection size={size} style={st} />;
+    case "software": return <IcoSoftware size={size} style={st} />;
+    case "hardware": return <IcoHardware size={size} style={st} />;
+    case "service": return <IcoService size={size} style={st} />;
+    case "policy": return <IcoPolicy size={size} style={st} />;
+    case "physical": return <IcoPhysical size={size} style={st} />;
+    case "process-procedure": return <IcoProcessProcedure size={size} style={st} />;
+    case "plan": return <IcoPlan size={size} style={st} />;
+    case "guidance": return <IcoGuidance size={size} style={st} />;
+    case "standard": return <IcoStandard size={size} style={st} />;
+    case "validation": return <IcoValidation size={size} style={st} />;
+    case "network": return <IcoNetwork size={size} style={st} />;
     default: return <IcoBook size={size} style={st} />;
   }
 }
@@ -1022,12 +1178,12 @@ function SystemImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate:
       {/* Component quick list */}
       <Card>
         <SectionLabel>Components ({si.components.length})</SectionLabel>
-        {si.components.slice(0, 10).map((c) => (
-          <div key={c.uuid} onClick={() => navigate(`sys-impl-components`)} style={{
+        {si.components.slice(0, 10).map((c, i) => (
+          <div key={c.uuid} onClick={() => navigate(`ssp-comp-${i}`)} style={{
             padding: "6px 0", borderBottom: `1px solid ${colors.bg}`, cursor: "pointer",
             display: "flex", alignItems: "center", gap: 8,
           }}>
-            <IcoCube size={13} style={{ color: colors.cobalt, flexShrink: 0 }} />
+            {navIcon(componentTypeNavKey(c.type), componentTypeColor(c.type), 13)}
             <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{c.title || c.uuid.slice(0, 8)}</span>
             <span style={{ fontSize: 11, color: colors.gray, marginLeft: "auto" }}>{c.type}</span>
           </div>
@@ -1042,7 +1198,7 @@ function SystemImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate:
   );
 }
 
-function ComponentsView({ ssp }: { ssp: SspParsed }) {
+function ComponentsView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: string) => void }) {
   const comps = ssp.systemImplementation.components;
   return (
     <>
@@ -1052,10 +1208,10 @@ function ComponentsView({ ssp }: { ssp: SspParsed }) {
           All components defined in the system implementation.
         </p>
       </Card>
-      {comps.map((c) => (
-        <Card key={c.uuid}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <IcoCube size={15} style={{ color: colors.cobalt }} />
+      {comps.map((c, i) => (
+        <Card key={c.uuid} style={{ cursor: "pointer" }}>
+          <div onClick={() => navigate(`ssp-comp-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            {navIcon(componentTypeNavKey(c.type), componentTypeColor(c.type), 15)}
             <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0 }}>{c.title}</h3>
             <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono, marginLeft: "auto" }}>{c.type}</span>
             {c.status && (
@@ -1554,6 +1710,182 @@ function BackMatterView({ ssp }: { ssp: SspParsed }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SSP COMPONENT DETAIL VIEW
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function SspComponentDetailView({
+  comp, compIdx, ssp, navigate,
+}: {
+  comp: SspComponent; compIdx: number; ssp: SspParsed; navigate: (id: string) => void;
+}) {
+  /* Find all control implementations that reference this component */
+  const relatedIRs = useMemo(() => {
+    return ssp.controlImplementation.implementedRequirements.filter((ir) => {
+      const byComp = ir.byComponents.some((bc) => bc.componentUuid === comp.uuid);
+      const byStmt = ir.statements.some((st) =>
+        st.byComponents.some((bc) => bc.componentUuid === comp.uuid),
+      );
+      return byComp || byStmt;
+    });
+  }, [ssp, comp.uuid]);
+
+  /* Inventory items referencing this component */
+  const relatedInventory = useMemo(() => {
+    return ssp.systemImplementation.inventoryItems.filter((ii) =>
+      ii.implementedComponents.some((ic) => ic.componentUuid === comp.uuid),
+    );
+  }, [ssp, comp.uuid]);
+
+  const iconKey = componentTypeNavKey(comp.type);
+  const iconColor = componentTypeColor(comp.type);
+
+  return (
+    <div>
+      {/* Breadcrumbs */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, fontSize: 12, color: colors.gray }}>
+        <span style={{ cursor: "pointer", color: colors.cobalt }} onClick={() => navigate("sys-impl")}>System Implementation</span>
+        <span>›</span>
+        <span style={{ cursor: "pointer", color: colors.cobalt }} onClick={() => navigate("sys-impl-components")}>Components</span>
+        <span>›</span>
+        <span style={{ fontWeight: 600, color: colors.navy }}>{comp.title}</span>
+      </div>
+
+      {/* Title */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        {navIcon(iconKey, iconColor, 22)}
+        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{comp.title}</h1>
+      </div>
+
+      {/* Fields */}
+      <Card>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+          <MField label="Type" value={comp.type} />
+          <MField label="Status" value={comp.status || "—"} />
+          <MField label="UUID" value={comp.uuid} mono />
+          <MField label="Related Controls" value={String(relatedIRs.length)} />
+          <MField label="Inventory Items" value={String(relatedInventory.length)} />
+        </div>
+      </Card>
+
+      {/* Description */}
+      {comp.description && (
+        <Card>
+          <SectionLabel>Description</SectionLabel>
+          <MarkupBlock value={comp.description} />
+        </Card>
+      )}
+
+      {/* Properties */}
+      {comp.props.length > 0 && (
+        <Card>
+          <SectionLabel>Properties ({comp.props.length})</SectionLabel>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {comp.props.map((p, i) => (
+              <span key={i} style={{
+                fontSize: 11, padding: "3px 10px", borderRadius: radii.sm,
+                background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono,
+              }}>
+                {p.name}: {p.value}
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Inventory Items */}
+      {relatedInventory.length > 0 && (
+        <Card>
+          <SectionLabel>Inventory Items ({relatedInventory.length})</SectionLabel>
+          {relatedInventory.map((ii) => (
+            <div key={ii.uuid} style={{
+              padding: "8px 0", borderBottom: `1px solid ${colors.bg}`,
+              display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <IcoBox size={13} style={{ color: colors.darkGreen, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12.5, color: colors.navy }}>{ii.description || ii.uuid.slice(0, 12)}</div>
+                {ii.props.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
+                    {ii.props.map((p, pi) => (
+                      <span key={pi} style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
+                        {p.name}: {p.value}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Related Controls */}
+      {relatedIRs.length > 0 && (
+        <Card>
+          <SectionLabel>Related Controls ({relatedIRs.length})</SectionLabel>
+          <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 8px" }}>
+            Controls that include implementation statements from this component.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {relatedIRs.map((ir) => (
+              <span
+                key={ir.uuid}
+                onClick={() => navigate(`ctrl-${ir.controlId}`)}
+                style={{
+                  fontSize: 11, padding: "4px 10px", borderRadius: radii.pill,
+                  backgroundColor: colors.navy, color: colors.white, fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {ir.controlId.toUpperCase()}
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* By-component descriptions for each related control */}
+      {relatedIRs.length > 0 && (
+        <Card>
+          <SectionLabel>Implementation Statements</SectionLabel>
+          {relatedIRs.map((ir) => {
+            const byComps = ir.byComponents.filter((bc) => bc.componentUuid === comp.uuid);
+            const stmtByComps = ir.statements.flatMap((st) =>
+              st.byComponents
+                .filter((bc) => bc.componentUuid === comp.uuid)
+                .map((bc) => ({ ...bc, statementId: st.statementId })),
+            );
+            return (
+              <div key={ir.uuid} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colors.bg}` }}>
+                <div
+                  style={{ fontSize: 13, fontWeight: 700, color: colors.orange, cursor: "pointer", marginBottom: 4 }}
+                  onClick={() => navigate(`ctrl-${ir.controlId}`)}
+                >
+                  {ir.controlId.toUpperCase()}
+                </div>
+                {byComps.map((bc) => (
+                  <div key={bc.uuid} style={{ marginLeft: 12, marginBottom: 4 }}>
+                    <MarkupBlock value={bc.description} style={{ fontSize: 12.5 }} />
+                  </div>
+                ))}
+                {stmtByComps.map((sbc) => (
+                  <div key={sbc.uuid} style={{ marginLeft: 12, marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: colors.gray, marginBottom: 2 }}>
+                      Statement: {sbc.statementId}
+                    </div>
+                    <MarkupBlock value={sbc.description} style={{ fontSize: 12.5 }} />
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function NotFoundView({ view }: { view: string }) {
   return (
     <Card>
@@ -1578,12 +1910,20 @@ function ViewRouter({ view, ssp, navigate, catalog }: ViewRouterProps) {
   if (view === "metadata") return <MetadataView ssp={ssp} />;
   if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} />;
   if (view === "sys-impl") return <SystemImplementationView ssp={ssp} navigate={navigate} />;
-  if (view === "sys-impl-components") return <ComponentsView ssp={ssp} />;
+  if (view === "sys-impl-components") return <ComponentsView ssp={ssp} navigate={navigate} />;
   if (view === "sys-impl-users") return <UsersView ssp={ssp} />;
   if (view === "sys-impl-inventory") return <InventoryView ssp={ssp} />;
   if (view === "sys-impl-leveraged") return <LeveragedView ssp={ssp} />;
   if (view === "ctrl-impl") return <ControlImplementationView ssp={ssp} navigate={navigate} />;
   if (view === "back-matter") return <BackMatterView ssp={ssp} />;
+
+  /* ssp-comp-<index> — component detail */
+  const compMatch = view.match(/^ssp-comp-(\d+)$/);
+  if (compMatch) {
+    const idx = parseInt(compMatch[1], 10);
+    const comp = ssp.systemImplementation.components[idx];
+    if (comp) return <SspComponentDetailView comp={comp} compIdx={idx} ssp={ssp} navigate={navigate} />;
+  }
 
   /* ctrl-family-<prefix> — family group view */
   const famMatch = view.match(/^ctrl-family-(.+)$/);
@@ -1688,6 +2028,16 @@ export default function SspPage() {
     /* System Implementation */
     items.push({ id: "sys-impl", label: "System Implementation", icon: "cube", color: colors.cobalt, depth: 0 });
     items.push({ id: "sys-impl-components", label: "Components", icon: "cube", color: colors.cobalt, depth: 1, parent: "sys-impl", childCount: si.components.length });
+    si.components.forEach((c, i) => {
+      items.push({
+        id: `ssp-comp-${i}`,
+        label: trunc(c.title || c.uuid.slice(0, 12), 32),
+        icon: componentTypeNavKey(c.type),
+        color: componentTypeColor(c.type),
+        depth: 2,
+        parent: "sys-impl-components",
+      });
+    });
     items.push({ id: "sys-impl-users", label: "Users", icon: "users", color: colors.brightBlue, depth: 1, parent: "sys-impl", childCount: si.users.length });
     items.push({ id: "sys-impl-inventory", label: "Inventory Items", icon: "box", color: colors.darkGreen, depth: 1, parent: "sys-impl", childCount: si.inventoryItems.length });
     if (si.leveragedAuthorizations.length > 0) {
