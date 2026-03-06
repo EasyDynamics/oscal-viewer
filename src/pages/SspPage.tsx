@@ -1715,9 +1715,9 @@ function BackMatterView({ ssp }: { ssp: SspParsed }) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function SspComponentDetailView({
-  comp, compIdx, ssp, navigate,
+  comp, ssp, navigate,
 }: {
-  comp: SspComponent; compIdx: number; ssp: SspParsed; navigate: (id: string) => void;
+  comp: SspComponent; ssp: SspParsed; navigate: (id: string) => void;
 }) {
   /* Find all control implementations that reference this component */
   const relatedIRs = useMemo(() => {
@@ -1922,7 +1922,7 @@ function ViewRouter({ view, ssp, navigate, catalog }: ViewRouterProps) {
   if (compMatch) {
     const idx = parseInt(compMatch[1], 10);
     const comp = ssp.systemImplementation.components[idx];
-    if (comp) return <SspComponentDetailView comp={comp} compIdx={idx} ssp={ssp} navigate={navigate} />;
+    if (comp) return <SspComponentDetailView comp={comp} ssp={ssp} navigate={navigate} />;
   }
 
   /* ctrl-family-<prefix> — family group view */
