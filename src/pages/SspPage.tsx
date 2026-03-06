@@ -1715,9 +1715,9 @@ function BackMatterView({ ssp }: { ssp: SspParsed }) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function SspComponentDetailView({
-  comp, compIdx, ssp, navigate,
+  comp, _compIdx, ssp, navigate,
 }: {
-  comp: SspComponent; compIdx: number; ssp: SspParsed; navigate: (id: string) => void;
+  comp: SspComponent; _compIdx: number; ssp: SspParsed; navigate: (id: string) => void;
 }) {
   /* Find all control implementations that reference this component */
   const relatedIRs = useMemo(() => {
