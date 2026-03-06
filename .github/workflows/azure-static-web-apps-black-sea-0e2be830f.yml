@@ -17,6 +17,7 @@ jobs:
     permissions:
        id-token: write
        contents: read
+       pull-requests: write
     steps:
       - uses: actions/checkout@v3
         with:
@@ -47,6 +48,35 @@ jobs:
           output_location: "" # Already built, no nested output
           skip_app_build: true
           github_id_token: ${{ steps.idtoken.outputs.result }}
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const url = '${{ steps.builddeploy.outputs.static_web_app_url }}';
+            if (!url) return;
+            const body = `🚀 **Preview ready!**\n\nYour preview can be viewed at: ${url}`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes('🚀 **Preview ready!**'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
