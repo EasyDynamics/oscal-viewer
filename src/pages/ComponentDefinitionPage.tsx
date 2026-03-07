@@ -827,7 +827,7 @@ export default function ComponentDefinitionPage() {
           ? <div style={{ textAlign: "center", padding: 48 }}>
               <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
             </div>
-          : <DropZone onFile={loadFile} error={urlDoc.error || error} />}
+          : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
       </div>
     );
   }
@@ -1246,7 +1246,7 @@ function StatusBadge({ status }: { status: string }) {
    DROP ZONE  (shown when no file is loaded)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string }) {
+function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; error: string; sourceUrl?: string | null }) {
   const [dragging, setDragging] = useState(false);
   const handleDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -1307,16 +1307,19 @@ function DropZone({ onFile, error }: { onFile: (f: File) => void; error: string 
           or click to browse
         </p>
         {error && (
-          <p
-            style={{
-              marginTop: 12,
-              fontSize: 13,
-              color: colors.red,
-              fontWeight: 500,
-            }}
-          >
-            {error}
-          </p>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "#fff5f5", border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
+            <p style={{ fontSize: 13, color: colors.red, fontWeight: 600, margin: 0 }}>{error}</p>
+            {sourceUrl && (
+              <>
+                <p style={{ fontSize: 12, color: colors.gray, marginTop: 8, marginBottom: 0, wordBreak: "break-all", fontFamily: fonts.mono }}>{sourceUrl}</p>
+                <p style={{ fontSize: 12, color: colors.gray, marginTop: 8, marginBottom: 0 }}>
+                  The remote file may have moved or been deleted.{" "}
+                  <a href={sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: colors.brightBlue, fontWeight: 500 }}>Open URL directly</a>{" "}
+                  to verify it exists.
+                </p>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>
