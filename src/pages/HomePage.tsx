@@ -6,19 +6,21 @@ import { Link } from "react-router-dom";
 import type { CSSProperties } from "react";
 import { colors, fonts, oscalModels, shadows, radii, brand } from "../theme/tokens";
 import { IconShield, IconGrid, IconAlertTriangle, IconGitHub } from "../components/Icons";
+import useIsMobile from "../hooks/useIsMobile";
 
 export default function HomePage() {
+  const isMobile = useIsMobile();
   return (
     <div>
       {/* Welcome banner */}
-      <div style={styles.banner}>
+      <div style={{ ...styles.banner, ...(isMobile ? { padding: "16px 14px" } : {}) }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           {brand.favicon ? (
             <img src={brand.favicon} alt="" style={{ height: 28 }} />
           ) : (
             <IconShield size={28} style={{ color: colors.orange }} />
           )}
-          <h1 style={styles.heading}>{brand.heading}</h1>
+          <h1 style={{ ...styles.heading, ...(isMobile ? { fontSize: "1.3rem" } : {}) }}>{brand.heading}</h1>
           <a
             href="https://github.com/EasyDynamics/oscal-viewer"
             target="_blank"
@@ -32,7 +34,7 @@ export default function HomePage() {
         <p style={styles.subtitle}>A client-side tool for viewing and exploring OSCAL (Open Security Controls Assessment Language) documents. Select a model below to get started.</p>
 
         {/* Inline notes row */}
-        <div style={styles.notesRow}>
+        <div style={{ ...styles.notesRow, ...(isMobile ? { gridTemplateColumns: "1fr", gap: 10 } : {}) }}>
           <div style={styles.noteCard}>
             <div style={styles.noteHeader}>
               <IconShield size={16} style={{ color: colors.navy, flexShrink: 0 }} />
@@ -67,7 +69,7 @@ export default function HomePage() {
         </h2>
       </div>
 
-      <div style={styles.grid}>
+      <div style={{ ...styles.grid, ...(isMobile ? { gridTemplateColumns: "1fr", gap: 12 } : {}) }}>
         {oscalModels.map((m) => {
           const inner = (
             <div

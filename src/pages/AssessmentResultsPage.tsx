@@ -27,6 +27,7 @@ import type {
   Part as CatalogPart,
   Param as CatalogParam,
 } from "../context/OscalContext";
+import useIsMobile from "../hooks/useIsMobile";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    OSCAL ASSESSMENT RESULTS TYPES
@@ -496,6 +497,9 @@ export default function AssessmentResultsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [mobilePath, setMobilePath] = useState<string[]>([]);
+  const [mobileShowContent, setMobileShowContent] = useState(false);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -520,7 +524,8 @@ export default function AssessmentResultsPage() {
   const navigate = useCallback((id: string) => {
     setView(id);
     contentRef.current?.scrollTo(0, 0);
-  }, []);
+    if (isMobile) setMobileShowContent(true);
+  }, [isMobile]);
 
   const loadFile = useCallback((file: File) => {
     setError("");
@@ -701,6 +706,23 @@ export default function AssessmentResultsPage() {
     });
   }, [defaultCollapsed]);
 
+  /* ── Mobile drill-down helpers ── */
+  const mobileDrillIn = useCallback((id: string) => {
+    setMobilePath((prev) => [...prev, id]);
+  }, []);
+
+  const mobileDrillBack = useCallback(() => {
+    setMobilePath((prev) => prev.slice(0, -1));
+  }, []);
+
+  const mobileBreadcrumbJump = useCallback((depth: number) => {
+    setMobilePath((prev) => prev.slice(0, depth));
+  }, []);
+
+  const mobileBackToNav = useCallback(() => {
+    setMobileShowContent(false);
+  }, []);
+
   /* ── If no file loaded, show drop zone ── */
   if (!ar) {
     return (
@@ -710,6 +732,317 @@ export default function AssessmentResultsPage() {
               <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
             </div>
           : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
+      </div>
+    );
+  }
+
+  /* ── Mobile: compute filtered observations for drill-down ── */
+  const filteredGroupedObs = useMemo(() => {
+    if (!isMobile) return groupedObservations;
+    const lowerSearch = searchTerm.toLowerCase().trim();
+    const result: Record<string, Observation[]> = {};
+    for (const [groupName, observations] of Object.entries(groupedObservations)) {
+      const visible = observations.filter((obs) => {
+        if (statusFilter !== "all" && getStatus(obs) !== statusFilter) return false;
+        if (lowerSearch) {
+          if (obs.title.toLowerCase().includes(lowerSearch)) return true;
+          if (obs.description.toLowerCase().includes(lowerSearch)) return true;
+          if (groupName.toLowerCase().includes(lowerSearch)) return true;
+          return false;
+        }
+        return true;
+      });
+      if (visible.length > 0) result[groupName] = visible;
+    }
+    return result;
+  }, [isMobile, groupedObservations, searchTerm, statusFilter]);
+
+  const filteredGroupNames = useMemo(() => {
+    return Object.keys(filteredGroupedObs).sort();
+  }, [filteredGroupedObs]);
+
+  /* ── Mobile: get drill-down items at the current path level ── */
+  const getMobileDrillItems = useCallback((): { id: string; label: string; icon: ReactNode; isBranch: boolean; badge?: number; statusColor?: string }[] => {
+    const depth = mobilePath.length;
+    if (depth === 0) {
+      // Root level: Overview, Metadata, groups (or results), Findings, Risks
+      const items: { id: string; label: string; icon: ReactNode; isBranch: boolean; badge?: number; statusColor?: string }[] = [
+        { id: "__overview", label: "Overview", icon: <IcoHome size={14} style={{ color: colors.navy }} />, isBranch: false },
+        { id: "__metadata", label: "Metadata", icon: <IcoInfo size={14} style={{ color: colors.navy }} />, isBranch: false },
+      ];
+
+      if (ar!.results.length === 1) {
+        // Single result: show groups directly
+        filteredGroupNames.forEach((groupName) => {
+          const count = filteredGroupedObs[groupName]?.length ?? 0;
+          items.push({
+            id: `group-${groupName}`,
+            label: groupName,
+            icon: <IcoFolder size={14} style={{ color: colors.cobalt }} />,
+            isBranch: true,
+            badge: count,
+          });
+        });
+      } else {
+        // Multiple results: show result branches
+        ar!.results.forEach((result, ri) => {
+          items.push({
+            id: `result-${ri}`,
+            label: trunc(result.title, 30),
+            icon: <IcoClipboard size={14} style={{ color: colors.cobalt }} />,
+            isBranch: true,
+            badge: result.observations?.length,
+          });
+        });
+      }
+
+      if (allFindings.length > 0) {
+        items.push({
+          id: "findings-section",
+          label: `Findings (${allFindings.length})`,
+          icon: <IcoTarget size={14} style={{ color: colors.darkGreen }} />,
+          isBranch: true,
+          badge: allFindings.length,
+        });
+      }
+      if (allRisks.length > 0) {
+        items.push({
+          id: "risks-section",
+          label: `Risks (${allRisks.length})`,
+          icon: <IcoAlertTriangle size={14} style={{ color: colors.red }} />,
+          isBranch: true,
+          badge: allRisks.length,
+        });
+      }
+      return items;
+    }
+
+    const current = mobilePath[depth - 1];
+
+    // Drilled into a result (multi-result): show groups
+    if (current.startsWith("result-")) {
+      return filteredGroupNames.map((groupName) => ({
+        id: `group-${groupName}`,
+        label: groupName,
+        icon: <IcoFolder size={14} style={{ color: colors.cobalt }} />,
+        isBranch: true,
+        badge: filteredGroupedObs[groupName]?.length ?? 0,
+      }));
+    }
+
+    // Drilled into a group: show observations
+    if (current.startsWith("group-")) {
+      const groupName = current.slice(6);
+      return (filteredGroupedObs[groupName] ?? []).map((obs) => {
+        const status = getStatus(obs);
+        const sc = STATUS_COLORS[status];
+        return {
+          id: `__obs-${obs.uuid}`,
+          label: trunc(obs.title, 40),
+          icon: <StatusDot status={status} />,
+          isBranch: false,
+          statusColor: sc?.border,
+        };
+      });
+    }
+
+    // Drilled into findings
+    if (current === "findings-section") {
+      return allFindings.map((f) => {
+        const state = f.target.status.state;
+        const sc = FINDING_STATE_COLORS[state];
+        return {
+          id: `__finding-${f.uuid}`,
+          label: f.target["target-id"].toUpperCase(),
+          icon: state === "satisfied"
+            ? <IcoCheckCircle size={12} style={{ color: colors.statusPassFg }} />
+            : <IcoXCircle size={12} style={{ color: colors.statusFailFg }} />,
+          isBranch: false,
+          statusColor: sc?.border,
+        };
+      });
+    }
+
+    // Drilled into risks
+    if (current === "risks-section") {
+      const sorted = [...allRisks].sort((a, b) => riskSeveritySortKey(a) - riskSeveritySortKey(b));
+      return sorted.map((r) => {
+        const level = getRiskLevel(r);
+        const rc = RISK_LEVEL_COLORS[level];
+        return {
+          id: `__risk-${r.uuid}`,
+          label: trunc(r.title, 36),
+          icon: <IcoAlertTriangle size={12} style={{ color: rc?.fg ?? colors.gray }} />,
+          isBranch: false,
+          statusColor: rc?.border,
+        };
+      });
+    }
+
+    return [];
+  }, [mobilePath, ar, filteredGroupNames, filteredGroupedObs, allFindings, allRisks]);
+
+  const mobileBreadcrumbs = useMemo(() => {
+    const crumbs = [{ label: "Menu", depth: 0 }];
+    mobilePath.forEach((seg, i) => {
+      if (seg.startsWith("result-")) {
+        const ri = parseInt(seg.slice(7));
+        crumbs.push({ label: trunc(ar?.results[ri]?.title ?? `Result ${ri}`, 16), depth: i + 1 });
+      } else if (seg.startsWith("group-")) {
+        crumbs.push({ label: seg.slice(6), depth: i + 1 });
+      } else if (seg === "findings-section") {
+        crumbs.push({ label: "Findings", depth: i + 1 });
+      } else if (seg === "risks-section") {
+        crumbs.push({ label: "Risks", depth: i + 1 });
+      } else {
+        crumbs.push({ label: seg, depth: i + 1 });
+      }
+    });
+    return crumbs;
+  }, [mobilePath, ar]);
+
+  /* ── Mobile layout ── */
+  if (isMobile) {
+    if (!ar) {
+      return (
+        <div style={S.emptyWrap}>
+          {urlDoc.isLoading
+            ? <div style={{ textAlign: "center", padding: 48 }}>
+                <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
+              </div>
+            : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
+        </div>
+      );
+    }
+
+    if (mobileShowContent) {
+      return (
+        <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+          <div style={S.topBar}>
+            <div style={S.topBarLeft}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AR Viewer</div>
+            </div>
+            <button style={S.topBtn} onClick={handleNewFile}>New File</button>
+          </div>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+            <button onClick={mobileBackToNav} style={mobileS.backBtn}>← Back to navigation</button>
+          </div>
+          <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
+            <ViewRouter
+              view={view}
+              ar={ar}
+              navigate={navigate}
+              allObservations={allObservations}
+              allFindings={allFindings}
+              allRisks={allRisks}
+              obsMap={obsMap}
+              riskMap={riskMap}
+              obsNistMap={obsNistMap}
+              findingNistMap={findingNistMap}
+              riskNistMap={riskNistMap}
+              groupedObservations={groupedObservations}
+              groupNames={groupNames}
+              statusCounts={statusCounts}
+              findingStateCounts={findingStateCounts}
+              riskLevelCounts={riskLevelCounts}
+              riskStatusCounts={riskStatusCounts}
+              statusFilter={statusFilter}
+              catalog={catalog}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Mobile drill-down navigation
+    const drillItems = getMobileDrillItems();
+
+    return (
+      <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+        <div style={S.topBar}>
+          <div style={S.topBarLeft}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AR Viewer</div>
+          </div>
+          <button style={S.topBtn} onClick={handleNewFile}>New File</button>
+        </div>
+
+        {/* Search */}
+        <div style={S.searchWrap}>
+          <IcoSearch size={13} style={{ color: colors.gray, flexShrink: 0 }} />
+          <input
+            type="text"
+            placeholder="Search observations"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={S.searchInput}
+          />
+        </div>
+
+        {/* Status filter pills */}
+        <div style={{ padding: "6px 12px", borderBottom: `1px solid ${colors.bg}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
+          <FilterPill label="All" count={allObservations.length} active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
+          {Object.entries(statusCounts).sort(([a], [b]) => a.localeCompare(b)).map(([status, count]) => (
+            <FilterPill key={status} label={status} count={count} active={statusFilter === status} onClick={() => setStatusFilter(status)} />
+          ))}
+        </div>
+
+        {/* Breadcrumbs */}
+        {mobilePath.length > 0 && (
+          <div style={mobileS.breadcrumbs}>
+            {mobileBreadcrumbs.map((c, i) => (
+              <span key={i}>
+                {i > 0 && <span style={{ margin: "0 4px", color: colors.gray }}>›</span>}
+                <span
+                  onClick={() => mobileBreadcrumbJump(c.depth)}
+                  style={{ cursor: "pointer", color: i < mobileBreadcrumbs.length - 1 ? colors.cobalt : colors.black, fontWeight: i === mobileBreadcrumbs.length - 1 ? 600 : 400 }}
+                >
+                  {c.label}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Back button */}
+        {mobilePath.length > 0 && (
+          <div style={{ padding: "6px 12px", borderBottom: `1px solid ${colors.bg}` }}>
+            <button onClick={mobileDrillBack} style={mobileS.backBtn}>← Back</button>
+          </div>
+        )}
+
+        {/* Drill-down items */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {drillItems.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => {
+                if (item.isBranch) {
+                  mobileDrillIn(item.id);
+                } else {
+                  // Leaf: strip __ prefix and navigate
+                  navigate(item.id.slice(2));
+                }
+              }}
+              style={{
+                ...S.navItem,
+                minHeight: 44,
+                borderLeft: item.statusColor ? `3px solid ${item.statusColor}` : "3px solid transparent",
+              }}
+            >
+              {item.icon}
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {item.label}
+              </span>
+              {item.badge != null && <span style={S.badge}>{item.badge}</span>}
+              {item.isBranch && <span style={{ color: colors.gray, fontSize: 16 }}>›</span>}
+            </div>
+          ))}
+          {drillItems.length === 0 && (
+            <div style={{ padding: 24, textAlign: "center", color: colors.gray, fontSize: 13 }}>
+              No items match the current filters
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -2941,5 +3274,28 @@ const S: Record<string, CSSProperties> = {
     flex: 1,
     overflowY: "auto",
     padding: 24,
+  },
+};
+
+const mobileS: Record<string, CSSProperties> = {
+  backBtn: {
+    background: "none",
+    border: "none",
+    color: colors.cobalt,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: "4px 0",
+    fontFamily: fonts.sans,
+  },
+  breadcrumbs: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 2,
+    padding: "8px 12px",
+    fontSize: 12,
+    borderBottom: `1px solid ${colors.bg}`,
+    backgroundColor: colors.white,
   },
 };

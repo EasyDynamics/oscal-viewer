@@ -18,6 +18,7 @@ import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import LinkChips from "../components/LinkChips";
+import useIsMobile from "../hooks/useIsMobile";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -826,6 +827,8 @@ export default function AssessmentPlanPage() {
   const [mode, setMode] = useState<"activities" | "tasks">("activities");
   const [page, setPage] = useState<PageState>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [mobileShowContent, setMobileShowContent] = useState(false);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -905,6 +908,11 @@ export default function AssessmentPlanPage() {
   const navigate = useCallback((p: PageState) => {
     setPage(p);
     contentRef.current?.scrollTo(0, 0);
+    if (isMobile) setMobileShowContent(true);
+  }, [isMobile]);
+
+  const mobileBackToNav = useCallback(() => {
+    setMobileShowContent(false);
   }, []);
 
   const onCtrl = useCallback((c: string) => setHCtrl((prev) => (prev === c ? "" : c)), []);
@@ -947,6 +955,134 @@ export default function AssessmentPlanPage() {
               <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
             </div>
           : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
+      </div>
+    );
+  }
+
+  /* ── Mobile layout ── */
+  if (isMobile) {
+    if (mobileShowContent) {
+      return (
+        <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+          <div style={S.topBar}>
+            <div style={S.topBarLeft}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AP Viewer</div>
+            </div>
+            <button style={S.topBtn} onClick={handleNewFile}>New File</button>
+          </div>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+            <button onClick={mobileBackToNav} style={{ background: "none", border: "none", color: colors.cobalt, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "4px 0", fontFamily: fonts.sans }}>
+              ← Back to navigation
+            </button>
+          </div>
+          <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
+            {page === null && (
+              <OverviewView plan={plan} stats={stats} allControls={allControls} hCtrl={hCtrl} onCtrl={onCtrl}
+                onSelectActivity={(uuid) => navigate({ type: "activity", uuid })} />
+            )}
+            {page?.type === "activity" && curActivity && (
+              <ActivityView activity={curActivity} planTitle={plan.title} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} />
+            )}
+            {page?.type === "task" && curTask && (
+              <TaskView task={curTask} planTitle={plan.title} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+        <div style={S.topBar}>
+          <div style={S.topBarLeft}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AP Viewer</div>
+          </div>
+          <button style={S.topBtn} onClick={handleNewFile}>New File</button>
+        </div>
+
+        {/* Plan title + stats */}
+        <div style={{ padding: "10px 12px 6px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans, marginBottom: 2 }}>
+            {trunc(plan.title, 40)}
+          </div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+            {[
+              { v: stats.totalActivities, l: "ACT.", c: colors.navy },
+              { v: stats.totalSteps, l: "STEPS", c: colors.brightBlue },
+              { v: stats.shallCount, l: "SHALL", c: colors.orange },
+              { v: stats.totalControls, l: "CTRL", c: colors.darkGreen },
+              ...(stats.totalTasks > 0 ? [{ v: stats.totalTasks, l: "TASKS", c: colors.purple }] : []),
+            ].map((s) => (
+              <div key={s.l} style={{ textAlign: "center", background: "#F4F5F7", borderRadius: 4, padding: "3px 6px", minWidth: 36, flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: s.c }}>{s.v}</div>
+                <div style={{ fontSize: 7, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#F4F5F7", borderRadius: 4, padding: "5px 8px" }}>
+            <IcoSearch size={13} style={{ color: colors.gray }} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..."
+              style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 12, fontFamily: fonts.sans, color: colors.black }} />
+          </div>
+
+          {hCtrl && (
+            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: colors.orange, fontWeight: 600, fontFamily: fonts.mono }}>
+              <IcoShield size={10} style={{ color: colors.orange }} />
+              Filtering: {hCtrl}
+              <button onClick={() => setHCtrl("")} style={{ background: "none", border: "none", cursor: "pointer", color: colors.orange, fontSize: 12, padding: 0, marginLeft: 2 }}>✕</button>
+            </div>
+          )}
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{ display: "flex", borderBottom: `1px solid ${colors.bg}` }}>
+          {(["activities", "tasks"] as const).map((m) => (
+            <button key={m} onClick={() => { setMode(m); setPage(null); }} style={{
+              flex: 1, padding: "10px 0", border: "none", cursor: "pointer", fontSize: 12,
+              fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+              color: mode === m ? colors.navy : colors.gray,
+              borderBottom: mode === m ? `2px solid ${colors.orange}` : "2px solid transparent",
+              background: "transparent", fontFamily: fonts.sans, minHeight: 44,
+            }}>
+              {m === "activities" ? <><IcoAct size={12} /> Activities</> : <><IcoTask size={12} /> Tasks</>}
+            </button>
+          ))}
+        </div>
+
+        {/* Nav items */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {mode === "activities" && (
+            <>
+              <NavItem label="Overview" sublabel={`${stats.totalSteps} total steps`}
+                isActive={false} onClick={() => navigate(null)} icon={<IcoHome size={14} />} />
+              {filteredActivities.map((a) => (
+                <NavItem key={a.uuid} label={a.title} isActive={false}
+                  stepCount={a.steps.length}
+                  shallCount={a.steps.filter((s) => s.criticality === "SHALL").length}
+                  onClick={() => navigate({ type: "activity", uuid: a.uuid })}
+                  icon={<IcoAct size={14} />} />
+              ))}
+            </>
+          )}
+          {mode === "tasks" && (
+            <>
+              {filteredTasks.map((t) => (
+                <NavItem key={t.uuid} label={t.title}
+                  sublabel={[t.type, t.timing].filter(Boolean).join(" · ")}
+                  isActive={false}
+                  stepCount={t.associatedActivities.reduce((n, a) => n + a.steps.length, 0)}
+                  shallCount={t.associatedActivities.reduce((n, a) => n + a.steps.filter((s) => s.criticality === "SHALL").length, 0)}
+                  onClick={() => navigate({ type: "task", uuid: t.uuid })}
+                  icon={<IcoTask size={14} />} />
+              ))}
+              {filteredTasks.length === 0 && (
+                <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: colors.gray }}>No tasks found</div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     );
   }

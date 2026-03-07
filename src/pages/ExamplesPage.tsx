@@ -6,6 +6,7 @@
 
 import { useState, useMemo, type CSSProperties } from "react";
 import { colors, fonts, shadows, radii } from "../theme/tokens";
+import useIsMobile from "../hooks/useIsMobile";
 
 /* ── Types ── */
 
@@ -202,6 +203,7 @@ export default function ExamplesPage() {
   const [modelFilters, setModelFilters] = useState<Set<ModelType>>(new Set());
   const [sourceFilters, setSourceFilters] = useState<Set<SourceTag>>(new Set());
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   /* ── Filter logic ── */
   const filtered = useMemo(() => {
@@ -260,8 +262,8 @@ export default function ExamplesPage() {
   return (
     <div>
       {/* ── About banner ── */}
-      <div style={s.banner}>
-        <h1 style={s.heading}>OSCAL JSON Content Examples</h1>
+      <div style={{ ...s.banner, ...(isMobile ? { padding: "14px 12px" } : {}) }}>
+        <h1 style={{ ...s.heading, ...(isMobile ? { fontSize: "1.2rem" } : {}) }}>OSCAL JSON Content Examples</h1>
         <p style={s.subtitle}>
           A comprehensive directory of publicly available OSCAL JSON files from NIST, FedRAMP, international governments,
           and the community. Click any file to open it in the viewer. Use the filters and search to narrow results.
@@ -272,7 +274,7 @@ export default function ExamplesPage() {
       </div>
 
       {/* ── Filters panel ── */}
-      <div style={s.filterPanel}>
+      <div style={{ ...s.filterPanel, ...(isMobile ? { padding: "12px 10px" } : {}) }}>
         {/* Search */}
         <div style={s.filterSection}>
           <label style={s.filterLabel}>Search</label>
@@ -359,17 +361,35 @@ export default function ExamplesPage() {
             </div>
 
             <div style={s.table}>
-              {/* Table header */}
-              <div style={s.tableHeaderRow}>
-                <span style={{ ...s.th, flex: 3 }}>Filename</span>
-                <span style={{ ...s.th, flex: 2 }}>Framework</span>
-                <span style={{ ...s.th, flex: 1.2 }}>Source</span>
-                <span style={{ ...s.th, flex: 2.5 }}>Description</span>
-                <span style={{ ...s.th, flex: 1.2, textAlign: "center" }}>Actions</span>
-              </div>
+              {/* Table header — hidden on mobile */}
+              {!isMobile && (
+                <div style={s.tableHeaderRow}>
+                  <span style={{ ...s.th, flex: 3 }}>Filename</span>
+                  <span style={{ ...s.th, flex: 2 }}>Framework</span>
+                  <span style={{ ...s.th, flex: 1.2 }}>Source</span>
+                  <span style={{ ...s.th, flex: 2.5 }}>Description</span>
+                  <span style={{ ...s.th, flex: 1.2, textAlign: "center" }}>Actions</span>
+                </div>
+              )}
 
               {/* Rows */}
-              {entries.map((entry, i) => (
+              {entries.map((entry, i) => isMobile ? (
+                <div key={`${entry.rawUrl}-${i}`} style={{ padding: "10px 12px", borderBottom: `1px solid ${colors.paleGray}`, backgroundColor: i % 2 === 0 ? colors.white : colors.bg }}>
+                  <a href={viewerUrl(entry)} target="_blank" rel="noopener noreferrer" style={{ ...s.fileLink, fontSize: 13, display: "block", marginBottom: 4 }}>
+                    {entry.filename}
+                  </a>
+                  <div style={{ fontSize: 11, color: colors.gray, marginBottom: 4 }}>{entry.framework}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                    <span style={{ ...s.sourceBadge, backgroundColor: sourceColor[entry.source] }}>{entry.source}</span>
+                    {entry.notes && <span style={s.notesBadge}>{entry.notes}</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: colors.gray, marginBottom: 6 }}>{entry.description}</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => copyUrl(entry.rawUrl)} style={s.actionBtn}>{copiedUrl === entry.rawUrl ? "✓" : "Copy URL"}</button>
+                    <a href={entry.repo} target="_blank" rel="noopener noreferrer" style={s.repoLink}>Repo</a>
+                  </div>
+                </div>
+              ) : (
                 <div
                   key={`${entry.rawUrl}-${i}`}
                   style={{

@@ -17,6 +17,7 @@ import { Marked } from "marked";
 import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type {
   Catalog as OscalCatalog,
@@ -1971,6 +1972,9 @@ export default function SspPage() {
   const [view, setView] = useState("overview");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [mobilePath, setMobilePath] = useState<string[]>([]);
+  const [mobileShowContent, setMobileShowContent] = useState(false);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -2024,6 +2028,23 @@ export default function SspPage() {
   const navigate = useCallback((id: string) => {
     setView(id);
     contentRef.current?.scrollTo(0, 0);
+  }, []);
+
+  const mobileNavigate = useCallback((id: string) => {
+    setView(id);
+    setMobileShowContent(true);
+  }, []);
+
+  const mobileDrillIn = useCallback((nodeId: string) => {
+    setMobilePath((prev) => [...prev, nodeId]);
+  }, []);
+
+  const mobileDrillBack = useCallback(() => {
+    setMobilePath((prev) => prev.slice(0, -1));
+  }, []);
+
+  const mobileBreadcrumbJump = useCallback((idx: number) => {
+    setMobilePath((prev) => prev.slice(0, idx));
   }, []);
 
   /* ── Nav tree ── */
@@ -2181,6 +2202,89 @@ export default function SspPage() {
     );
   }
 
+  /* ── Mobile layout ── */
+  if (isMobile && ssp) {
+    if (mobileShowContent) {
+      return (
+        <div style={S.shell}>
+          <div style={S.topBar}>
+            <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>SSP</div>
+            <button style={S.topBtn} onClick={handleNewFile}>New</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            <ViewRouter view={view} ssp={ssp} navigate={mobileNavigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} />
+          </div>
+        </div>
+      );
+    }
+
+    /* Drill-down using navTree */
+    const currentParent = mobilePath.length > 0 ? mobilePath[mobilePath.length - 1] : null;
+    const drillChildren = navTree.filter((item) => {
+      if (currentParent === null) return !item.parent;
+      return item.parent === currentParent;
+    });
+
+    const breadcrumbs: { label: string }[] = [{ label: "SSP" }];
+    for (const pid of mobilePath) {
+      const n = navTree.find((i) => i.id === pid);
+      breadcrumbs.push({ label: n?.label ?? pid });
+    }
+
+    return (
+      <div style={S.shell}>
+        <div style={S.topBar}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>SSP</div>
+          <button style={S.topBtn} onClick={handleNewFile}>New</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.white }}>
+          {/* Breadcrumbs */}
+          {mobilePath.length > 0 && (
+            <div style={S.mobileBreadcrumbs}>
+              {breadcrumbs.map((bc, i) => (
+                <span key={i}>
+                  <span onClick={() => mobileBreadcrumbJump(i)}
+                    style={{ cursor: "pointer", color: i < breadcrumbs.length - 1 ? colors.brightBlue : colors.black, fontWeight: i === breadcrumbs.length - 1 ? 600 : 400 }}>
+                    {bc.label}
+                  </span>
+                  {i < breadcrumbs.length - 1 && <span style={{ margin: "0 6px", color: colors.paleGray }}>/</span>}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Back */}
+          {mobilePath.length > 0 && (
+            <div onClick={mobileDrillBack}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", fontSize: 14, color: colors.brightBlue, cursor: "pointer", borderBottom: `1px solid ${colors.bg}`, fontWeight: 500, minHeight: 44 }}>
+              ← Back
+            </div>
+          )}
+          {/* Items */}
+          {drillChildren.map((item) => {
+            const hasKids = !!childCounts[item.id];
+            return (
+              <div key={item.id}
+                onClick={() => {
+                  if (hasKids) mobileDrillIn(item.id);
+                  else mobileNavigate(item.id);
+                }}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, cursor: "pointer", minHeight: 48, borderBottom: `1px solid ${colors.bg}` }}>
+                {navIcon(item.icon, item.color)}
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                {item.childCount != null && <span style={S.badge}>{item.childCount}</span>}
+                {hasKids && <IcoChev open={false} style={{ color: colors.gray }} />}
+              </div>
+            );
+          })}
+          {drillChildren.length === 0 && (
+            <div style={{ padding: 24, textAlign: "center", color: colors.gray, fontSize: 14 }}>No items at this level</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   /* ── Main layout ── */
   return (
     <div style={S.shell}>
@@ -2286,4 +2390,12 @@ const S: Record<string, CSSProperties> = {
     backgroundColor: colors.bg, color: colors.gray, marginLeft: "auto",
   },
   content: { flex: 1, overflowY: "auto" as const, padding: 24 },
+  mobileBackBtn: {
+    fontSize: 14, fontWeight: 600, padding: "6px 12px", borderRadius: radii.sm,
+    border: "none", cursor: "pointer", backgroundColor: "transparent", color: colors.white, minHeight: 44,
+  },
+  mobileBreadcrumbs: {
+    display: "flex", flexWrap: "wrap" as const, gap: 2, padding: "10px 16px",
+    fontSize: 12, color: colors.gray, borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.bg,
+  },
 };

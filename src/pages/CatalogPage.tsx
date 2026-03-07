@@ -17,6 +17,7 @@ import {
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -275,6 +276,9 @@ export default function CatalogPage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [mobilePath, setMobilePath] = useState<string[]>([]);
+  const [mobileShowContent, setMobileShowContent] = useState(false);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -296,6 +300,23 @@ export default function CatalogPage() {
   const navigate = useCallback((id: string) => {
     setView(id);
     contentRef.current?.scrollTo(0, 0);
+  }, []);
+
+  const mobileNavigate = useCallback((id: string) => {
+    setView(id);
+    setMobileShowContent(true);
+  }, []);
+
+  const mobileDrillIn = useCallback((nodeId: string) => {
+    setMobilePath((prev) => [...prev, nodeId]);
+  }, []);
+
+  const mobileDrillBack = useCallback(() => {
+    setMobilePath((prev) => prev.slice(0, -1));
+  }, []);
+
+  const mobileBreadcrumbJump = useCallback((idx: number) => {
+    setMobilePath((prev) => prev.slice(0, idx));
   }, []);
 
   const loadFile = useCallback((file: File) => {
@@ -365,6 +386,42 @@ export default function CatalogPage() {
               <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
             </div>
           : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
+      </div>
+    );
+  }
+
+  /* ── Mobile layout ── */
+  if (isMobile && catalog) {
+    if (mobileShowContent) {
+      return (
+        <div style={S.shell}>
+          <div style={S.topBar}>
+            <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>Catalog</div>
+            <button style={S.topBtn} onClick={handleNewFile}>New</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            <ViewRouter view={view} catalog={catalog} navigate={mobileNavigate} />
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div style={S.shell}>
+        <div style={S.topBar}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Catalog</div>
+          <button style={S.topBtn} onClick={handleNewFile}>New</button>
+        </div>
+        <MobileDrillDown
+          catalog={catalog}
+          mobilePath={mobilePath}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onDrillIn={mobileDrillIn}
+          onDrillBack={mobileDrillBack}
+          onBreadcrumbJump={mobileBreadcrumbJump}
+          onSelect={mobileNavigate}
+        />
       </div>
     );
   }
@@ -562,6 +619,269 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
       {(catalog.groups ?? []).map((g) => renderGroup(g, 0))}
       {(catalog.controls ?? []).map((c) => renderControl(c, 0))}
     </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE DRILL-DOWN NAVIGATION
+   Shows one level of the hierarchy at a time.
+   Breadcrumbs allow jumping back up the tree.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+interface DrillNode {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  isBranch: boolean;
+  badge?: number;
+}
+
+function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDrillIn, onDrillBack, onBreadcrumbJump, onSelect }: {
+  catalog: Catalog;
+  mobilePath: string[];
+  searchTerm: string;
+  setSearchTerm: (s: string) => void;
+  onDrillIn: (nodeId: string) => void;
+  onDrillBack: () => void;
+  onBreadcrumbJump: (idx: number) => void;
+  onSelect: (viewId: string) => void;
+}) {
+  const lowerSearch = searchTerm.toLowerCase().trim();
+
+  /** Resolve the children at the current mobilePath position */
+  function getChildren(): DrillNode[] {
+    if (lowerSearch) return getSearchResults();
+    if (mobilePath.length === 0) return getRootNodes();
+    const last = mobilePath[mobilePath.length - 1];
+    if (last.startsWith("group-")) return getGroupChildren(last.replace("group-", ""));
+    if (last.startsWith("ctrl-")) return getControlChildren(last.replace("ctrl-", ""));
+    return [];
+  }
+
+  function getRootNodes(): DrillNode[] {
+    const nodes: DrillNode[] = [
+      { id: "__overview", label: "Overview", icon: <IcoHome size={16} style={{ color: colors.navy }} />, isBranch: false },
+      { id: "__metadata", label: "Metadata", icon: <IcoInfo size={16} style={{ color: colors.navy }} />, isBranch: false },
+    ];
+    for (const g of catalog.groups ?? []) {
+      const lbl = getLabel(g.props);
+      nodes.push({
+        id: `group-${g.id}`,
+        label: `${lbl ? lbl + " " : ""}${g.title}`,
+        icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
+        isBranch: true,
+        badge: countControls(g),
+      });
+    }
+    for (const c of catalog.controls ?? []) {
+      const lbl = getLabel(c.props);
+      const hasEnh = (c.controls ?? []).length > 0;
+      nodes.push({
+        id: hasEnh ? `ctrl-${c.id}` : `__ctrl-${c.id}`,
+        label: `${lbl ? lbl + " " : ""}${c.title}`,
+        icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
+        isBranch: hasEnh,
+        badge: hasEnh ? (c.controls ?? []).length : undefined,
+      });
+    }
+    return nodes;
+  }
+
+  function getGroupChildren(gId: string): DrillNode[] {
+    const group = findGroupById(catalog, gId);
+    if (!group) return [];
+    const nodes: DrillNode[] = [];
+    // View this group's overview
+    nodes.push({
+      id: `__group-${gId}`,
+      label: `${group.title} — Overview`,
+      icon: <IcoInfo size={16} style={{ color: colors.cobalt }} />,
+      isBranch: false,
+    });
+    for (const sg of group.groups ?? []) {
+      const lbl = getLabel(sg.props);
+      nodes.push({
+        id: `group-${sg.id}`,
+        label: `${lbl ? lbl + " " : ""}${sg.title}`,
+        icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
+        isBranch: true,
+        badge: countControls(sg),
+      });
+    }
+    for (const c of group.controls ?? []) {
+      const lbl = getLabel(c.props);
+      const hasEnh = (c.controls ?? []).length > 0;
+      nodes.push({
+        id: hasEnh ? `ctrl-${c.id}` : `__ctrl-${c.id}`,
+        label: `${lbl ? lbl + " " : ""}${c.title}`,
+        icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
+        isBranch: hasEnh,
+        badge: hasEnh ? (c.controls ?? []).length : undefined,
+      });
+    }
+    return nodes;
+  }
+
+  function getControlChildren(cId: string): DrillNode[] {
+    const ctrl = findControl(catalog, cId);
+    if (!ctrl) return [];
+    const nodes: DrillNode[] = [];
+    // View this control
+    nodes.push({
+      id: `__ctrl-${cId}`,
+      label: `${getLabel(ctrl.props) || ctrl.id} — Detail`,
+      icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
+      isBranch: false,
+    });
+    for (const enh of ctrl.controls ?? []) {
+      const lbl = getLabel(enh.props);
+      nodes.push({
+        id: `__ctrl-${enh.id}`,
+        label: `${lbl ? lbl + " " : ""}${enh.title}`,
+        icon: <IcoTag size={14} style={{ color: colors.orange }} />,
+        isBranch: false,
+      });
+    }
+    return nodes;
+  }
+
+  function getSearchResults(): DrillNode[] {
+    const results: DrillNode[] = [];
+    function walkGroup(g: Group) {
+      for (const c of g.controls ?? []) {
+        if (matchesSearch(c)) results.push({
+          id: `__ctrl-${c.id}`,
+          label: `${getLabel(c.props) || ""} ${c.title}`.trim(),
+          icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
+          isBranch: false,
+        });
+        for (const enh of c.controls ?? []) {
+          if (matchesSearch(enh)) results.push({
+            id: `__ctrl-${enh.id}`,
+            label: `${getLabel(enh.props) || ""} ${enh.title}`.trim(),
+            icon: <IcoTag size={14} style={{ color: colors.orange }} />,
+            isBranch: false,
+          });
+        }
+      }
+      for (const sg of g.groups ?? []) walkGroup(sg);
+    }
+    (catalog.groups ?? []).forEach(walkGroup);
+    return results;
+  }
+
+  function matchesSearch(c: Control): boolean {
+    if (!lowerSearch) return true;
+    if (c.id.toLowerCase().includes(lowerSearch)) return true;
+    if (c.title.toLowerCase().includes(lowerSearch)) return true;
+    const lbl = getLabel(c.props);
+    if (lbl.toLowerCase().includes(lowerSearch)) return true;
+    return false;
+  }
+
+  function getBreadcrumbs(): { id: string; label: string }[] {
+    const crumbs: { id: string; label: string }[] = [{ id: "__root", label: "Catalog" }];
+    for (const nodeId of mobilePath) {
+      if (nodeId.startsWith("group-")) {
+        const g = findGroupById(catalog, nodeId.replace("group-", ""));
+        crumbs.push({ id: nodeId, label: g ? (getLabel(g.props) || g.title) : nodeId });
+      } else if (nodeId.startsWith("ctrl-")) {
+        const c = findControl(catalog, nodeId.replace("ctrl-", ""));
+        crumbs.push({ id: nodeId, label: c ? (getLabel(c.props) || c.title) : nodeId });
+      }
+    }
+    return crumbs;
+  }
+
+  function handleTap(node: DrillNode) {
+    if (node.isBranch) {
+      onDrillIn(node.id);
+    } else {
+      // Leaf — navigate to content
+      const viewId = node.id.startsWith("__") ? node.id.replace("__", "") : node.id;
+      onSelect(viewId);
+    }
+  }
+
+  const children = getChildren();
+  const breadcrumbs = getBreadcrumbs();
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.white }}>
+      {/* Search */}
+      <div style={{ ...S.searchWrap, padding: "10px 12px" }}>
+        <IcoSearch size={14} style={{ color: colors.gray, flexShrink: 0 }} />
+        <input
+          type="text"
+          placeholder="Search controls…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ ...S.searchInput, fontSize: 14, minHeight: 32 }}
+        />
+      </div>
+
+      {/* Breadcrumbs */}
+      {mobilePath.length > 0 && !lowerSearch && (
+        <div style={S.mobileBreadcrumbs}>
+          {breadcrumbs.map((bc, i) => (
+            <span key={i}>
+              <span
+                onClick={() => onBreadcrumbJump(i)}
+                style={{
+                  cursor: "pointer",
+                  color: i < breadcrumbs.length - 1 ? colors.brightBlue : colors.black,
+                  fontWeight: i === breadcrumbs.length - 1 ? 600 : 400,
+                }}
+              >
+                {bc.label}
+              </span>
+              {i < breadcrumbs.length - 1 && <span style={{ margin: "0 6px", color: colors.paleGray }}>/</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Back button */}
+      {mobilePath.length > 0 && !lowerSearch && (
+        <div
+          onClick={onDrillBack}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "12px 16px",
+            fontSize: 14, color: colors.brightBlue, cursor: "pointer",
+            borderBottom: `1px solid ${colors.bg}`, fontWeight: 500, minHeight: 44,
+          }}
+        >
+          \u2190 Back
+        </div>
+      )}
+
+      {/* Children list */}
+      {children.map((node) => (
+        <div
+          key={node.id}
+          onClick={() => handleTap(node)}
+          style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
+            fontSize: 14, cursor: "pointer", minHeight: 48,
+            borderBottom: `1px solid ${colors.bg}`,
+            backgroundColor: "transparent",
+          }}
+        >
+          {node.icon}
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {node.label}
+          </span>
+          {node.badge != null && <span style={S.badge}>{node.badge}</span>}
+          {node.isBranch && <IcoChev open={false} style={{ color: colors.gray }} />}
+        </div>
+      ))}
+
+      {children.length === 0 && (
+        <div style={{ padding: 24, textAlign: "center", color: colors.gray, fontSize: 14 }}>
+          {lowerSearch ? "No matching controls found" : "No items at this level"}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1395,5 +1715,27 @@ const S: Record<string, CSSProperties> = {
     flex: 1,
     overflowY: "auto",
     padding: 24,
+  },
+  /* ── Mobile-specific ── */
+  mobileBackBtn: {
+    fontSize: 14,
+    fontWeight: 600,
+    padding: "6px 12px",
+    borderRadius: radii.sm,
+    border: "none",
+    cursor: "pointer",
+    backgroundColor: "transparent",
+    color: colors.white,
+    minHeight: 44,
+  },
+  mobileBreadcrumbs: {
+    display: "flex",
+    flexWrap: "wrap" as const,
+    gap: 2,
+    padding: "10px 16px",
+    fontSize: 12,
+    color: colors.gray,
+    borderBottom: `1px solid ${colors.bg}`,
+    backgroundColor: colors.bg,
   },
 };

@@ -18,6 +18,7 @@ import { Marked } from "marked";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -630,6 +631,9 @@ export default function ComponentDefinitionPage() {
   const [view, setView] = useState("overview");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [mobilePath, setMobilePath] = useState<string[]>([]);
+  const [mobileShowContent, setMobileShowContent] = useState(false);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -654,6 +658,23 @@ export default function ComponentDefinitionPage() {
     },
     [],
   );
+
+  const mobileNavigate = useCallback((id: string) => {
+    setView(id);
+    setMobileShowContent(true);
+  }, []);
+
+  const mobileDrillIn = useCallback((nodeId: string) => {
+    setMobilePath((prev) => [...prev, nodeId]);
+  }, []);
+
+  const mobileDrillBack = useCallback(() => {
+    setMobilePath((prev) => prev.slice(0, -1));
+  }, []);
+
+  const mobileBreadcrumbJump = useCallback((idx: number) => {
+    setMobilePath((prev) => prev.slice(0, idx));
+  }, []);
 
   const loadFile = useCallback((file: File) => {
     setError("");
@@ -882,6 +903,82 @@ export default function ComponentDefinitionPage() {
   }
 
   const parties = cdef.metadata.parties ?? [];
+
+  /* ── Mobile layout ── */
+  if (isMobile) {
+    if (mobileShowContent) {
+      return (
+        <div style={S.shell}>
+          <div style={S.topBar}>
+            <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>Component Def</div>
+            <button style={S.topBtn} onClick={handleNewFile}>New</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            <ViewRouter view={view} cdef={cdef} navigate={mobileNavigate} resMap={resMap} bmRes={bmRes} parties={parties} catalog={oscal.catalog?.data ?? null} />
+          </div>
+        </div>
+      );
+    }
+
+    const currentParent = mobilePath.length > 0 ? mobilePath[mobilePath.length - 1] : null;
+    const drillChildren = navTree.filter((item) => {
+      if (currentParent === null) return !item.parent;
+      return item.parent === currentParent;
+    });
+
+    const breadcrumbs: { label: string }[] = [{ label: "Components" }];
+    for (const pid of mobilePath) {
+      const n = navTree.find((i) => i.id === pid);
+      breadcrumbs.push({ label: n?.label ?? pid });
+    }
+
+    return (
+      <div style={S.shell}>
+        <div style={S.topBar}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Component Def</div>
+          <button style={S.topBtn} onClick={handleNewFile}>New</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.white }}>
+          {mobilePath.length > 0 && (
+            <div style={S.mobileBreadcrumbs}>
+              {breadcrumbs.map((bc, i) => (
+                <span key={i}>
+                  <span onClick={() => mobileBreadcrumbJump(i)}
+                    style={{ cursor: "pointer", color: i < breadcrumbs.length - 1 ? colors.brightBlue : colors.black, fontWeight: i === breadcrumbs.length - 1 ? 600 : 400 }}>
+                    {bc.label}
+                  </span>
+                  {i < breadcrumbs.length - 1 && <span style={{ margin: "0 6px", color: colors.paleGray }}>/</span>}
+                </span>
+              ))}
+            </div>
+          )}
+          {mobilePath.length > 0 && (
+            <div onClick={mobileDrillBack}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", fontSize: 14, color: colors.brightBlue, cursor: "pointer", borderBottom: `1px solid ${colors.bg}`, fontWeight: 500, minHeight: 44 }}>
+              ← Back
+            </div>
+          )}
+          {drillChildren.map((item) => {
+            const hasKids = !!childCounts[item.id];
+            return (
+              <div key={item.id}
+                onClick={() => { if (hasKids) mobileDrillIn(item.id); else mobileNavigate(item.id); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, cursor: "pointer", minHeight: 48, borderBottom: `1px solid ${colors.bg}` }}>
+                {navIcon(item.icon, item.color)}
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                {item.childCount != null && <span style={S.badge}>{item.childCount}</span>}
+                {hasKids && <IcoChev open={false} style={{ color: colors.gray }} />}
+              </div>
+            );
+          })}
+          {drillChildren.length === 0 && (
+            <div style={{ padding: 24, textAlign: "center", color: colors.gray, fontSize: 14 }}>No items at this level</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={S.shell}>
@@ -1132,6 +1229,7 @@ function Card({
         padding: "20px 24px",
         boxShadow: shadows.sm,
         marginBottom: 16,
+        overflow: "hidden" as const,
         ...style,
       }}
     >
@@ -1947,7 +2045,7 @@ function CatalogProseWithParams({
   const segments = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
 
   return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
+    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, overflowWrap: "break-word" as const, wordBreak: "break-word" as const }}>
       {segments.map((segment, i) => {
         const match = segment.match(
           /\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/,
@@ -1977,7 +2075,8 @@ function CatalogProseWithParams({
                 border: `1px solid ${
                   isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)
                 }`,
-                whiteSpace: "nowrap" as const,
+                whiteSpace: "normal" as const,
+                overflowWrap: "break-word" as const,
               }}
             >
               {rendered}
@@ -2021,13 +2120,13 @@ function CatalogControlCard({
     return (
       <div key={part.id ?? Math.random()} style={{ marginLeft: depth * 16, marginBottom: 4 }}>
         {part.prose && (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4, margin: "2px 0" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4, margin: "2px 0", minWidth: 0 }}>
             {partLabel && (
               <span style={{ fontWeight: 600, color: colors.cobalt, marginRight: 2, fontSize: 13, fontFamily: fonts.mono }}>
                 {partLabel}
               </span>
             )}
-            <CatalogProseWithParams text={part.prose} paramMap={paramMap} />
+            <span style={{ minWidth: 0, flex: 1 }}><CatalogProseWithParams text={part.prose} paramMap={paramMap} /></span>
           </div>
         )}
         {(part.parts ?? []).map((child) => renderPartTree(child, depth + 1))}
@@ -2290,6 +2389,8 @@ function RequirementView({
                       borderRadius: radii.sm,
                       marginBottom: 8,
                       fontStyle: "italic",
+                      overflowWrap: "break-word" as const,
+                      wordBreak: "break-word" as const,
                     }}
                   >
                     <CatalogProseWithParams text={catalogPart.prose} paramMap={catalogParamMap} />
@@ -2702,5 +2803,13 @@ const S: Record<string, CSSProperties> = {
     flex: 1,
     overflowY: "auto",
     padding: 24,
+  },
+  mobileBackBtn: {
+    fontSize: 14, fontWeight: 600, padding: "6px 12px", borderRadius: radii.sm,
+    border: "none", cursor: "pointer", backgroundColor: "transparent", color: colors.white, minHeight: 44,
+  },
+  mobileBreadcrumbs: {
+    display: "flex", flexWrap: "wrap" as const, gap: 2, padding: "10px 16px",
+    fontSize: 12, color: colors.gray, borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.bg,
   },
 };

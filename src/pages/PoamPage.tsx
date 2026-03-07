@@ -27,6 +27,7 @@ import type {
   Param as CatalogParam,
   OscalProp as CatalogOscalProp,
 } from "../context/OscalContext";
+import useIsMobile from "../hooks/useIsMobile";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    OSCAL POA&M TYPES
@@ -639,6 +640,9 @@ export default function PoamPage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [mobilePath, setMobilePath] = useState<string[]>([]);
+  const [mobileShowContent, setMobileShowContent] = useState(false);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -662,7 +666,8 @@ export default function PoamPage() {
   const navigate = useCallback((id: string) => {
     setView(id);
     contentRef.current?.scrollTo(0, 0);
-  }, []);
+    if (isMobile) setMobileShowContent(true);
+  }, [isMobile]);
 
   const loadFile = useCallback((file: File) => {
     setError("");
@@ -784,6 +789,19 @@ export default function PoamPage() {
     );
   }, [poam, lowerSearch]);
 
+  /* ── Mobile drill-down helpers ── */
+  const mobileDrillIn = useCallback((id: string) => {
+    setMobilePath((prev) => [...prev, id]);
+  }, []);
+
+  const mobileDrillBack = useCallback(() => {
+    setMobilePath((prev) => prev.slice(0, -1));
+  }, []);
+
+  const mobileBackToNav = useCallback(() => {
+    setMobileShowContent(false);
+  }, []);
+
   /* ── If no file loaded, show drop zone ── */
   if (!poam) {
     return (
@@ -793,6 +811,141 @@ export default function PoamPage() {
               <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
             </div>
           : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
+      </div>
+    );
+  }
+
+  /* ── Mobile layout ── */
+  if (isMobile) {
+    type DrillItem = { id: string; label: string; icon: ReactNode; isBranch: boolean; badge?: number; statusColor?: string };
+
+    const getMobileItems = (): DrillItem[] => {
+      if (mobilePath.length === 0) {
+        // Root: Overview, Metadata, + section branches
+        const items: DrillItem[] = [
+          { id: "__overview", label: "Overview", icon: <IcoHome size={14} style={{ color: colors.navy }} />, isBranch: false },
+          { id: "__metadata", label: "Metadata", icon: <IcoInfo size={14} style={{ color: colors.navy }} />, isBranch: false },
+          { id: "sec-poam-items", label: `POA&M Items (${filteredPoamItems.length})`, icon: <IcoClipboard size={14} style={{ color: colors.red }} />, isBranch: true, badge: filteredPoamItems.length },
+        ];
+        if (filteredRisks.length > 0 || !lowerSearch) {
+          items.push({ id: "sec-risks", label: `Risks (${filteredRisks.length})`, icon: <IcoAlert size={14} style={{ color: "#e65100" }} />, isBranch: true, badge: filteredRisks.length });
+        }
+        if ((filteredFindings.length > 0 || !lowerSearch) && (poam.findings ?? []).length > 0) {
+          items.push({ id: "sec-findings", label: `Findings (${filteredFindings.length})`, icon: <IcoTarget size={14} style={{ color: colors.cobalt }} />, isBranch: true, badge: filteredFindings.length });
+        }
+        if ((filteredObservations.length > 0 || !lowerSearch) && (poam.observations ?? []).length > 0) {
+          items.push({ id: "sec-observations", label: `Observations (${filteredObservations.length})`, icon: <IcoEye size={14} style={{ color: colors.brightBlue }} />, isBranch: true, badge: filteredObservations.length });
+        }
+        return items;
+      }
+
+      const section = mobilePath[0];
+      if (section === "sec-poam-items") {
+        return filteredPoamItems.map((pi) => {
+          const poamId = getProp(pi.props, "poam-id");
+          return { id: `__poam-${pi.uuid}`, label: poamId ? `${poamId}: ${trunc(pi.title, 28)}` : trunc(pi.title, 34), icon: <StatusDot color={colors.red} />, isBranch: false };
+        });
+      }
+      if (section === "sec-risks") {
+        return filteredRisks.map((risk) => {
+          const sc = RISK_STATUS_COLORS[risk.status];
+          return { id: `__risk-${risk.uuid}`, label: trunc(risk.title, 36), icon: <StatusDot color={sc?.border ?? colors.gray} />, isBranch: false, statusColor: sc?.border };
+        });
+      }
+      if (section === "sec-findings") {
+        return filteredFindings.map((f) => {
+          const state = f.target?.status?.state;
+          const fsc = FINDING_STATUS_COLORS[state ?? ""];
+          return { id: `__finding-${f.uuid}`, label: trunc(f.title, 36), icon: <StatusDot color={fsc?.border ?? colors.cobalt} />, isBranch: false, statusColor: fsc?.border };
+        });
+      }
+      if (section === "sec-observations") {
+        return filteredObservations.map((obs) => ({ id: `__obs-${obs.uuid}`, label: trunc(obs.title, 36), icon: <StatusDot color={colors.brightBlue} />, isBranch: false }));
+      }
+      return [];
+    };
+
+    const sectionLabel = (s: string) =>
+      s === "sec-poam-items" ? "POA&M Items"
+        : s === "sec-risks" ? "Risks"
+        : s === "sec-findings" ? "Findings"
+        : s === "sec-observations" ? "Observations" : s;
+
+    if (mobileShowContent) {
+      return (
+        <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+          <div style={S.topBar}>
+            <div style={S.topBarLeft}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>POA&amp;M Viewer</div>
+            </div>
+            <button style={S.topBtn} onClick={handleNewFile}>New File</button>
+          </div>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+            <button onClick={mobileBackToNav} style={poamMobileS.backBtn}>← Back to navigation</button>
+          </div>
+          <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
+            <ViewRouter view={view} poam={poam} navigate={navigate} obsMap={obsMap} riskMap={riskMap} findingMap={findingMap} resMap={resMap} riskStatusCounts={riskStatusCounts} catalog={catalog} />
+          </div>
+        </div>
+      );
+    }
+
+    const items = getMobileItems();
+
+    return (
+      <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+        <div style={S.topBar}>
+          <div style={S.topBarLeft}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>POA&amp;M Viewer</div>
+          </div>
+          <button style={S.topBtn} onClick={handleNewFile}>New File</button>
+        </div>
+
+        {/* Search */}
+        <div style={S.searchWrap}>
+          <IcoSearch size={13} style={{ color: colors.gray, flexShrink: 0 }} />
+          <input type="text" placeholder="Search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={S.searchInput} />
+        </div>
+
+        {/* Breadcrumb + back */}
+        {mobilePath.length > 0 && (
+          <div style={poamMobileS.breadcrumbs}>
+            <span onClick={() => setMobilePath([])} style={{ cursor: "pointer", color: colors.cobalt }}>Menu</span>
+            <span style={{ margin: "0 4px", color: colors.gray }}>›</span>
+            <span style={{ fontWeight: 600 }}>{sectionLabel(mobilePath[0])}</span>
+          </div>
+        )}
+        {mobilePath.length > 0 && (
+          <div style={{ padding: "6px 12px", borderBottom: `1px solid ${colors.bg}` }}>
+            <button onClick={mobileDrillBack} style={poamMobileS.backBtn}>← Back</button>
+          </div>
+        )}
+
+        {/* Items */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => {
+                if (item.isBranch) mobileDrillIn(item.id);
+                else navigate(item.id.slice(2));
+              }}
+              style={{
+                ...S.navItem,
+                minHeight: 44,
+                borderLeft: item.statusColor ? `3px solid ${item.statusColor}` : "3px solid transparent",
+              }}
+            >
+              {item.icon}
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+              {item.badge != null && <span style={S.badge}>{item.badge}</span>}
+              {item.isBranch && <span style={{ color: colors.gray, fontSize: 16 }}>›</span>}
+            </div>
+          ))}
+          {items.length === 0 && (
+            <div style={{ padding: 24, textAlign: "center", color: colors.gray, fontSize: 13 }}>No items match the current search</div>
+          )}
+        </div>
       </div>
     );
   }
@@ -2246,5 +2399,28 @@ const S: Record<string, CSSProperties> = {
     flex: 1,
     overflowY: "auto",
     padding: 24,
+  },
+};
+
+const poamMobileS: Record<string, CSSProperties> = {
+  backBtn: {
+    background: "none",
+    border: "none",
+    color: colors.cobalt,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: "4px 0",
+    fontFamily: fonts.sans,
+  },
+  breadcrumbs: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 2,
+    padding: "8px 12px",
+    fontSize: 12,
+    borderBottom: `1px solid ${colors.bg}`,
+    backgroundColor: colors.white,
   },
 };

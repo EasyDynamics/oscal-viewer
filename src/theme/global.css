@@ -142,3 +142,17 @@ button:focus-visible {
   background: var(--color-bg);
   font-weight: 600;
 }
+
+/* ── Mobile Responsive ── */
+@media (max-width: 768px) {
+  body { min-width: 0; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.1rem; }
+
+  /* Ensure touch targets are adequate */
+  button, a, [role="button"] { min-height: 44px; }
+
+  /* Tables scroll horizontally */
+  .oscal-markup table { display: block; overflow-x: auto; max-width: 100%; }
+}

@@ -18,6 +18,7 @@ import {
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import useIsMobile from "../hooks/useIsMobile";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -597,6 +598,9 @@ export default function ProfilePage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [mobilePath, setMobilePath] = useState<string[]>([]);
+  const [mobileShowContent, setMobileShowContent] = useState(false);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -618,6 +622,23 @@ export default function ProfilePage() {
   const navigate = useCallback((id: string) => {
     setView(id);
     contentRef.current?.scrollTo(0, 0);
+  }, []);
+
+  const mobileNavigate = useCallback((id: string) => {
+    setView(id);
+    setMobileShowContent(true);
+  }, []);
+
+  const mobileDrillIn = useCallback((nodeId: string) => {
+    setMobilePath((prev) => [...prev, nodeId]);
+  }, []);
+
+  const mobileDrillBack = useCallback(() => {
+    setMobilePath((prev) => prev.slice(0, -1));
+  }, []);
+
+  const mobileBreadcrumbJump = useCallback((idx: number) => {
+    setMobilePath((prev) => prev.slice(0, idx));
   }, []);
 
   const loadFile = useCallback((file: File) => {
@@ -741,6 +762,44 @@ export default function ProfilePage() {
               <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
             </div>
           : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
+      </div>
+    );
+  }
+
+  /* ── Mobile layout ── */
+  if (isMobile && profile) {
+    if (mobileShowContent) {
+      return (
+        <div style={S.shell}>
+          <div style={S.topBar}>
+            <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>Profile</div>
+            <button style={S.topBtn} onClick={handleNewFile}>New</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            <ViewRouter view={view} profile={profile} familyGroups={familyGroups}
+              alterMap={alterMap} setParamMap={setParamMap} controlIds={controlIds} navigate={mobileNavigate} />
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div style={S.shell}>
+        <div style={S.topBar}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Profile</div>
+          <button style={S.topBtn} onClick={handleNewFile}>New</button>
+        </div>
+        <ProfileMobileDrillDown
+          familyGroups={familyGroups}
+          alterMap={alterMap}
+          mobilePath={mobilePath}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onDrillIn={mobileDrillIn}
+          onDrillBack={mobileDrillBack}
+          onBreadcrumbJump={mobileBreadcrumbJump}
+          onSelect={mobileNavigate}
+        />
       </div>
     );
   }
@@ -963,6 +1022,212 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
         );
       })}
     </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE DRILL-DOWN FOR PROFILE (Family → Control → Enhancement)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+interface ProfileDrillNode {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  isBranch: boolean;
+  badge?: number;
+  modBadge?: boolean;
+}
+
+function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm, setSearchTerm, onDrillIn, onDrillBack, onBreadcrumbJump, onSelect }: {
+  familyGroups: FamilyGroup[];
+  alterMap: Map<string, Alter>;
+  mobilePath: string[];
+  searchTerm: string;
+  setSearchTerm: (s: string) => void;
+  onDrillIn: (nodeId: string) => void;
+  onDrillBack: () => void;
+  onBreadcrumbJump: (idx: number) => void;
+  onSelect: (viewId: string) => void;
+}) {
+  const lowerSearch = searchTerm.toLowerCase().trim();
+
+  function getChildren(): ProfileDrillNode[] {
+    if (lowerSearch) return getSearchResults();
+    if (mobilePath.length === 0) return getRootNodes();
+    const last = mobilePath[mobilePath.length - 1];
+    if (last.startsWith("family-")) return getFamilyChildren(last.replace("family-", ""));
+    if (last.startsWith("ctrl-")) return getControlChildren(last.replace("ctrl-", ""));
+    return [];
+  }
+
+  function getRootNodes(): ProfileDrillNode[] {
+    const nodes: ProfileDrillNode[] = [
+      { id: "__overview", label: "Overview", icon: <IcoHome size={16} style={{ color: colors.navy }} />, isBranch: false },
+      { id: "__metadata", label: "Metadata", icon: <IcoInfo size={16} style={{ color: colors.navy }} />, isBranch: false },
+      { id: "__imports", label: "Imports", icon: <IcoDownload size={16} style={{ color: colors.navy }} />, isBranch: false },
+    ];
+    for (const fg of familyGroups) {
+      nodes.push({
+        id: `family-${fg.prefix}`,
+        label: `${fg.prefix.toUpperCase()} ${fg.name}`,
+        icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
+        isBranch: true,
+        badge: fg.allIds.length,
+      });
+    }
+    return nodes;
+  }
+
+  function getFamilyChildren(prefix: string): ProfileDrillNode[] {
+    const fg = familyGroups.find((f) => f.prefix === prefix);
+    if (!fg) return [];
+    const nodes: ProfileDrillNode[] = [];
+    // Family overview
+    nodes.push({
+      id: `__family-${prefix}`,
+      label: `${fg.prefix.toUpperCase()} ${fg.name} — Overview`,
+      icon: <IcoInfo size={16} style={{ color: colors.cobalt }} />,
+      isBranch: false,
+    });
+    for (const cid of fg.controls) {
+      const enhs = fg.enhancements.filter((e) => parentControlId(e) === cid);
+      nodes.push({
+        id: enhs.length > 0 ? `ctrl-${cid}` : `__ctrl-${cid}`,
+        label: controlLabel(cid),
+        icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
+        isBranch: enhs.length > 0,
+        badge: enhs.length > 0 ? enhs.length : undefined,
+        modBadge: alterMap.has(cid),
+      });
+    }
+    return nodes;
+  }
+
+  function getControlChildren(cid: string): ProfileDrillNode[] {
+    const prefix = familyPrefix(cid);
+    const fg = familyGroups.find((f) => f.prefix === prefix);
+    if (!fg) return [];
+    const nodes: ProfileDrillNode[] = [];
+    // Control detail
+    nodes.push({
+      id: `__ctrl-${cid}`,
+      label: `${controlLabel(cid)} — Detail`,
+      icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
+      isBranch: false,
+      modBadge: alterMap.has(cid),
+    });
+    const enhs = fg.enhancements.filter((e) => parentControlId(e) === cid);
+    for (const enhId of enhs) {
+      nodes.push({
+        id: `__ctrl-${enhId}`,
+        label: controlLabel(enhId),
+        icon: <IcoTag size={14} style={{ color: colors.orange }} />,
+        isBranch: false,
+        modBadge: alterMap.has(enhId),
+      });
+    }
+    return nodes;
+  }
+
+  function getSearchResults(): ProfileDrillNode[] {
+    const results: ProfileDrillNode[] = [];
+    for (const fg of familyGroups) {
+      for (const cid of fg.allIds) {
+        if (cid.toLowerCase().includes(lowerSearch) || controlLabel(cid).toLowerCase().includes(lowerSearch)) {
+          results.push({
+            id: `__ctrl-${cid}`,
+            label: controlLabel(cid),
+            icon: isEnhancement(cid)
+              ? <IcoTag size={14} style={{ color: colors.orange }} />
+              : <IcoShield size={16} style={{ color: colors.brightBlue }} />,
+            isBranch: false,
+            modBadge: alterMap.has(cid),
+          });
+        }
+      }
+    }
+    return results;
+  }
+
+  function getBreadcrumbs(): { label: string }[] {
+    const crumbs: { label: string }[] = [{ label: "Profile" }];
+    for (const nodeId of mobilePath) {
+      if (nodeId.startsWith("family-")) {
+        const prefix = nodeId.replace("family-", "");
+        const fg = familyGroups.find((f) => f.prefix === prefix);
+        crumbs.push({ label: fg ? `${fg.prefix.toUpperCase()} ${fg.name}` : prefix });
+      } else if (nodeId.startsWith("ctrl-")) {
+        crumbs.push({ label: controlLabel(nodeId.replace("ctrl-", "")) });
+      }
+    }
+    return crumbs;
+  }
+
+  function handleTap(node: ProfileDrillNode) {
+    if (node.isBranch) {
+      onDrillIn(node.id);
+    } else {
+      const viewId = node.id.startsWith("__") ? node.id.replace("__", "") : node.id;
+      onSelect(viewId);
+    }
+  }
+
+  const children = getChildren();
+  const breadcrumbs = getBreadcrumbs();
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.white }}>
+      {/* Search */}
+      <div style={{ ...S.searchWrap, padding: "10px 12px" }}>
+        <IcoSearch size={14} style={{ color: colors.gray, flexShrink: 0 }} />
+        <input type="text" placeholder="Search controls…" value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ ...S.searchInput, fontSize: 14, minHeight: 32 }} />
+      </div>
+
+      {/* Breadcrumbs */}
+      {mobilePath.length > 0 && !lowerSearch && (
+        <div style={S.mobileBreadcrumbs}>
+          {breadcrumbs.map((bc, i) => (
+            <span key={i}>
+              <span onClick={() => onBreadcrumbJump(i)}
+                style={{ cursor: "pointer", color: i < breadcrumbs.length - 1 ? colors.brightBlue : colors.black, fontWeight: i === breadcrumbs.length - 1 ? 600 : 400 }}>
+                {bc.label}
+              </span>
+              {i < breadcrumbs.length - 1 && <span style={{ margin: "0 6px", color: colors.paleGray }}>/</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Back */}
+      {mobilePath.length > 0 && !lowerSearch && (
+        <div onClick={onDrillBack}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", fontSize: 14, color: colors.brightBlue, cursor: "pointer", borderBottom: `1px solid ${colors.bg}`, fontWeight: 500, minHeight: 44 }}>
+          ← Back
+        </div>
+      )}
+
+      {/* Items */}
+      {children.map((node) => (
+        <div key={node.id} onClick={() => handleTap(node)}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, cursor: "pointer", minHeight: 48, borderBottom: `1px solid ${colors.bg}` }}>
+          {node.icon}
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.label}</span>
+          {node.modBadge && (
+            <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: "#e8f5e9", color: "#2e7d32", fontWeight: 700 }}>M</span>
+          )}
+          {node.badge != null && <span style={S.badge}>{node.badge}</span>}
+          {node.isBranch && <IcoChev open={false} style={{ color: colors.gray }} />}
+        </div>
+      ))}
+
+      {children.length === 0 && (
+        <div style={{ padding: 24, textAlign: "center", color: colors.gray, fontSize: 14 }}>
+          {lowerSearch ? "No matching controls found" : "No items at this level"}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2064,5 +2329,13 @@ const S: Record<string, CSSProperties> = {
     flex: 1,
     overflowY: "auto",
     padding: 24,
+  },
+  mobileBackBtn: {
+    fontSize: 14, fontWeight: 600, padding: "6px 12px", borderRadius: radii.sm,
+    border: "none", cursor: "pointer", backgroundColor: "transparent", color: colors.white, minHeight: 44,
+  },
+  mobileBreadcrumbs: {
+    display: "flex", flexWrap: "wrap" as const, gap: 2, padding: "10px 16px",
+    fontSize: 12, color: colors.gray, borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.bg,
   },
 };
