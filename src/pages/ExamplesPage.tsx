@@ -396,7 +396,7 @@ export default function ExamplesPage() {
 
               {/* Rows */}
               {entries.map((entry, i) => isMobile ? (
-                <div key={`${entry.rawUrl}-${i}`} style={s.mobileCard(i)}>
+                <div key={`${entry.rawUrl}-${i}`} style={{ ...s.mobileCard, backgroundColor: i % 2 === 0 ? colors.card : colors.bg }}>
                   <a
                     href={viewerUrl(entry)}
                     target="_blank"
@@ -747,11 +747,10 @@ const s: Record<string, CSSProperties> = {
   },
 
   /* Mobile card styles */
-  mobileCard: (i: number): CSSProperties => ({
+  mobileCard: {
     padding: "12px 14px",
     borderBottom: `1px solid ${colors.paleGray}`,
-    backgroundColor: i % 2 === 0 ? colors.card : colors.bg,
-  }),
+  },
   mobileFilename: {
     color: colors.brightBlue,
     textDecoration: "none",
