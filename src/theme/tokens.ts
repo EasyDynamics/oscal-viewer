@@ -45,12 +45,12 @@ export const radii = {
   pill: 9999,
 } as const;
 
-/* ── Shadows ── */
+/* ── Shadows (use theme shadow color for dark-mode awareness) ── */
 export const shadows = {
-  sm: "0 1px 3px rgba(0,0,0,.08)",
-  md: "0 2px 8px rgba(0,0,0,.10)",
-  lg: "0 4px 16px rgba(0,0,0,.12)",
-} as const;
+  sm: `0 1px 3px ${colors.shadow}`,
+  md: `0 2px 8px ${colors.shadow}`,
+  lg: `0 4px 16px ${colors.shadow}`,
+};
 
 /* ── OSCAL model metadata ── */
 export interface OscalModel {

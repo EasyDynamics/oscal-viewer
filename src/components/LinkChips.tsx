@@ -20,9 +20,9 @@ const LINK_CATEGORIES: Record<
 > = {
   mitre: {
     label: "MITRE ATT&CK",
-    border: colors.darkNavy,
-    fg: colors.darkNavy,
-    bg: alphaBg(colors.darkNavy),
+    border: colors.navy,
+    fg: colors.navy,
+    bg: alphaBg(colors.navy),
     mono: true,
   },
   reference: {

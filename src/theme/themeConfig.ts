@@ -19,3 +19,4 @@ export const theme: ThemeDefinition = themes[themeName] ?? oscalio;
 /** Convenience re-exports */
 export const brand = theme.brand;
 export const themeColors = theme.colors;
+export const themeDarkColors = theme.darkColors;

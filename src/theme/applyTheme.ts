@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Apply Theme — injects CSS custom properties onto :root from the active
-   theme definition.  Call once before React mounts.
+   theme definition.  Supports light/dark mode switching at runtime.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import type { ThemeColors, ColorKey } from "./themeContract";
+import type { ThemeColors, ColorKey, ResolvedMode } from "./themeContract";
 import { theme } from "./themeConfig";
 
 /**
@@ -15,14 +15,19 @@ function toVarName(key: string): string {
   return "--color-" + key.replace(/([A-Z])/g, "-$1").toLowerCase();
 }
 
-/** Set all `--color-*` custom properties on `<html>`. */
-export function applyTheme(): void {
+/** Set all `--color-*` custom properties on `<html>` for the given mode. */
+export function applyTheme(mode: ResolvedMode = "light"): void {
   const root = document.documentElement;
-  const colors = theme.colors;
+  const colors =
+    mode === "dark" && theme.darkColors ? theme.darkColors : theme.colors;
 
   for (const key of Object.keys(colors) as ColorKey[]) {
     root.style.setProperty(toVarName(key), colors[key]);
   }
+
+  /* Tell the browser which color scheme is active (affects native elements) */
+  root.style.setProperty("color-scheme", mode);
+  root.setAttribute("data-theme", mode);
 
   /* Also set the favicon dynamically */
   let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");

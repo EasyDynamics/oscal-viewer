@@ -57,7 +57,7 @@ export default function PageStub({
 
 const styles: Record<string, CSSProperties> = {
   hero: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     padding: "24px 28px",
     marginBottom: 24,
@@ -83,7 +83,7 @@ const styles: Record<string, CSSProperties> = {
     border: `2px dashed ${colors.paleGray}`,
     borderRadius: radii.lg,
     padding: "48px 24px",
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     textAlign: "center",
     cursor: "pointer",
     transition: "border-color .2s",

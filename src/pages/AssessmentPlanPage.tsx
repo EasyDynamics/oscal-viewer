@@ -267,14 +267,14 @@ function IcoDown({ size = 14, style }: IconProps) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const CRIT: Record<string, { bg: string; text: string; border: string }> = {
-  SHALL:  { bg: "#FFF0E6", text: "#CC5200", border: colors.orange },
-  SHOULD: { bg: "#E8F0FE", text: colors.navy, border: colors.cobalt },
-  MAY:    { bg: "#F0F0F0", text: "#555", border: colors.gray },
+  SHALL:  { bg: colors.tintOrange, text: colors.orange, border: colors.orange },
+  SHOULD: { bg: colors.tintBlue, text: colors.navy, border: colors.cobalt },
+  MAY:    { bg: colors.surfaceMuted, text: colors.textSecondary, border: colors.gray },
 };
 const METH: Record<string, { bg: string; text: string }> = {
-  EXAMINE:   { bg: "#E6F3F0", text: colors.darkGreen },
-  INTERVIEW: { bg: "#F0E8FE", text: colors.purple },
-  TEST:      { bg: "#FFF8E6", text: "#8B6914" },
+  EXAMINE:   { bg: colors.tintGreen, text: colors.darkGreen },
+  INTERVIEW: { bg: colors.tintPurple, text: colors.purple },
+  TEST:      { bg: colors.tintYellow, text: colors.yellow },
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -284,7 +284,7 @@ const METH: Record<string, { bg: string; text: string }> = {
 function Card({ children, style: s }: { children: ReactNode; style?: CSSProperties }) {
   return (
     <div style={{
-      backgroundColor: colors.white, borderRadius: radii.md,
+      backgroundColor: colors.card, borderRadius: radii.md,
       padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...s,
     }}>
       {children}
@@ -324,7 +324,7 @@ function ControlBadge({ control, active, onClick }: { control: string; active: b
       display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 7px", borderRadius: 3,
       fontSize: 10.5, fontWeight: 700, fontFamily: fonts.mono, letterSpacing: "0.03em",
       border: `1.5px solid ${active ? colors.orange : colors.navy}`,
-      background: active ? "#FFF0E6" : "#EEF2F8",
+      background: active ? colors.tintOrange : colors.surfaceSubtle,
       color: active ? colors.orange : colors.navy,
       cursor: "pointer", transition: "all 0.12s", whiteSpace: "nowrap", lineHeight: "18px",
     }}>
@@ -387,7 +387,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           border: `2px dashed ${dragging ? colors.cobalt : colors.paleGray}`,
           borderRadius: radii.lg, padding: "48px 24px",
-          backgroundColor: dragging ? "#f0f4ff" : colors.white,
+          backgroundColor: dragging ? colors.dropzoneBg : colors.card,
           cursor: "pointer", transition: "border-color .2s, background-color .2s",
           maxWidth: 520, margin: "0 auto",
         }}>
@@ -397,7 +397,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
         </p>
         <p style={{ fontSize: 12, color: colors.gray, marginTop: 4 }}>or click to browse</p>
         {error && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "#fff5f5", border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: colors.errorBg, border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
             <p style={{ fontSize: 13, color: colors.red, fontWeight: 600, margin: 0 }}>{error}</p>
             {sourceUrl && (
               <>
@@ -426,10 +426,10 @@ function StepCard({ step, index, hCtrl, onCtrl }: {
   const hit = hCtrl && step.controls.includes(hCtrl);
   return (
     <div style={{
-      background: hit ? "#FFFAF5" : "#fff",
+      background: hit ? colors.tintOrange : colors.card,
       borderLeft: `3px solid ${hit ? colors.orange : colors.paleGray}`,
       padding: "10px 14px", transition: "all 0.15s",
-      borderBottom: "1px solid #EEEEF2",
+      borderBottom: `1px solid ${colors.borderSubtle}`,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10, color: colors.gray, fontWeight: 600, fontFamily: fonts.mono, minWidth: 22 }}>
@@ -477,7 +477,7 @@ function StepList({ activity, hCtrl, onCtrl }: {
   activity: ActivityParsed; hCtrl: string; onCtrl: (c: string) => void;
 }) {
   return (
-    <div style={{ border: "1px solid #E2E4EA", borderRadius: "0 0 8px 8px", overflow: "hidden", borderTop: "none" }}>
+    <div style={{ border: `1px solid ${colors.border}`, borderRadius: "0 0 8px 8px", overflow: "hidden", borderTop: "none" }}>
       {activity.steps.map((step, i) => (
         <StepCard key={step.uuid} step={step} index={i} hCtrl={hCtrl} onCtrl={onCtrl} />
       ))}
@@ -498,7 +498,7 @@ function ActivityHeader({ activity, hCtrl, onCtrl }: {
   return (
     <>
       <div style={{
-        background: colors.navy, color: "#fff", padding: "12px 18px",
+        background: colors.navy, color: colors.textOnAccent, padding: "12px 18px",
         borderRadius: "8px 8px 0 0", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -508,13 +508,13 @@ function ActivityHeader({ activity, hCtrl, onCtrl }: {
           )}
         </div>
         <div style={{ display: "flex", gap: 8, fontSize: 10.5, fontWeight: 600, fontFamily: fonts.mono, flexShrink: 0 }}>
-          <span style={{ background: "rgba(255,255,255,0.12)", padding: "2px 8px", borderRadius: 3 }}>{activity.steps.length} steps</span>
-          <span style={{ background: "rgba(255,102,0,0.25)", color: colors.orange, padding: "2px 8px", borderRadius: 3 }}>{shallN} SHALL</span>
-          {shouldN > 0 && <span style={{ background: "rgba(255,255,255,0.08)", padding: "2px 8px", borderRadius: 3, opacity: 0.7 }}>{shouldN} SHOULD</span>}
+          <span style={{ background: alpha(colors.white, 12), padding: "2px 8px", borderRadius: 3 }}>{activity.steps.length} steps</span>
+          <span style={{ background: alpha(colors.orange, 25), color: colors.orange, padding: "2px 8px", borderRadius: 3 }}>{shallN} SHALL</span>
+          {shouldN > 0 && <span style={{ background: alpha(colors.white, 8), padding: "2px 8px", borderRadius: 3, opacity: 0.7 }}>{shouldN} SHOULD</span>}
         </div>
       </div>
       <div style={{
-        background: "#EEF2F8", padding: "6px 18px", display: "flex", flexWrap: "wrap",
+        background: colors.surfaceSubtle, padding: "6px 18px", display: "flex", flexWrap: "wrap",
         gap: 4, alignItems: "center", borderBottom: `2px solid ${colors.orange}`,
       }}>
         <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: colors.gray, marginRight: 6, fontFamily: fonts.sans }}>
@@ -539,8 +539,8 @@ function ActivitySubheader({ activity, hCtrl, onCtrl }: {
   return (
     <>
       <div style={{
-        background: "#fff", padding: "10px 18px", borderRadius: "8px 8px 0 0",
-        border: "1px solid #E2E4EA", borderBottom: "none",
+        background: colors.card, padding: "10px 18px", borderRadius: "8px 8px 0 0",
+        border: `1px solid ${colors.border}`, borderBottom: "none",
         display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
       }}>
         <IcoAct size={14} />
@@ -548,15 +548,15 @@ function ActivitySubheader({ activity, hCtrl, onCtrl }: {
           <span style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans }}>{activity.title}</span>
         </div>
         <div style={{ display: "flex", gap: 6, fontSize: 10, fontWeight: 600, fontFamily: fonts.mono, flexShrink: 0 }}>
-          <span style={{ background: "#EEF2F8", color: colors.navy, padding: "2px 7px", borderRadius: 3 }}>{activity.steps.length} steps</span>
+          <span style={{ background: colors.surfaceSubtle, color: colors.navy, padding: "2px 7px", borderRadius: 3 }}>{activity.steps.length} steps</span>
           <span style={{ background: CRIT.SHALL.bg, color: CRIT.SHALL.text, padding: "2px 7px", borderRadius: 3 }}>{shallN} SHALL</span>
           {shouldN > 0 && <span style={{ background: CRIT.SHOULD.bg, color: CRIT.SHOULD.text, padding: "2px 7px", borderRadius: 3 }}>{shouldN} SHOULD</span>}
         </div>
       </div>
       <div style={{
-        background: "#F8F9FB", padding: "6px 18px", display: "flex", flexWrap: "wrap",
+        background: colors.surfaceMuted, padding: "6px 18px", display: "flex", flexWrap: "wrap",
         gap: 4, alignItems: "center",
-        borderLeft: "1px solid #E2E4EA", borderRight: "1px solid #E2E4EA",
+        borderLeft: `1px solid ${colors.border}`, borderRight: `1px solid ${colors.border}`,
         borderBottom: `2px solid ${colors.orange}`,
       }}>
         <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: colors.gray, marginRight: 6 }}>
@@ -577,7 +577,7 @@ function BreadcrumbHeader({ planTitle, crumbs, onHome }: {
 }) {
   return (
     <div style={{
-      background: "#fff", borderRadius: 6, padding: "8px 16px", marginBottom: 16,
+      background: colors.card, borderRadius: 6, padding: "8px 16px", marginBottom: 16,
       border: `1px solid ${colors.paleGray}`, display: "flex", alignItems: "center", gap: 8,
       fontSize: 12, fontFamily: fonts.sans, color: colors.gray,
     }}>
@@ -606,11 +606,11 @@ function CtrlPanel({ allControls, hCtrl, onCtrl }: {
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ borderTop: "1px solid #EEEEF2" }}>
+    <div style={{ borderTop: `1px solid ${colors.borderSubtle}` }}>
       <button onClick={() => setOpen(!open)} style={{
         width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "8px 14px", border: "none", cursor: "pointer",
-        background: open ? "#F4F5F7" : "transparent",
+        background: open ? colors.surfaceMuted : "transparent",
         fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
         color: colors.navy, fontFamily: fonts.sans,
       }}>
@@ -662,7 +662,7 @@ function OverviewView({ plan, stats, allControls, hCtrl, onCtrl, onSelectActivit
             { v: stats.totalControls, l: "Controls", c: colors.darkGreen },
             ...(stats.totalTasks > 0 ? [{ v: stats.totalTasks, l: "Tasks", c: colors.purple }] : []),
           ].map((s) => (
-            <div key={s.l} style={{ textAlign: "center", background: "#F4F5F7", borderRadius: 6, padding: "8px 16px", minWidth: 72 }}>
+            <div key={s.l} style={{ textAlign: "center", background: colors.surfaceMuted, borderRadius: 6, padding: "8px 16px", minWidth: 72 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: s.c }}>{s.v}</div>
               <div style={{ fontSize: 9, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.l}</div>
             </div>
@@ -688,10 +688,10 @@ function OverviewView({ plan, stats, allControls, hCtrl, onCtrl, onSelectActivit
         const matchCount = hCtrl ? a.steps.filter((s) => s.controls.includes(hCtrl)).length : 0;
         return (
           <div key={a.uuid} onClick={() => onSelectActivity(a.uuid)} style={{
-            background: "#fff", borderRadius: 8,
+            background: colors.card, borderRadius: 8,
             border: `1px solid ${matchCount > 0 ? colors.orange : colors.paleGray}`,
             padding: "14px 18px", marginBottom: 10, cursor: "pointer", transition: "all 0.15s",
-            boxShadow: matchCount > 0 ? `0 0 0 1px ${alpha(colors.orange, 13)}` : "0 1px 3px rgba(0,0,0,0.04)",
+            boxShadow: matchCount > 0 ? `0 0 0 1px ${alpha(colors.orange, 13)}` : shadows.sm,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -701,10 +701,10 @@ function OverviewView({ plan, stats, allControls, hCtrl, onCtrl, onSelectActivit
                 )}
               </div>
               <div style={{ display: "flex", gap: 6, fontSize: 10, fontWeight: 600, fontFamily: fonts.mono, flexShrink: 0 }}>
-                <span style={{ background: "#EEF2F8", color: colors.navy, padding: "2px 7px", borderRadius: 3 }}>{a.steps.length} steps</span>
+                <span style={{ background: colors.surfaceSubtle, color: colors.navy, padding: "2px 7px", borderRadius: 3 }}>{a.steps.length} steps</span>
                 <span style={{ background: CRIT.SHALL.bg, color: CRIT.SHALL.text, padding: "2px 7px", borderRadius: 3 }}>{shallN} SHALL</span>
                 {shouldN > 0 && <span style={{ background: CRIT.SHOULD.bg, color: CRIT.SHOULD.text, padding: "2px 7px", borderRadius: 3 }}>{shouldN} SHOULD</span>}
-                {matchCount > 0 && <span style={{ background: "#FFF0E6", color: colors.orange, padding: "2px 7px", borderRadius: 3, fontWeight: 700 }}>{matchCount} match{matchCount !== 1 ? "es" : ""}</span>}
+                {matchCount > 0 && <span style={{ background: colors.tintOrange, color: colors.orange, padding: "2px 7px", borderRadius: 3, fontWeight: 700 }}>{matchCount} match{matchCount !== 1 ? "es" : ""}</span>}
               </div>
               <IcoRight size={16} />
             </div>
@@ -781,7 +781,7 @@ function NavItem({ label, sublabel, isActive, stepCount, shallCount, onClick, ic
   return (
     <button onClick={onClick} style={{
       display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", cursor: "pointer",
-      background: isActive ? "rgba(0,40,104,0.08)" : "transparent",
+      background: isActive ? alpha(colors.navy, 8) : "transparent",
       borderLeft: `3px solid ${isActive ? colors.orange : "transparent"}`,
       transition: "all 0.1s", borderRadius: 0, fontFamily: fonts.sans,
     }}>
@@ -797,7 +797,7 @@ function NavItem({ label, sublabel, isActive, stepCount, shallCount, onClick, ic
       {sublabel && <div style={{ fontSize: 10, color: colors.gray, marginTop: 2, marginLeft: 22 }}>{sublabel}</div>}
       {stepCount != null && (
         <div style={{ display: "flex", gap: 5, marginTop: 3, marginLeft: 22 }}>
-          <span style={{ fontSize: 9.5, fontWeight: 600, background: "#EEF2F8", color: colors.navy, padding: "1px 5px", borderRadius: 2, fontFamily: fonts.mono }}>
+          <span style={{ fontSize: 9.5, fontWeight: 600, background: colors.surfaceSubtle, color: colors.navy, padding: "1px 5px", borderRadius: 2, fontFamily: fonts.mono }}>
             {stepCount} steps
           </span>
           {(shallCount ?? 0) > 0 && (
@@ -970,7 +970,7 @@ export default function AssessmentPlanPage() {
             </div>
             <button style={S.topBtn} onClick={handleNewFile}>New File</button>
           </div>
-          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.card }}>
             <button onClick={mobileBackToNav} style={{ background: "none", border: "none", color: colors.cobalt, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "4px 0", fontFamily: fonts.sans }}>
               ← Back to navigation
             </button>
@@ -1001,7 +1001,7 @@ export default function AssessmentPlanPage() {
         </div>
 
         {/* Plan title + stats */}
-        <div style={{ padding: "10px 12px 6px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+        <div style={{ padding: "10px 12px 6px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.card }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans, marginBottom: 2 }}>
             {trunc(plan.title, 40)}
           </div>
@@ -1013,7 +1013,7 @@ export default function AssessmentPlanPage() {
               { v: stats.totalControls, l: "CTRL", c: colors.darkGreen },
               ...(stats.totalTasks > 0 ? [{ v: stats.totalTasks, l: "TASKS", c: colors.purple }] : []),
             ].map((s) => (
-              <div key={s.l} style={{ textAlign: "center", background: "#F4F5F7", borderRadius: 4, padding: "3px 6px", minWidth: 36, flex: 1 }}>
+              <div key={s.l} style={{ textAlign: "center", background: colors.surfaceMuted, borderRadius: 4, padding: "3px 6px", minWidth: 36, flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: s.c }}>{s.v}</div>
                 <div style={{ fontSize: 7, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.l}</div>
               </div>
@@ -1021,7 +1021,7 @@ export default function AssessmentPlanPage() {
           </div>
 
           {/* Search */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#F4F5F7", borderRadius: 4, padding: "5px 8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: colors.surfaceMuted, borderRadius: 4, padding: "5px 8px" }}>
             <IcoSearch size={13} style={{ color: colors.gray }} />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..."
               style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 12, fontFamily: fonts.sans, color: colors.black }} />
@@ -1120,7 +1120,7 @@ export default function AssessmentPlanPage() {
                 ...(stats.totalTasks > 0 ? [{ v: stats.totalTasks, l: "TASKS", c: colors.purple }] : []),
               ].map((s) => (
                 <div key={s.l} style={{
-                  textAlign: "center", background: "#F4F5F7", borderRadius: 4, padding: "4px 8px", minWidth: 40, flex: 1,
+                  textAlign: "center", background: colors.surfaceMuted, borderRadius: 4, padding: "4px 8px", minWidth: 40, flex: 1,
                 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: s.c }}>{s.v}</div>
                   <div style={{ fontSize: 8, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.l}</div>
@@ -1129,7 +1129,7 @@ export default function AssessmentPlanPage() {
             </div>
 
             {/* Search */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#F4F5F7", borderRadius: 4, padding: "5px 8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: colors.surfaceMuted, borderRadius: 4, padding: "5px 8px" }}>
               <IcoSearch size={13} style={{ color: colors.gray }} />
               <input
                 value={search}
@@ -1279,7 +1279,7 @@ const S: Record<string, CSSProperties> = {
   },
   body: { display: "flex", flex: 1, overflow: "hidden" },
   sidebar: {
-    width: 280, minWidth: 280, backgroundColor: colors.white,
+    width: 280, minWidth: 280, backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`, overflowY: "auto" as const, flexShrink: 0,
     display: "flex", flexDirection: "column" as const,
   },

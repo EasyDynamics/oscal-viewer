@@ -207,7 +207,7 @@ const RISK_LEVEL_COLORS: Record<string, { bg: string; fg: string; border: string
   low:      { bg: colors.statusPassBg, fg: colors.statusPassFg, border: colors.statusPassBorder },
   moderate: { bg: colors.statusErrorBg, fg: colors.statusErrorFg, border: colors.statusErrorBorder },
   high:     { bg: colors.statusFailBg, fg: colors.statusFailFg, border: colors.statusFailBorder },
-  critical: { bg: "#4a0010", fg: "#ff1744", border: "#d50000" },
+  critical: { bg: colors.riskCriticalBg, fg: colors.riskCriticalFg, border: colors.riskCriticalFg },
 };
 
 /** Risk status colors */
@@ -723,19 +723,6 @@ export default function AssessmentResultsPage() {
     setMobileShowContent(false);
   }, []);
 
-  /* ── If no file loaded, show drop zone ── */
-  if (!ar) {
-    return (
-      <div style={S.emptyWrap}>
-        {urlDoc.isLoading
-          ? <div style={{ textAlign: "center", padding: 48 }}>
-              <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
-            </div>
-          : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
-      </div>
-    );
-  }
-
   /* ── Mobile: compute filtered observations for drill-down ── */
   const filteredGroupedObs = useMemo(() => {
     if (!isMobile) return groupedObservations;
@@ -901,20 +888,21 @@ export default function AssessmentResultsPage() {
     return crumbs;
   }, [mobilePath, ar]);
 
+  /* ── If no file loaded, show drop zone ── */
+  if (!ar) {
+    return (
+      <div style={S.emptyWrap}>
+        {urlDoc.isLoading
+          ? <div style={{ textAlign: "center", padding: 48 }}>
+              <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
+            </div>
+          : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
+      </div>
+    );
+  }
+
   /* ── Mobile layout ── */
   if (isMobile) {
-    if (!ar) {
-      return (
-        <div style={S.emptyWrap}>
-          {urlDoc.isLoading
-            ? <div style={{ textAlign: "center", padding: 48 }}>
-                <p style={{ fontSize: 15, color: colors.gray }}>Loading document from URL…</p>
-              </div>
-            : <DropZone onFile={loadFile} error={urlDoc.error || error} sourceUrl={urlDoc.sourceUrl} />}
-        </div>
-      );
-    }
-
     if (mobileShowContent) {
       return (
         <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
@@ -924,7 +912,7 @@ export default function AssessmentResultsPage() {
             </div>
             <button style={S.topBtn} onClick={handleNewFile}>New File</button>
           </div>
-          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.card }}>
             <button onClick={mobileBackToNav} style={mobileS.backBtn}>← Back to navigation</button>
           </div>
           <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
@@ -1543,7 +1531,7 @@ function Breadcrumbs({ items, navigate }: { items: { id: string; label: string }
 
 function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <div style={{ backgroundColor: colors.white, borderRadius: radii.md, padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...style }}>
+    <div style={{ backgroundColor: colors.card, borderRadius: radii.md, padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...style }}>
       {children}
     </div>
   );
@@ -1649,7 +1637,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           border: `2px dashed ${dragging ? colors.cobalt : colors.paleGray}`,
           borderRadius: radii.lg, padding: "48px 24px",
-          backgroundColor: dragging ? "#f0f4ff" : colors.white,
+          backgroundColor: dragging ? colors.dropzoneBg : colors.card,
           cursor: "pointer", transition: "border-color .2s, background-color .2s",
           maxWidth: 520, margin: "0 auto",
         }}
@@ -1660,7 +1648,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
         </p>
         <p style={{ fontSize: 12, color: colors.gray, marginTop: 4 }}>or click to browse</p>
         {error && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "#fff5f5", border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: colors.errorBg, border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
             <p style={{ fontSize: 13, color: colors.red, fontWeight: 600, margin: 0 }}>{error}</p>
             {sourceUrl && (
               <>
@@ -2853,7 +2841,7 @@ function RisksListView({ risks, navigate, riskLevelCounts, riskStatusCounts, ris
               onClick={() => navigate(`risk-${risk.uuid}`)}
               style={{
                 display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 12px",
-                marginBottom: 8, borderRadius: radii.md, backgroundColor: colors.white,
+                marginBottom: 8, borderRadius: radii.md, backgroundColor: colors.card,
                 cursor: "pointer", borderLeft: `4px solid ${rc.border}`,
                 boxShadow: shadows.sm, transition: "box-shadow .15s",
               }}
@@ -3063,7 +3051,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap }: {
             return (
               <div key={rem.uuid} style={{
                 padding: "14px 16px", marginBottom: 8, borderRadius: radii.md,
-                backgroundColor: colors.white, boxShadow: shadows.sm,
+                backgroundColor: colors.card, boxShadow: shadows.sm,
                 borderLeft: `4px solid ${lcColor}`,
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -3217,7 +3205,7 @@ const S: Record<string, CSSProperties> = {
   sidebar: {
     width: 300,
     minWidth: 300,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",
     flexShrink: 0,
@@ -3296,6 +3284,6 @@ const mobileS: Record<string, CSSProperties> = {
     padding: "8px 12px",
     fontSize: 12,
     borderBottom: `1px solid ${colors.bg}`,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
 };

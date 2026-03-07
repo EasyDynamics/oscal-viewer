@@ -653,7 +653,7 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
 function Card({ children, style: s }: { children: ReactNode; style?: CSSProperties }) {
   return (
     <div style={{
-      backgroundColor: colors.white, borderRadius: radii.md,
+      backgroundColor: colors.card, borderRadius: radii.md,
       padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...s,
     }}>
       {children}
@@ -684,7 +684,7 @@ function MField({ label, value, mono }: { label: string; value: string; mono?: b
 
 function StatChip({ value, label, color }: { value: number; label: string; color: string }) {
   return (
-    <div style={{ textAlign: "center", background: "#F4F5F7", borderRadius: 6, padding: "8px 16px", minWidth: 72 }}>
+    <div style={{ textAlign: "center", background: colors.surfaceSubtle, borderRadius: 6, padding: "8px 16px", minWidth: 72 }}>
       <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 9, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
     </div>
@@ -695,7 +695,7 @@ function StatusBadge({ status }: { status: string }) {
   const lower = status.toLowerCase();
   const isImplemented = lower === "implemented";
   const isPartial = lower.includes("partial");
-  const bg = isImplemented ? "#E6F3F0" : isPartial ? "#FFF8F0" : "#F4F5F7";
+  const bg = isImplemented ? colors.successBg : isPartial ? colors.warningBg : colors.surfaceSubtle;
   const fg = isImplemented ? colors.darkGreen : isPartial ? colors.orange : colors.gray;
   return (
     <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 10px", borderRadius: radii.pill, backgroundColor: bg, color: fg }}>
@@ -950,7 +950,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           border: `2px dashed ${dragging ? colors.cobalt : colors.paleGray}`,
           borderRadius: radii.lg, padding: "48px 24px",
-          backgroundColor: dragging ? "#f0f4ff" : colors.white,
+          backgroundColor: dragging ? colors.dropzoneBg : colors.card,
           cursor: "pointer", transition: "border-color .2s, background-color .2s",
           maxWidth: 520, margin: "0 auto",
         }}>
@@ -960,7 +960,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
         </p>
         <p style={{ fontSize: 12, color: colors.gray, marginTop: 4 }}>or click to browse</p>
         {error && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "#fff5f5", border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: colors.errorBg, border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
             <p style={{ fontSize: 13, color: colors.red, fontWeight: 600, margin: 0 }}>{error}</p>
             {sourceUrl && (
               <>
@@ -1078,7 +1078,7 @@ function MetadataView({ ssp }: { ssp: SspParsed }) {
             {md.roles.map((r) => (
               <span key={r.id} style={{
                 fontSize: 11, padding: "3px 10px", borderRadius: radii.sm,
-                background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono, fontWeight: 500,
+                background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono, fontWeight: 500,
               }}>
                 {r.title}
               </span>
@@ -1129,7 +1129,7 @@ function SystemCharacteristicsView({ ssp }: { ssp: SspParsed }) {
               { l: "Integrity", v: sc.securityImpactLevel.objectiveIntegrity, c: colors.darkGreen },
               { l: "Availability", v: sc.securityImpactLevel.objectiveAvailability, c: colors.orange },
             ].filter((x) => x.v).map((x) => (
-              <div key={x.l} style={{ textAlign: "center", background: "#F4F5F7", borderRadius: 6, padding: "10px 20px", minWidth: 100 }}>
+              <div key={x.l} style={{ textAlign: "center", background: colors.surfaceSubtle, borderRadius: 6, padding: "10px 20px", minWidth: 100 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: x.c, textTransform: "uppercase" }}>{x.v}</div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.08em" }}>{x.l}</div>
               </div>
@@ -1159,7 +1159,7 @@ function SystemCharacteristicsView({ ssp }: { ssp: SspParsed }) {
             {sc.props.map((p, i) => (
               <span key={i} style={{
                 fontSize: 11, padding: "3px 10px", borderRadius: radii.sm,
-                background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono,
+                background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono,
               }}>
                 {p.name}: {p.value}
               </span>
@@ -1228,9 +1228,9 @@ function ComponentsView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: stri
           <div onClick={() => navigate(`ssp-comp-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
             {navIcon(componentTypeNavKey(c.type), componentTypeColor(c.type), 15)}
             <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0 }}>{c.title}</h3>
-            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono, marginLeft: "auto" }}>{c.type}</span>
+            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono, marginLeft: "auto" }}>{c.type}</span>
             {c.status && (
-              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: c.status === "operational" ? "#E6F3F0" : "#FFF0E6", color: c.status === "operational" ? colors.darkGreen : colors.orange, fontWeight: 600 }}>
+              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: c.status === "operational" ? colors.successBg : colors.warningBg, color: c.status === "operational" ? colors.darkGreen : colors.orange, fontWeight: 600 }}>
                 {c.status}
               </span>
             )}
@@ -1270,7 +1270,7 @@ function UsersView({ ssp }: { ssp: SspParsed }) {
           {u.roleIds.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
               {u.roleIds.map((r) => (
-                <span key={r} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono }}>{r}</span>
+                <span key={r} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono }}>{r}</span>
               ))}
             </div>
           )}
@@ -1279,7 +1279,7 @@ function UsersView({ ssp }: { ssp: SspParsed }) {
               <div style={{ fontSize: 12, fontWeight: 600, color: colors.darkGreen }}>{ap.title}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 2 }}>
                 {ap.functionsPerformed.map((f, j) => (
-                  <span key={j} style={{ fontSize: 10, padding: "1px 6px", borderRadius: 2, background: "#E6F3F0", color: colors.darkGreen, fontFamily: fonts.mono }}>{f}</span>
+                  <span key={j} style={{ fontSize: 10, padding: "1px 6px", borderRadius: 2, background: colors.tintGreen, color: colors.darkGreen, fontFamily: fonts.mono }}>{f}</span>
                 ))}
               </div>
             </div>
@@ -1315,14 +1315,14 @@ function InventoryView({ ssp }: { ssp: SspParsed }) {
                 {ii.props.find((p) => p.name === "asset-id")?.value || ii.uuid.slice(0, 12)}
               </span>
               {assetType && (
-                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono, marginLeft: "auto" }}>{assetType}</span>
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono, marginLeft: "auto" }}>{assetType}</span>
               )}
             </div>
             {ii.description && <MarkupBlock value={ii.description} style={{ fontSize: 12, marginBottom: 4 }} />}
             {ii.implementedComponents.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
                 {ii.implementedComponents.map((ic) => (
-                  <span key={ic.componentUuid} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: "#F0F4FF", color: colors.cobalt, fontFamily: fonts.mono }}>
+                  <span key={ic.componentUuid} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.tintBlue, color: colors.cobalt, fontFamily: fonts.mono }}>
                     {compMap[ic.componentUuid] || ic.componentUuid.slice(0, 8)}
                   </span>
                 ))}
@@ -1401,7 +1401,7 @@ function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 4,
                   padding: "3px 10px", borderRadius: radii.sm, fontSize: 11, fontWeight: 600,
-                  fontFamily: fonts.mono, border: `1px solid ${colors.orange}`, background: "#FFF8F0",
+                  fontFamily: fonts.mono, border: `1px solid ${colors.orange}`, background: colors.warningBg,
                   color: colors.orange, cursor: "pointer", transition: "all .12s",
                 }}>
                 <IcoShield size={10} />{ir.controlId.toUpperCase()}
@@ -1522,7 +1522,7 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
       {catalogControl ? (
         <CatalogControlCard control={catalogControl} paramMap={catalogParamMap} />
       ) : (
-        <Card style={{ backgroundColor: "#FFF8F0", borderLeft: `4px solid ${colors.orange}` }}>
+        <Card style={{ backgroundColor: colors.warningBg, borderLeft: `4px solid ${colors.orange}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 14 }}>📙</span>
             <span style={{ fontSize: 13, color: colors.black }}>
@@ -1799,7 +1799,7 @@ function SspComponentDetailView({
             {comp.props.map((p, i) => (
               <span key={i} style={{
                 fontSize: 11, padding: "3px 10px", borderRadius: radii.sm,
-                background: "#EEF2F8", color: colors.navy, fontFamily: fonts.mono,
+                background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono,
               }}>
                 {p.name}: {p.value}
               </span>
@@ -2238,7 +2238,7 @@ export default function SspPage() {
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>SSP</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.white }}>
+        <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.card }}>
           {/* Breadcrumbs */}
           {mobilePath.length > 0 && (
             <div style={S.mobileBreadcrumbs}>
@@ -2372,7 +2372,7 @@ const S: Record<string, CSSProperties> = {
   },
   body: { display: "flex", flex: 1, overflow: "hidden" },
   sidebar: {
-    width: 280, minWidth: 280, backgroundColor: colors.white,
+    width: 280, minWidth: 280, backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`, overflowY: "auto" as const, flexShrink: 0,
   },
   sidebarFilename: {
