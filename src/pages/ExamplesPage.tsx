@@ -203,6 +203,7 @@ export default function ExamplesPage() {
   const [modelFilters, setModelFilters] = useState<Set<ModelType>>(new Set());
   const [sourceFilters, setSourceFilters] = useState<Set<SourceTag>>(new Set());
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const isMobile = useIsMobile();
 
   /* ── Filter logic ── */
@@ -262,81 +263,102 @@ export default function ExamplesPage() {
   return (
     <div>
       {/* ── About banner ── */}
-      <div style={{ ...s.banner, ...(isMobile ? { padding: "14px 12px" } : {}) }}>
-        <h1 style={{ ...s.heading, ...(isMobile ? { fontSize: "1.2rem" } : {}) }}>OSCAL JSON Content Examples</h1>
-        <p style={s.subtitle}>
-          A comprehensive directory of publicly available OSCAL JSON files from NIST, FedRAMP, international governments,
-          and the community. Click any file to open it in the viewer. Use the filters and search to narrow results.
-        </p>
-        <p style={{ ...s.subtitle, marginTop: 8, fontSize: 13, color: colors.gray }}>
+      <div style={{ ...s.banner, ...(isMobile ? { padding: "10px 12px", marginBottom: 12 } : {}) }}>
+        <h1 style={{ ...s.heading, ...(isMobile ? { fontSize: "1.1rem" } : {}) }}>OSCAL JSON Content Examples</h1>
+        {!isMobile && (
+          <p style={s.subtitle}>
+            A comprehensive directory of publicly available OSCAL JSON files from NIST, FedRAMP, international governments,
+            and the community. Click any file to open it in the viewer. Use the filters and search to narrow results.
+          </p>
+        )}
+        <p style={{ ...s.subtitle, marginTop: isMobile ? 2 : 8, fontSize: isMobile ? 12 : 13, color: colors.gray }}>
           Showing <strong>{totalShown}</strong> of {examples.length} files
         </p>
       </div>
 
       {/* ── Filters panel ── */}
-      <div style={{ ...s.filterPanel, ...(isMobile ? { padding: "12px 10px" } : {}) }}>
+      <div style={{ ...s.filterPanel, ...(isMobile ? { padding: "10px 10px", marginBottom: 12 } : {}) }}>
         {/* Search */}
-        <div style={s.filterSection}>
-          <label style={s.filterLabel}>Search</label>
+        <div style={{ ...s.filterSection, marginBottom: isMobile ? 8 : 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <label style={s.filterLabel}>Search</label>
+            {isMobile && (
+              <button
+                onClick={() => setFiltersOpen((v) => !v)}
+                style={s.filtersToggle}
+              >
+                Filters {modelFilters.size + sourceFilters.size > 0
+                  ? `(${modelFilters.size + sourceFilters.size})`
+                  : ""} {filtersOpen ? "▲" : "▼"}
+              </button>
+            )}
+          </div>
           <input
             type="text"
             placeholder="Filter by filename, framework, description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={s.searchInput}
+            style={{ ...s.searchInput, ...(isMobile ? { padding: "6px 10px", fontSize: 12 } : {}) }}
           />
         </div>
 
-        {/* Model type filter */}
-        <div style={s.filterSection}>
-          <label style={s.filterLabel}>Model Type</label>
-          <div style={s.chipRow}>
-            {MODEL_ORDER.map((m) => {
-              const active = modelFilters.has(m);
-              const count = examples.filter((e) => e.modelType === m).length;
-              return (
-                <button
-                  key={m}
-                  onClick={() => toggleModel(m)}
-                  style={{
-                    ...s.filterChip,
-                    backgroundColor: active ? modelColor[m] : colors.bg,
-                    color: active ? colors.textOnAccent : colors.black,
-                    borderColor: active ? modelColor[m] : colors.paleGray,
-                  }}
-                >
-                  {m} <span style={{ opacity: 0.7, marginLeft: 4 }}>({count})</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Model type + Source filters — always visible on desktop, collapsible on mobile */}
+        {(!isMobile || filtersOpen) && (
+          <>
+            {/* Model type filter */}
+            <div style={{ ...s.filterSection, marginBottom: isMobile ? 8 : 14 }}>
+              <label style={s.filterLabel}>Model Type</label>
+              <div style={s.chipRow}>
+                {MODEL_ORDER.map((m) => {
+                  const active = modelFilters.has(m);
+                  const count = examples.filter((e) => e.modelType === m).length;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => toggleModel(m)}
+                      style={{
+                        ...s.filterChip,
+                        ...(isMobile ? { padding: "3px 8px", fontSize: 10 } : {}),
+                        backgroundColor: active ? modelColor[m] : colors.bg,
+                        color: active ? colors.textOnAccent : colors.black,
+                        borderColor: active ? modelColor[m] : colors.paleGray,
+                      }}
+                    >
+                      {m} <span style={{ opacity: 0.7, marginLeft: 4 }}>({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {/* Source filter */}
-        <div style={s.filterSection}>
-          <label style={s.filterLabel}>Source</label>
-          <div style={s.chipRow}>
-            {SOURCE_ORDER.map((src) => {
-              const active = sourceFilters.has(src);
-              const count = examples.filter((e) => e.source === src).length;
-              if (count === 0) return null;
-              return (
-                <button
-                  key={src}
-                  onClick={() => toggleSource(src)}
-                  style={{
-                    ...s.filterChip,
-                    backgroundColor: active ? sourceColor[src] : colors.bg,
-                    color: active ? colors.textOnAccent : colors.black,
-                    borderColor: active ? sourceColor[src] : colors.paleGray,
-                  }}
-                >
-                  {src} <span style={{ opacity: 0.7, marginLeft: 4 }}>({count})</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+            {/* Source filter */}
+            <div style={{ ...s.filterSection, marginBottom: isMobile ? 4 : 14 }}>
+              <label style={s.filterLabel}>Source</label>
+              <div style={s.chipRow}>
+                {SOURCE_ORDER.map((src) => {
+                  const active = sourceFilters.has(src);
+                  const count = examples.filter((e) => e.source === src).length;
+                  if (count === 0) return null;
+                  return (
+                    <button
+                      key={src}
+                      onClick={() => toggleSource(src)}
+                      style={{
+                        ...s.filterChip,
+                        ...(isMobile ? { padding: "3px 8px", fontSize: 10 } : {}),
+                        backgroundColor: active ? sourceColor[src] : colors.bg,
+                        color: active ? colors.textOnAccent : colors.black,
+                        borderColor: active ? sourceColor[src] : colors.paleGray,
+                      }}
+                    >
+                      {src} <span style={{ opacity: 0.7, marginLeft: 4 }}>({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
 
         {(modelFilters.size > 0 || sourceFilters.size > 0 || search) && (
           <button
@@ -374,17 +396,22 @@ export default function ExamplesPage() {
 
               {/* Rows */}
               {entries.map((entry, i) => isMobile ? (
-                <div key={`${entry.rawUrl}-${i}`} style={{ padding: "10px 12px", borderBottom: `1px solid ${colors.paleGray}`, backgroundColor: i % 2 === 0 ? colors.card : colors.bg }}>
-                  <a href={viewerUrl(entry)} target="_blank" rel="noopener noreferrer" style={{ ...s.fileLink, fontSize: 13, display: "block", marginBottom: 4 }}>
+                <div key={`${entry.rawUrl}-${i}`} style={s.mobileCard(i)}>
+                  <a
+                    href={viewerUrl(entry)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={s.mobileFilename}
+                  >
                     {entry.filename}
                   </a>
-                  <div style={{ fontSize: 11, color: colors.gray, marginBottom: 4 }}>{entry.framework}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                  <div style={s.mobileFramework}>{entry.framework}</div>
+                  <div style={s.mobileBadgeRow}>
                     <span style={{ ...s.sourceBadge, backgroundColor: sourceColor[entry.source] }}>{entry.source}</span>
                     {entry.notes && <span style={s.notesBadge}>{entry.notes}</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: colors.gray, marginBottom: 6 }}>{entry.description}</div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={s.mobileDescription}>{entry.description}</div>
+                  <div style={s.mobileActions}>
                     <button onClick={() => copyUrl(entry.rawUrl)} style={s.actionBtn}>{copiedUrl === entry.rawUrl ? "✓" : "Copy URL"}</button>
                     <a href={entry.repo} target="_blank" rel="noopener noreferrer" style={s.repoLink}>Repo</a>
                   </div>
@@ -570,6 +597,21 @@ const s: Record<string, CSSProperties> = {
     fontFamily: fonts.sans,
     fontWeight: 500,
   },
+  filtersToggle: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: "auto",
+    padding: "3px 10px",
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: fonts.sans,
+    color: colors.navy,
+    backgroundColor: colors.bg,
+    border: `1px solid ${colors.paleGray}`,
+    borderRadius: radii.sm,
+    cursor: "pointer",
+  },
 
   /* Sections */
   section: {
@@ -605,7 +647,7 @@ const s: Record<string, CSSProperties> = {
   table: {
     border: `1px solid ${colors.paleGray}`,
     borderRadius: radii.md,
-    overflow: "hidden",
+    overflowX: "auto" as const,
     boxShadow: shadows.sm,
   },
   tableHeaderRow: {
@@ -614,6 +656,7 @@ const s: Record<string, CSSProperties> = {
     backgroundColor: colors.navy,
     padding: "8px 14px",
     gap: 10,
+    minWidth: 700,
   },
   th: {
     fontSize: 11,
@@ -630,6 +673,7 @@ const s: Record<string, CSSProperties> = {
     gap: 10,
     borderBottom: `1px solid ${colors.paleGray}`,
     transition: "background-color .1s",
+    minWidth: 700,
   },
   td: {
     fontSize: 13,
@@ -669,7 +713,10 @@ const s: Record<string, CSSProperties> = {
     fontFamily: fonts.sans,
   },
   actionBtn: {
-    padding: "3px 8px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "4px 10px",
     fontSize: 11,
     fontWeight: 500,
     fontFamily: fonts.sans,
@@ -679,9 +726,14 @@ const s: Record<string, CSSProperties> = {
     borderRadius: radii.sm,
     cursor: "pointer",
     whiteSpace: "nowrap" as const,
+    lineHeight: 1,
+    boxSizing: "border-box" as const,
   },
   repoLink: {
-    padding: "3px 8px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "4px 10px",
     fontSize: 11,
     fontWeight: 500,
     fontFamily: fonts.sans,
@@ -690,7 +742,52 @@ const s: Record<string, CSSProperties> = {
     border: `1px solid ${colors.paleGray}`,
     borderRadius: radii.sm,
     backgroundColor: colors.bg,
+    lineHeight: 1,
+    boxSizing: "border-box" as const,
   },
+
+  /* Mobile card styles */
+  mobileCard: (i: number): CSSProperties => ({
+    padding: "12px 14px",
+    borderBottom: `1px solid ${colors.paleGray}`,
+    backgroundColor: i % 2 === 0 ? colors.card : colors.bg,
+  }),
+  mobileFilename: {
+    color: colors.brightBlue,
+    textDecoration: "none",
+    fontWeight: 600,
+    fontSize: 13,
+    display: "block",
+    marginBottom: 4,
+    overflowWrap: "break-word" as const,
+    wordBreak: "break-word" as const,
+    fontFamily: fonts.sans,
+  } as CSSProperties,
+  mobileFramework: {
+    fontSize: 11,
+    color: colors.gray,
+    marginBottom: 4,
+    fontFamily: fonts.sans,
+  } as CSSProperties,
+  mobileBadgeRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap" as const,
+    marginBottom: 4,
+  } as CSSProperties,
+  mobileDescription: {
+    fontSize: 12,
+    color: colors.gray,
+    marginBottom: 8,
+    lineHeight: 1.4,
+    fontFamily: fonts.sans,
+  } as CSSProperties,
+  mobileActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  } as CSSProperties,
 
   /* Footer */
   footer: {
