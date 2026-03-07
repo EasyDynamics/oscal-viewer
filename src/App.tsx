@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { OscalProvider } from "./context/OscalContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
 import CatalogPage from "./pages/CatalogPage";
@@ -13,6 +14,7 @@ import ExamplesPage from "./pages/ExamplesPage";
 
 export default function App() {
   return (
+    <ThemeProvider>
     <OscalProvider>
     <BrowserRouter>
       <Routes>
@@ -30,5 +32,6 @@ export default function App() {
       </Routes>
     </BrowserRouter>
     </OscalProvider>
+    </ThemeProvider>
   );
 }

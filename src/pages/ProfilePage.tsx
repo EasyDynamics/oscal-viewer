@@ -563,7 +563,7 @@ function AddBadge({ size = 20 }: { size?: number }) {
     <span style={{
       display: "inline-flex", alignItems: "center", justifyContent: "center",
       width: size, height: size, borderRadius: "50%",
-      backgroundColor: "#2e7d32", color: "#fff",
+      backgroundColor: colors.successFg, color: colors.textOnAccent,
       fontSize: size * 0.55, fontWeight: 800, lineHeight: 1, flexShrink: 0,
     }}>
       A
@@ -577,7 +577,7 @@ function RemoveBadge({ size = 20 }: { size?: number }) {
     <span style={{
       display: "inline-flex", alignItems: "center", justifyContent: "center",
       width: size, height: size, borderRadius: "50%",
-      backgroundColor: "#c62828", color: "#fff",
+      backgroundColor: colors.dangerFg, color: colors.textOnAccent,
       fontSize: size * 0.55, fontWeight: 800, lineHeight: 1, flexShrink: 0,
     }}>
       R
@@ -979,7 +979,7 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
                       {controlLabel(cid)}
                     </span>
                     {hasAlter && (
-                      <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: "#e8f5e9", color: "#2e7d32", fontWeight: 700, marginRight: 2 }}>
+                      <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.successBg, color: colors.successFg, fontWeight: 700, marginRight: 2 }}>
                         M
                       </span>
                     )}
@@ -1008,7 +1008,7 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
                           {controlLabel(enhId)}
                         </span>
                         {enhHasAlter && (
-                          <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: "#e8f5e9", color: "#2e7d32", fontWeight: 700 }}>
+                          <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.successBg, color: colors.successFg, fontWeight: 700 }}>
                             M
                           </span>
                         )}
@@ -1176,7 +1176,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.white }}>
+    <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.card }}>
       {/* Search */}
       <div style={{ ...S.searchWrap, padding: "10px 12px" }}>
         <IcoSearch size={14} style={{ color: colors.gray, flexShrink: 0 }} />
@@ -1215,7 +1215,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
           {node.icon}
           <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.label}</span>
           {node.modBadge && (
-            <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: "#e8f5e9", color: "#2e7d32", fontWeight: 700 }}>M</span>
+            <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.successBg, color: colors.successFg, fontWeight: 700 }}>M</span>
           )}
           {node.badge != null && <span style={S.badge}>{node.badge}</span>}
           {node.isBranch && <IcoChev open={false} style={{ color: colors.gray }} />}
@@ -1286,7 +1286,7 @@ function Breadcrumbs({ items, navigate }: { items: { id: string; label: string }
 
 function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <div style={{ backgroundColor: colors.white, borderRadius: radii.md, padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...style }}>
+    <div style={{ backgroundColor: colors.card, borderRadius: radii.md, padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...style }}>
       {children}
     </div>
   );
@@ -1355,7 +1355,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           border: `2px dashed ${dragging ? colors.cobalt : colors.paleGray}`,
           borderRadius: radii.lg, padding: "48px 24px",
-          backgroundColor: dragging ? "#f0f4ff" : colors.white,
+          backgroundColor: dragging ? colors.dropzoneBg : colors.card,
           cursor: "pointer", transition: "border-color .2s, background-color .2s",
           maxWidth: 520, margin: "0 auto",
         }}
@@ -1366,7 +1366,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
         </p>
         <p style={{ fontSize: 12, color: colors.gray, marginTop: 4 }}>or click to browse</p>
         {error && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "#fff5f5", border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: colors.errorBg, border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
             <p style={{ fontSize: 13, color: colors.red, fontWeight: 600, margin: 0 }}>{error}</p>
             {sourceUrl && (
               <>
@@ -1417,7 +1417,7 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
           { label: "Control Families", value: familyGroups.length, color: colors.navy },
           { label: "Parameter Constraints", value: setParamCount, color: colors.brightBlue },
           { label: "Altered Controls", value: alterCount, color: colors.orange },
-          { label: "Add Operations", value: addCount, color: "#2e7d32" },
+          { label: "Add Operations", value: addCount, color: colors.successFg },
           { label: "Remove Operations", value: removeCount, color: colors.red },
         ].map((s) => (
           <Card key={s.label} style={{ textAlign: "center", borderTop: `3px solid ${s.color}` }}>
@@ -1644,7 +1644,7 @@ function FamilyView({ familyGroup: fg, alterMap, setParamMap, navigate }: {
                 </span>
               )}
               {hasAlter && (
-                <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: "#e8f5e9", color: "#2e7d32", fontWeight: 600 }}>
+                <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.successBg, color: colors.successFg, fontWeight: 600 }}>
                   modified
                 </span>
               )}
@@ -1773,8 +1773,8 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
         {coreAdd && (
           <span style={{
             fontSize: 11, padding: "2px 10px", borderRadius: radii.pill,
-            backgroundColor: "#e8f5e9", color: "#2e7d32", fontWeight: 700,
-            border: "1px solid #c8e6c9",
+            backgroundColor: colors.successBg, color: colors.successFg, fontWeight: 700,
+            border: `1px solid ${colors.successBorder}`,
           }}>
             CORE
           </span>
@@ -1786,7 +1786,7 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
 
       {/* No catalog loaded banner */}
       {!catalog && (
-        <Card style={{ backgroundColor: "#FFF8E1", borderLeft: `4px solid ${colors.orange}` }}>
+        <Card style={{ backgroundColor: colors.warningBg, borderLeft: `4px solid ${colors.orange}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <IcoAlert size={18} style={{ color: colors.orange }} />
             <div>
@@ -1862,10 +1862,10 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
       {!catalogControl && alter && (
         <>
           {adds.length > 0 && adds.map((add, ai) => (
-            <Card key={ai} style={{ borderLeft: "4px solid #2e7d32" }}>
+            <Card key={ai} style={{ borderLeft: `4px solid ${colors.successFg}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <AddBadge size={18} />
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#2e7d32" }}>Addition</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: colors.successFg }}>Addition</span>
                 {add["by-id"] && (
                   <span style={{ fontSize: 11, fontFamily: fonts.mono, color: colors.gray }}>
                     target: {add["by-id"]} ({add.position ?? "ending"})
@@ -1992,7 +1992,7 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
                   {enh.title}
                 </span>
                 {enhHasAlter && (
-                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: "#e8f5e9", color: "#2e7d32", fontWeight: 600 }}>
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.successBg, color: colors.successFg, fontWeight: 600 }}>
                     modified
                   </span>
                 )}
@@ -2027,8 +2027,8 @@ function ResolvedPartTree({ part, depth, paramMap }: {
 
   // Indentation colours for hierarchy depth
   const normalColors = [colors.navy, colors.brightBlue, colors.cobalt, colors.gray, colors.blueGray];
-  const addedColors = ["#2e7d32", "#388e3c", "#43a047", "#4caf50", "#66bb6a"];
-  const removedColors = ["#c62828", "#d32f2f", "#e53935", "#ef5350", "#ef9a9a"];
+  const addedColors = [colors.successFg, colors.successBorder, colors.successBorder, colors.successBorder, colors.successBorder];
+  const removedColors = [colors.dangerFg, colors.dangerFg, colors.dangerFg, colors.dangerFg, colors.dangerFg];
   const borderColor = isAdded
     ? addedColors[depth % addedColors.length]
     : isRemoved
@@ -2040,7 +2040,7 @@ function ResolvedPartTree({ part, depth, paramMap }: {
       marginTop: depth === 0 ? 0 : 8,
       paddingLeft: depth > 0 ? 16 : 0,
       borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
-      backgroundColor: isAdded ? "rgba(76, 175, 80, 0.06)" : isRemoved ? "rgba(198, 40, 40, 0.04)" : "transparent",
+      backgroundColor: isAdded ? alpha(colors.successFg, 6) : isRemoved ? alpha(colors.dangerFg, 10) : "transparent",
       borderRadius: isAdded || isRemoved ? radii.sm : 0,
       padding: isAdded || isRemoved ? (depth > 0 ? "4px 4px 4px 16px" : "4px") : undefined,
     }}>
@@ -2054,7 +2054,7 @@ function ResolvedPartTree({ part, depth, paramMap }: {
           {partLabel && (
             <span style={{
               fontSize: 12, fontWeight: 700,
-              color: isRemoved ? colors.gray : isAdded ? "#2e7d32" : borderColor,
+              color: isRemoved ? colors.dangerFg : isAdded ? colors.successFg : borderColor,
               fontFamily: fonts.mono, marginRight: 6,
               textDecoration: isRemoved ? "line-through" : "none",
             }}>
@@ -2067,7 +2067,7 @@ function ResolvedPartTree({ part, depth, paramMap }: {
             isRemoved ? (
               <span style={{
                 fontSize: 13, lineHeight: 1.75,
-                color: colors.gray, textDecoration: "line-through", opacity: 0.7,
+                color: colors.dangerFg, textDecoration: "line-through", opacity: 0.75,
               }}>
                 {part.prose}
               </span>
@@ -2118,7 +2118,7 @@ function FallbackAddedPartTree({ part, depth }: { part: ProfilePart; depth: numb
   const subParts = part.parts ?? [];
   const partLabel = getLabel(part.props);
 
-  const depthColors = ["#2e7d32", "#388e3c", "#43a047", "#4caf50", "#66bb6a"];
+  const depthColors = [colors.successFg, colors.successBorder, colors.successBorder, colors.successBorder, colors.successBorder];
   const borderColor = depthColors[depth % depthColors.length];
 
   return (
@@ -2131,7 +2131,7 @@ function FallbackAddedPartTree({ part, depth }: { part: ProfilePart; depth: numb
         <AddBadge size={18} />
         <div style={{ flex: 1 }}>
           {(part.title || partLabel) && (
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#2e7d32", marginBottom: 2 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: colors.successFg, marginBottom: 2 }}>
               {partLabel && <span style={{ fontFamily: fonts.mono, marginRight: 6 }}>{partLabel}</span>}
               {part.title && <span>{part.title}</span>}
             </div>
@@ -2166,7 +2166,7 @@ function ProseWithParamsProfile({ text, paramMap, isAdded }: {
   return (
     <span style={{
       fontSize: 13, lineHeight: 1.75,
-      color: isAdded ? "#2e7d32" : colors.black,
+      color: isAdded ? colors.successFg : colors.black,
     }}>
       {parts.map((segment, i) => {
         const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
@@ -2272,7 +2272,7 @@ const S: Record<string, CSSProperties> = {
   sidebar: {
     width: 300,
     minWidth: 300,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",
     flexShrink: 0,

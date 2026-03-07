@@ -90,13 +90,13 @@ const modelColor: Record<ModelType, string> = {
 };
 
 const sourceColor: Record<SourceTag, string> = {
-  "NIST Official": "#1a5276",
-  FedRAMP: "#0b5394",
-  "International Gov": "#117a65",
-  Community: "#6c3483",
-  Vendor: "#b9770e",
-  Plugfest: "#c0392b",
-  "Tool Test Data": "#566573",
+  "NIST Official": colors.tintBlue,
+  FedRAMP: colors.cobalt,
+  "International Gov": colors.tintGreen,
+  Community: colors.tintPurple,
+  Vendor: colors.tintOrange,
+  Plugfest: colors.red,
+  "Tool Test Data": colors.blueGray,
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -301,7 +301,7 @@ export default function ExamplesPage() {
                   style={{
                     ...s.filterChip,
                     backgroundColor: active ? modelColor[m] : colors.bg,
-                    color: active ? "#fff" : colors.black,
+                    color: active ? colors.textOnAccent : colors.black,
                     borderColor: active ? modelColor[m] : colors.paleGray,
                   }}
                 >
@@ -327,7 +327,7 @@ export default function ExamplesPage() {
                   style={{
                     ...s.filterChip,
                     backgroundColor: active ? sourceColor[src] : colors.bg,
-                    color: active ? "#fff" : colors.black,
+                    color: active ? colors.textOnAccent : colors.black,
                     borderColor: active ? sourceColor[src] : colors.paleGray,
                   }}
                 >
@@ -374,7 +374,7 @@ export default function ExamplesPage() {
 
               {/* Rows */}
               {entries.map((entry, i) => isMobile ? (
-                <div key={`${entry.rawUrl}-${i}`} style={{ padding: "10px 12px", borderBottom: `1px solid ${colors.paleGray}`, backgroundColor: i % 2 === 0 ? colors.white : colors.bg }}>
+                <div key={`${entry.rawUrl}-${i}`} style={{ padding: "10px 12px", borderBottom: `1px solid ${colors.paleGray}`, backgroundColor: i % 2 === 0 ? colors.card : colors.bg }}>
                   <a href={viewerUrl(entry)} target="_blank" rel="noopener noreferrer" style={{ ...s.fileLink, fontSize: 13, display: "block", marginBottom: 4 }}>
                     {entry.filename}
                   </a>
@@ -394,7 +394,7 @@ export default function ExamplesPage() {
                   key={`${entry.rawUrl}-${i}`}
                   style={{
                     ...s.tableRow,
-                    backgroundColor: i % 2 === 0 ? colors.white : colors.bg,
+                    backgroundColor: i % 2 === 0 ? colors.card : colors.bg,
                   }}
                 >
                   {/* Filename → opens viewer */}
@@ -488,7 +488,7 @@ export default function ExamplesPage() {
 const s: Record<string, CSSProperties> = {
   /* Banner */
   banner: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderLeft: `5px solid ${colors.navy}`,
     borderRadius: radii.md,
     padding: "24px 28px",
@@ -511,7 +511,7 @@ const s: Record<string, CSSProperties> = {
 
   /* Filters */
   filterPanel: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     border: `1px solid ${colors.paleGray}`,
     borderRadius: radii.md,
     padding: "18px 22px",
@@ -653,7 +653,7 @@ const s: Record<string, CSSProperties> = {
     padding: "1px 6px",
     borderRadius: radii.sm,
     backgroundColor: colors.yellow,
-    color: "#7c6600",
+    color: colors.tintOrange,
     fontSize: 10,
     fontWeight: 600,
     verticalAlign: "middle",
@@ -662,7 +662,7 @@ const s: Record<string, CSSProperties> = {
     display: "inline-block",
     padding: "2px 8px",
     borderRadius: radii.pill,
-    color: "#fff",
+    color: colors.textOnAccent,
     fontSize: 10,
     fontWeight: 600,
     whiteSpace: "nowrap" as const,

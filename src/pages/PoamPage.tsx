@@ -190,22 +190,22 @@ interface Poam {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const RISK_STATUS_COLORS: Record<string, { bg: string; fg: string; border: string; label: string }> = {
-  open:                  { bg: "#ffebee", fg: "#c62828", border: "#ef5350", label: "Open" },
-  "deviation-approved":  { bg: "#fff3e0", fg: "#e65100", border: "#ff9800", label: "Deviation Approved" },
-  remediating:           { bg: "#e3f2fd", fg: "#1565c0", border: "#42a5f5", label: "Remediating" },
-  closed:                { bg: "#e8f5e9", fg: "#2e7d32", border: "#4caf50", label: "Closed" },
+  open:                  { bg: colors.dangerBg, fg: colors.dangerFg, border: colors.statusFailBorder, label: "Open" },
+  "deviation-approved":  { bg: colors.statusErrorBg, fg: colors.statusErrorFg, border: colors.statusErrorBorder, label: "Deviation Approved" },
+  remediating:           { bg: colors.tintBlue, fg: colors.cobalt, border: colors.cobalt, label: "Remediating" },
+  closed:                { bg: colors.successBg, fg: colors.successFg, border: colors.statusPassBorder, label: "Closed" },
 };
 
 const FINDING_STATUS_COLORS: Record<string, { bg: string; fg: string; border: string }> = {
-  satisfied:             { bg: "#e8f5e9", fg: "#2e7d32", border: "#4caf50" },
-  "not-satisfied":       { bg: "#ffebee", fg: "#c62828", border: "#ef5350" },
+  satisfied:             { bg: colors.statusPassBg, fg: colors.statusPassFg, border: colors.statusPassBorder },
+  "not-satisfied":       { bg: colors.statusFailBg, fg: colors.statusFailFg, border: colors.statusFailBorder },
 };
 
 const FACET_COLORS: Record<string, { bg: string; fg: string }> = {
-  low:      { bg: "#e8f5e9", fg: "#2e7d32" },
-  moderate: { bg: "#fff3e0", fg: "#e65100" },
-  high:     { bg: "#ffebee", fg: "#c62828" },
-  critical: { bg: "#880e4f", fg: "#ffffff" },
+  low:      { bg: colors.riskLowBg, fg: colors.riskLowFg },
+  moderate: { bg: colors.riskModerateBg, fg: colors.riskModerateFg },
+  high:     { bg: colors.riskHighBg, fg: colors.riskHighFg },
+  critical: { bg: colors.riskCriticalBg, fg: colors.riskCriticalFg },
 };
 
 function fmtDate(s?: string) {
@@ -555,7 +555,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
             return (
               <div key={sec.name} style={{
                 padding: "12px 16px", marginBottom: 12,
-                backgroundColor: colors.white, borderRadius: radii.md,
+                backgroundColor: colors.card, borderRadius: radii.md,
                 border: `1px solid ${colors.paleGray}`,
                 borderLeft: `4px solid ${sec.color}`,
               }}>
@@ -574,7 +574,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
           {params.length > 0 && (
             <div style={{
               padding: "12px 16px", marginBottom: 12,
-              backgroundColor: colors.white, borderRadius: radii.md,
+              backgroundColor: colors.card, borderRadius: radii.md,
               border: `1px solid ${colors.paleGray}`,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -601,7 +601,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
           {enhancements.length > 0 && (
             <div style={{
               padding: "12px 16px",
-              backgroundColor: colors.white, borderRadius: radii.md,
+              backgroundColor: colors.card, borderRadius: radii.md,
               border: `1px solid ${colors.paleGray}`,
             }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: colors.cobalt }}>
@@ -828,7 +828,7 @@ export default function PoamPage() {
           { id: "sec-poam-items", label: `POA&M Items (${filteredPoamItems.length})`, icon: <IcoClipboard size={14} style={{ color: colors.red }} />, isBranch: true, badge: filteredPoamItems.length },
         ];
         if (filteredRisks.length > 0 || !lowerSearch) {
-          items.push({ id: "sec-risks", label: `Risks (${filteredRisks.length})`, icon: <IcoAlert size={14} style={{ color: "#e65100" }} />, isBranch: true, badge: filteredRisks.length });
+          items.push({ id: "sec-risks", label: `Risks (${filteredRisks.length})`, icon: <IcoAlert size={14} style={{ color: colors.riskModerateFg }} />, isBranch: true, badge: filteredRisks.length });
         }
         if ((filteredFindings.length > 0 || !lowerSearch) && (poam.findings ?? []).length > 0) {
           items.push({ id: "sec-findings", label: `Findings (${filteredFindings.length})`, icon: <IcoTarget size={14} style={{ color: colors.cobalt }} />, isBranch: true, badge: filteredFindings.length });
@@ -880,7 +880,7 @@ export default function PoamPage() {
             </div>
             <button style={S.topBtn} onClick={handleNewFile}>New File</button>
           </div>
-          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.white }}>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.card }}>
             <button onClick={mobileBackToNav} style={poamMobileS.backBtn}>← Back to navigation</button>
           </div>
           <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
@@ -1017,7 +1017,7 @@ export default function PoamPage() {
             <SidebarSection
               id="sec-risks"
               label={`Risks (${filteredRisks.length})`}
-              icon={<IcoAlert size={14} style={{ color: "#e65100" }} />}
+              icon={<IcoAlert size={14} style={{ color: colors.riskModerateFg }} />}
               collapsed={!!mergedCollapsed["sec-risks"]}
               onToggle={() => toggleGroup("sec-risks")}
             >
@@ -1264,7 +1264,7 @@ function Breadcrumbs({ items, navigate }: { items: { id: string; label: string }
 
 function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <div style={{ backgroundColor: colors.white, borderRadius: radii.md, padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...style }}>
+    <div style={{ backgroundColor: colors.card, borderRadius: radii.md, padding: "20px 24px", boxShadow: shadows.sm, marginBottom: 16, ...style }}>
       {children}
     </div>
   );
@@ -1345,8 +1345,8 @@ function DeadlineBadge({ deadline }: { deadline?: string }) {
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
       fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: radii.pill,
-      backgroundColor: overdue ? "#ffebee" : "#e3f2fd",
-      color: overdue ? "#c62828" : "#1565c0",
+      backgroundColor: overdue ? colors.dangerBg : colors.tintBlue,
+      color: overdue ? colors.dangerFg : colors.cobalt,
     }}>
       <IcoCalendar size={11} />
       {fmtDate(deadline)}
@@ -1387,7 +1387,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           border: `2px dashed ${dragging ? colors.cobalt : colors.paleGray}`,
           borderRadius: radii.lg, padding: "48px 24px",
-          backgroundColor: dragging ? "#f0f4ff" : colors.white,
+          backgroundColor: dragging ? colors.dropzoneBg : colors.card,
           cursor: "pointer", transition: "border-color .2s, background-color .2s",
           maxWidth: 520, margin: "0 auto",
         }}
@@ -1398,7 +1398,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
         </p>
         <p style={{ fontSize: 12, color: colors.gray, marginTop: 4 }}>or click to browse</p>
         {error && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "#fff5f5", border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: colors.errorBg, border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
             <p style={{ fontSize: 13, color: colors.red, fontWeight: 600, margin: 0 }}>{error}</p>
             {sourceUrl && (
               <>
@@ -1475,11 +1475,11 @@ function OverviewView({ poam, navigate, riskStatusCounts, obsMap, riskMap, findi
       {/* Stat Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 20 }}>
         <StatCard label="POA&M Items" value={items.length} color={colors.red} />
-        <StatCard label="Risks" value={risks.length} color="#e65100" />
+        <StatCard label="Risks" value={risks.length} color={colors.riskModerateFg} />
         <StatCard label="Findings" value={findings.length} color={colors.cobalt} />
         <StatCard label="Observations" value={observations.length} color={colors.brightBlue} />
         {overdueRisks.length > 0 && (
-          <StatCard label="Overdue" value={overdueRisks.length} color="#c62828" />
+          <StatCard label="Overdue" value={overdueRisks.length} color={colors.dangerFg} />
         )}
       </div>
 
@@ -2342,7 +2342,7 @@ const S: Record<string, CSSProperties> = {
   sidebar: {
     width: 300,
     minWidth: 300,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",
     flexShrink: 0,
@@ -2421,6 +2421,6 @@ const poamMobileS: Record<string, CSSProperties> = {
     padding: "8px 12px",
     fontSize: 12,
     borderBottom: `1px solid ${colors.bg}`,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
 };

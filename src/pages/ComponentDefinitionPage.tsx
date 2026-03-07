@@ -939,7 +939,7 @@ export default function ComponentDefinitionPage() {
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Component Def</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.white }}>
+        <div style={{ flex: 1, overflowY: "auto", backgroundColor: colors.card }}>
           {mobilePath.length > 0 && (
             <div style={S.mobileBreadcrumbs}>
               {breadcrumbs.map((bc, i) => (
@@ -1224,7 +1224,7 @@ function Card({
   return (
     <div
       style={{
-        backgroundColor: colors.white,
+        backgroundColor: colors.card,
         borderRadius: radii.md,
         padding: "20px 24px",
         boxShadow: shadows.sm,
@@ -1390,7 +1390,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
           border: `2px dashed ${dragging ? colors.cobalt : colors.paleGray}`,
           borderRadius: radii.lg,
           padding: "48px 24px",
-          backgroundColor: dragging ? "#f0f4ff" : colors.white,
+          backgroundColor: dragging ? colors.dropzoneBg : colors.card,
           cursor: "pointer",
           transition: "border-color .2s, background-color .2s",
           maxWidth: 520,
@@ -1405,7 +1405,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
           or click to browse
         </p>
         {error && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "#fff5f5", border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, padding: "12px 16px", backgroundColor: colors.errorBg, border: `1px solid ${colors.red}`, borderRadius: radii.md, textAlign: "left", maxWidth: 480, width: "100%" }}>
             <p style={{ fontSize: 13, color: colors.red, fontWeight: 600, margin: 0 }}>{error}</p>
             {sourceUrl && (
               <>
@@ -2321,7 +2321,7 @@ function RequirementView({
       ) : (
         <Card
           style={{
-            backgroundColor: "#FFF8F0",
+            backgroundColor: colors.warningBg,
             borderLeft: `4px solid ${colors.yellow}`,
           }}
         >
@@ -2762,7 +2762,7 @@ const S: Record<string, CSSProperties> = {
   sidebar: {
     width: 260,
     minWidth: 260,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",
     flexShrink: 0,

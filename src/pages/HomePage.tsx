@@ -109,7 +109,7 @@ export default function HomePage() {
 
 const styles: Record<string, CSSProperties> = {
   banner: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderLeft: `5px solid ${colors.orange}`,
     borderRadius: radii.md,
     padding: "28px 32px",
@@ -167,7 +167,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 20,
   },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     padding: "20px 24px",
     boxShadow: shadows.sm,

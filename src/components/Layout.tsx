@@ -7,13 +7,16 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { CSSProperties } from "react";
-import { colors, fonts, oscalModels, shadows, brand } from "../theme/tokens";
+import { colors, fonts, oscalModels, shadows, brand, alpha } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useTheme } from "../context/ThemeContext";
+import { IconSun, IconMoon } from "./Icons";
 import useIsMobile from "../hooks/useIsMobile";
 
 export default function Layout() {
   const location = useLocation();
   const { isLoaded } = useOscal();
+  const { resolvedMode, toggleMode } = useTheme();
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -56,12 +59,42 @@ export default function Layout() {
 
         {!isMobile && (
           brand.logoUrl ? (
-            <a href="https://oscal.io/" target="_blank" rel="noopener noreferrer">
-              <img src={brand.logoUrl} alt={brand.tagline} style={{ height: 20 }} />
-            </a>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                onClick={toggleMode}
+                aria-label={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                style={styles.themeToggle}
+              >
+                {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+              </button>
+              <a href="https://oscal.io/" target="_blank" rel="noopener noreferrer">
+                <img src={brand.logoUrl} alt={brand.tagline} style={{ height: 20 }} />
+              </a>
+            </div>
           ) : (
-            <span style={styles.tagline}>{brand.tagline}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                onClick={toggleMode}
+                aria-label={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                style={styles.themeToggle}
+              >
+                {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+              </button>
+              <span style={styles.tagline}>{brand.tagline}</span>
+            </div>
           )
+        )}
+        {isMobile && (
+          <button
+            onClick={toggleMode}
+            aria-label={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            style={styles.themeToggle}
+          >
+            {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+          </button>
         )}
       </header>
 
@@ -173,8 +206,8 @@ function StatusDot({ color, loaded }: { color: string; loaded: boolean }) {
         marginRight: 6,
         flexShrink: 0,
         boxSizing: "content-box" as const,
-        border: loaded ? "2px solid #22c55e" : "2px solid transparent",
-        boxShadow: loaded ? "0 0 4px #22c55e88" : "none",
+        border: loaded ? `2px solid ${colors.loadedDot}` : "2px solid transparent",
+        boxShadow: loaded ? `0 0 4px ${alpha(colors.loadedDot, 55)}` : "none",
       }}
     />
   );
@@ -199,7 +232,7 @@ function MobileMenuItem({ to, label, isActive, dot, onTap }: {
         fontFamily: fonts.sans,
         color: isActive ? colors.orange : colors.black,
         textDecoration: "none",
-        backgroundColor: isActive ? `${colors.orange}11` : "transparent",
+        backgroundColor: isActive ? alpha(colors.orange, 7) : "transparent",
         borderBottom: `1px solid ${colors.paleGray}`,
         minHeight: 48,
       }}
@@ -243,7 +276,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "space-between",
     padding: "0 24px",
     height: 56,
-    backgroundColor: colors.navy,
+    backgroundColor: colors.darkNavy,
     color: colors.white,
     boxShadow: shadows.md,
     position: "sticky",
@@ -275,7 +308,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 0,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderBottom: `1px solid ${colors.paleGray}`,
     paddingLeft: 24,
     overflowX: "auto",
@@ -310,7 +343,7 @@ const styles: Record<string, CSSProperties> = {
     position: "fixed" as const,
     inset: 0,
     top: 56,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: colors.surfaceOverlay,
     zIndex: 98,
   },
   mobileMenu: {
@@ -320,8 +353,22 @@ const styles: Record<string, CSSProperties> = {
     right: 0,
     maxHeight: "calc(100vh - 56px)",
     overflowY: "auto" as const,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     boxShadow: shadows.lg,
     zIndex: 99,
   },
+  themeToggle: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 36,
+    height: 36,
+    borderRadius: "50%",
+    background: alpha(colors.white, 12),
+    border: "none",
+    color: colors.white,
+    cursor: "pointer",
+    transition: "background .15s",
+    flexShrink: 0,
+  } as CSSProperties,
 };
