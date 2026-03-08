@@ -11,6 +11,7 @@ import AssessmentPlanPage from "./pages/AssessmentPlanPage";
 import AssessmentResultsPage from "./pages/AssessmentResultsPage";
 import PoamPage from "./pages/PoamPage";
 import ExamplesPage from "./pages/ExamplesPage";
+import HowItWorksPage from "./pages/HowItWorksPage";
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="assessment-results" element={<AssessmentResultsPage />} />
           <Route path="poam" element={<PoamPage />} />
           <Route path="examples" element={<ExamplesPage />} />
+          <Route path="how-it-works" element={<HowItWorksPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
