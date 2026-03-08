@@ -94,8 +94,9 @@ export interface Group {
 export interface Resource {
   uuid: string;
   title?: string;
+  description?: string;
   citation?: { text: string };
-  rlinks?: { href: string }[];
+  rlinks?: { href: string; "media-type"?: string }[];
 }
 
 export interface Catalog {

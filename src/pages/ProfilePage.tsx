@@ -619,6 +619,122 @@ export default function ProfilePage() {
     }
   }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ── Auto-fetch catalog from profile import hrefs ── */
+  const [catalogFetchStatus, setCatalogFetchStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [catalogFetchError, setCatalogFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!profile) {
+      setCatalogFetchStatus("idle");
+      setCatalogFetchError(null);
+      return;
+    }
+
+    // Find the first import that we can resolve to a URL
+    let catalogUrl: string | null = null;
+    let resourceTitle: string | null = null;
+
+    for (const imp of profile.imports) {
+      const href = imp.href;
+      if (href.startsWith("#")) {
+        // Resolve from back-matter
+        const uuid = href.slice(1);
+        const resources = profile["back-matter"]?.resources ?? [];
+        const resource = resources.find((r) => r.uuid === uuid);
+        if (resource) {
+          resourceTitle = resource.title ?? null;
+          // Prefer JSON rlink
+          const jsonRlink = resource.rlinks?.find(
+            (rl) => rl["media-type"]?.includes("json"),
+          );
+          const anyRlink = resource.rlinks?.[0];
+          const rlink = jsonRlink ?? anyRlink;
+          if (rlink) {
+            catalogUrl = rlink.href;
+          }
+        }
+      } else {
+        // Direct URL
+        catalogUrl = href;
+      }
+      if (catalogUrl) break; // use the first resolvable import
+    }
+
+    if (!catalogUrl) return;
+
+    // If relative URL and we have a source URL for the profile, resolve it
+    if (catalogUrl && !catalogUrl.startsWith("http://") && !catalogUrl.startsWith("https://")) {
+      if (urlDoc.sourceUrl) {
+        try {
+          catalogUrl = new URL(catalogUrl, urlDoc.sourceUrl).href;
+        } catch {
+          // Can't resolve relative URL without a base
+          setCatalogFetchError(
+            `Cannot resolve relative catalog URL: ${catalogUrl}`,
+          );
+          setCatalogFetchStatus("error");
+          return;
+        }
+      } else {
+        // No base URL to resolve against — cannot fetch relative path
+        setCatalogFetchError(
+          `Cannot resolve relative catalog URL "${catalogUrl}" — profile was loaded from a local file. Load the catalog manually or use a profile with absolute URLs.`,
+        );
+        setCatalogFetchStatus("error");
+        return;
+      }
+    }
+
+    // Fetch the catalog
+    let cancelled = false;
+    const controller = new AbortController();
+    setCatalogFetchStatus("loading");
+    setCatalogFetchError(null);
+
+    fetch(catalogUrl, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        // Unwrap: could be { catalog: { ... } } or just { ... }
+        const catalogData =
+          (json as Record<string, unknown>)["catalog"] ?? json;
+        if (
+          !(catalogData as Record<string, unknown>).metadata ||
+          !(catalogData as Record<string, unknown>).uuid
+        ) {
+          throw new Error(
+            "Fetched document is not a valid OSCAL Catalog (no metadata/uuid).",
+          );
+        }
+        const fetchedFileName =
+          resourceTitle ??
+          fileNameFromUrl(catalogUrl!);
+        oscal.setCatalog(
+          catalogData as import("../context/OscalContext").Catalog,
+          fetchedFileName,
+        );
+        setCatalogFetchStatus("success");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if ((err as DOMException).name === "AbortError") return;
+        setCatalogFetchError(
+          err instanceof Error ? err.message : "Failed to fetch catalog",
+        );
+        setCatalogFetchStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [profile]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const navigate = useCallback((id: string) => {
     setView(id);
     contentRef.current?.scrollTo(0, 0);
@@ -778,7 +894,8 @@ export default function ProfilePage() {
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
             <ViewRouter view={view} profile={profile} familyGroups={familyGroups}
-              alterMap={alterMap} setParamMap={setParamMap} controlIds={controlIds} navigate={mobileNavigate} />
+              alterMap={alterMap} setParamMap={setParamMap} controlIds={controlIds} navigate={mobileNavigate}
+              catalogFetchStatus={catalogFetchStatus} catalogFetchError={catalogFetchError} />
           </div>
         </div>
       );
@@ -865,6 +982,8 @@ export default function ProfilePage() {
             setParamMap={setParamMap}
             controlIds={controlIds}
             navigate={navigate}
+            catalogFetchStatus={catalogFetchStatus}
+            catalogFetchError={catalogFetchError}
           />
         </div>
       </div>
@@ -1235,7 +1354,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
    VIEW ROUTER
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, controlIds, navigate }: {
+function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, controlIds, navigate, catalogFetchStatus, catalogFetchError }: {
   view: string;
   profile: Profile;
   familyGroups: FamilyGroup[];
@@ -1243,8 +1362,10 @@ function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, contro
   setParamMap: Map<string, SetParameter[]>;
   controlIds: string[];
   navigate: (id: string) => void;
+  catalogFetchStatus: "idle" | "loading" | "success" | "error";
+  catalogFetchError: string | null;
 }) {
-  if (view === "overview") return <OverviewView profile={profile} familyGroups={familyGroups} controlIds={controlIds} navigate={navigate} />;
+  if (view === "overview") return <OverviewView profile={profile} familyGroups={familyGroups} controlIds={controlIds} navigate={navigate} catalogFetchStatus={catalogFetchStatus} catalogFetchError={catalogFetchError} />;
   if (view === "metadata") return <MetadataView profile={profile} navigate={navigate} />;
   if (view === "imports") return <ImportsView profile={profile} controlIds={controlIds} navigate={navigate} />;
 
@@ -1389,9 +1510,12 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
    OVERVIEW VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ profile, familyGroups, controlIds, navigate }: {
+function OverviewView({ profile, familyGroups, controlIds, navigate, catalogFetchStatus, catalogFetchError }: {
   profile: Profile; familyGroups: FamilyGroup[]; controlIds: string[]; navigate: (id: string) => void;
+  catalogFetchStatus: "idle" | "loading" | "success" | "error";
+  catalogFetchError: string | null;
 }) {
+  const oscal = useOscal();
   const totalControls = controlIds.length;
   const setParamCount = profile.modify?.["set-parameters"]?.length ?? 0;
   const alterCount = profile.modify?.alters?.length ?? 0;
@@ -1451,6 +1575,47 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
           );
         })}
       </Card>
+
+      {/* Catalog fetch status */}
+      {catalogFetchStatus === "loading" && (
+        <Card style={{ borderLeft: `4px solid ${colors.cobalt}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 14 }}>⏳</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.cobalt }}>Fetching referenced catalog…</div>
+              <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>
+                Resolving import source and loading catalog data
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+      {catalogFetchStatus === "success" && oscal.catalog && (
+        <Card style={{ borderLeft: `4px solid ${colors.successFg}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 14 }}>✅</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.successFg }}>Catalog loaded</div>
+              <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>
+                {oscal.catalog.fileName} — controls enriched with full catalog data
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+      {catalogFetchStatus === "error" && catalogFetchError && (
+        <Card style={{ borderLeft: `4px solid ${colors.orange}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <IcoAlert size={16} style={{ color: colors.orange, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.orange }}>Could not auto-load catalog</div>
+              <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>
+                {catalogFetchError}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <SectionLabel>Merge Strategy</SectionLabel>
