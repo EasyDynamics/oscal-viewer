@@ -613,6 +613,68 @@ function componentTypeColor(type: string): string {
   }
 }
 
+/** Map an inventory-item asset-type prop to the best icon key */
+function assetTypeIconKey(assetType: string): string {
+  switch (assetType.toLowerCase()) {
+    case "os": return "software";
+    case "database": return "software";
+    case "web-server": case "application": return "software";
+    case "appliance": return "hardware";
+    case "network": case "switch": case "router": case "firewall": return "network";
+    case "storage": return "hardware";
+    case "virtual": case "virtual-machine": case "compute": return "ext-system";
+    case "software": return "software";
+    case "hardware": return "hardware";
+    case "service": return "service";
+    case "this-system": return "this-system";
+    case "interconnection": return "interconnection";
+    case "policy": return "policy";
+    case "physical": return "physical";
+    case "process-procedure": return "process-procedure";
+    case "plan": return "plan";
+    case "guidance": return "guidance";
+    case "standard": return "standard";
+    case "validation": return "validation";
+    default: return "box";
+  }
+}
+
+/** Map an inventory-item asset-type prop to a color */
+function assetTypeColor(assetType: string): string {
+  switch (assetType.toLowerCase()) {
+    case "os": return colors.brightBlue;
+    case "database": return colors.cobalt;
+    case "web-server": case "application": return colors.brightBlue;
+    case "appliance": return colors.blueGray;
+    case "network": case "switch": case "router": case "firewall": return colors.purple;
+    case "storage": return colors.blueGray;
+    case "virtual": case "virtual-machine": case "compute": return colors.cobalt;
+    case "software": return colors.brightBlue;
+    case "hardware": return colors.blueGray;
+    case "service": return colors.mint;
+    default: return colors.darkGreen;
+  }
+}
+
+/** Resolve the best icon key and color for an inventory item, checking asset-type then component type */
+function inventoryItemIcon(
+  ii: InventoryItem,
+  components: SspComponent[],
+): { iconKey: string; color: string } {
+  const assetType = ii.props.find((p) => p.name === "asset-type")?.value;
+  if (assetType) {
+    return { iconKey: assetTypeIconKey(assetType), color: assetTypeColor(assetType) };
+  }
+  // Fall back to the first implemented-component's type
+  for (const ic of ii.implementedComponents) {
+    const comp = components.find((c) => c.uuid === ic.componentUuid);
+    if (comp?.type) {
+      return { iconKey: componentTypeNavKey(comp.type), color: componentTypeColor(comp.type) };
+    }
+  }
+  return { iconKey: "box", color: colors.darkGreen };
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CONTROL FAMILY HELPERS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1366,11 +1428,12 @@ function UsersView({ ssp }: { ssp: SspParsed }) {
 
 function InventoryView({ ssp }: { ssp: SspParsed }) {
   const items = ssp.systemImplementation.inventoryItems;
+  const components = ssp.systemImplementation.components;
   const compMap = useMemo(() => {
     const m: Record<string, string> = {};
-    ssp.systemImplementation.components.forEach((c) => { m[c.uuid] = c.title || c.uuid.slice(0, 8); });
+    components.forEach((c) => { m[c.uuid] = c.title || c.uuid.slice(0, 8); });
     return m;
-  }, [ssp]);
+  }, [components]);
   return (
     <>
       <Card>
@@ -1381,10 +1444,11 @@ function InventoryView({ ssp }: { ssp: SspParsed }) {
       </Card>
       {items.map((ii) => {
         const assetType = ii.props.find((p) => p.name === "asset-type")?.value;
+        const { iconKey, color: iconColor } = inventoryItemIcon(ii, components);
         return (
           <Card key={ii.uuid}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <IcoBox size={13} style={{ color: colors.darkGreen }} />
+              {navIcon(iconKey, iconColor, 14)}
               <span style={{ fontSize: 13, fontWeight: 700, color: colors.navy }}>
                 {ii.props.find((p) => p.name === "asset-id")?.value || ii.uuid.slice(0, 12)}
               </span>
@@ -1914,26 +1978,29 @@ function SspComponentDetailView({
       {relatedInventory.length > 0 && (
         <Card>
           <SectionLabel>Inventory Items ({relatedInventory.length})</SectionLabel>
-          {relatedInventory.map((ii) => (
-            <div key={ii.uuid} style={{
-              padding: "8px 0", borderBottom: `1px solid ${colors.bg}`,
-              display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <IcoBox size={13} style={{ color: colors.darkGreen, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12.5, color: colors.navy }}>{ii.description || ii.uuid.slice(0, 12)}</div>
-                {ii.props.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
-                    {ii.props.map((p, pi) => (
-                      <span key={pi} style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
-                        {p.name}: {p.value}
-                      </span>
-                    ))}
-                  </div>
-                )}
+          {relatedInventory.map((ii) => {
+            const { iconKey, color: iconColor } = inventoryItemIcon(ii, ssp.systemImplementation.components);
+            return (
+              <div key={ii.uuid} style={{
+                padding: "8px 0", borderBottom: `1px solid ${colors.bg}`,
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
+                {navIcon(iconKey, iconColor, 13)}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12.5, color: colors.navy }}>{ii.description || ii.uuid.slice(0, 12)}</div>
+                  {ii.props.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
+                      {ii.props.map((p, pi) => (
+                        <span key={pi} style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
+                          {p.name}: {p.value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </Card>
       )}
 
