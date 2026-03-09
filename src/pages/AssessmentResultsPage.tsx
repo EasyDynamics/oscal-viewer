@@ -59,8 +59,8 @@ interface Metadata {
 
 interface Observation {
   uuid: string;
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   collected?: string;
   methods: string[];
   types?: string[];
@@ -287,7 +287,8 @@ function extractNistControls(text: string | undefined): string[] {
 }
 
 /** Try to extract the test ID number from the title for a sort key */
-function getSortKey(title: string): string {
+function getSortKey(title: string | undefined): string {
+  if (!title) return "";
   const m = title.match(/MS\.(\w+)\.(\d+)\.(\d+)/);
   if (m) {
     return `${m[1]}.${m[2].padStart(3, "0")}.${m[3].padStart(3, "0")}`;
@@ -732,8 +733,8 @@ export default function AssessmentResultsPage() {
       const visible = observations.filter((obs) => {
         if (statusFilter !== "all" && getStatus(obs) !== statusFilter) return false;
         if (lowerSearch) {
-          if (obs.title.toLowerCase().includes(lowerSearch)) return true;
-          if (obs.description.toLowerCase().includes(lowerSearch)) return true;
+          if ((obs.title ?? "").toLowerCase().includes(lowerSearch)) return true;
+          if ((obs.description ?? "").toLowerCase().includes(lowerSearch)) return true;
           if (groupName.toLowerCase().includes(lowerSearch)) return true;
           return false;
         }
@@ -825,7 +826,7 @@ export default function AssessmentResultsPage() {
         const sc = STATUS_COLORS[status];
         return {
           id: `__obs-${obs.uuid}`,
-          label: trunc(obs.title, 40),
+          label: trunc(obs.title ?? "Untitled", 40),
           icon: <StatusDot status={status} />,
           isBranch: false,
           statusColor: sc?.border,
@@ -1319,8 +1320,8 @@ function SidebarGroupTree({ groupedObservations, groupNames, view, collapsed, se
         const visible = observations.filter((obs) => {
           if (statusFilter !== "all" && getStatus(obs) !== statusFilter) return false;
           if (lowerSearch) {
-            if (obs.title.toLowerCase().includes(lowerSearch)) return true;
-            if (obs.description.toLowerCase().includes(lowerSearch)) return true;
+            if ((obs.title ?? "").toLowerCase().includes(lowerSearch)) return true;
+            if ((obs.description ?? "").toLowerCase().includes(lowerSearch)) return true;
             if (groupName.toLowerCase().includes(lowerSearch)) return true;
             return false;
           }
@@ -1353,7 +1354,7 @@ function SidebarGroupTree({ groupedObservations, groupNames, view, collapsed, se
                 <NavRow
                   key={obs.uuid}
                   id={obsId}
-                  label={trunc(obs.title, 38)}
+                  label={trunc(obs.title ?? "Untitled", 38)}
                   icon={<StatusDot status={status} />}
                   active={view === obsId}
                   onClick={() => navigate(obsId)}
@@ -2145,7 +2146,7 @@ function ObservationTable({ observations, navigate, obsNistMap }: {
           >
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy, marginBottom: 2 }}>
-                {obs.title}
+                {obs.title ?? "Untitled"}
               </div>
               <div style={{ fontSize: 11, color: colors.gray }}>{getControlGroup(obs)}</div>
             </div>
@@ -2177,13 +2178,13 @@ function ObservationView({ obs, navigate, catalog, nistControls }: {
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
         { id: `group-${controlGroup}`, label: controlGroup },
-        { id: `obs-${obs.uuid}`, label: trunc(obs.title, 50) },
+        { id: `obs-${obs.uuid}`, label: trunc(obs.title ?? "Untitled", 50) },
       ]} navigate={navigate} />
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <IcoShield size={22} style={{ color: sc.border }} />
-        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{obs.title}</h1>
+        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{obs.title ?? "Untitled"}</h1>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
