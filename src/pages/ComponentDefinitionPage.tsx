@@ -2393,6 +2393,11 @@ function RequirementView({
                       wordBreak: "break-word" as const,
                     }}
                   >
+                    {getCatalogLabel(catalogPart.props) && (
+                      <span style={{ fontWeight: 700, fontFamily: fonts.mono, marginRight: 6, fontStyle: "normal" }}>
+                        {getCatalogLabel(catalogPart.props)}
+                      </span>
+                    )}
                     <CatalogProseWithParams text={catalogPart.prose} paramMap={catalogParamMap} />
                   </div>
                 )}

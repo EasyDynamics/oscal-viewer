@@ -1612,6 +1612,11 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                               border: `1px solid ${alpha(colors.cobalt, 13)}`, borderRadius: radii.sm,
                               marginBottom: 8, fontStyle: "italic",
                             }}>
+                              {getCatalogLabel(catalogPart.props) && (
+                                <span style={{ fontWeight: 700, fontFamily: fonts.mono, marginRight: 6, fontStyle: "normal" }}>
+                                  {getCatalogLabel(catalogPart.props)}
+                                </span>
+                              )}
                               <CatalogProseWithParams text={catalogPart.prose} paramMap={catalogParamMap} />
                             </div>
                           ) : (
