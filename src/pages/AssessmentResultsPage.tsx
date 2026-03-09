@@ -2206,7 +2206,7 @@ function ObservationView({ obs, navigate, catalog, nistControls }: {
         <SectionLabel>Description</SectionLabel>
         <div
           style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}
-          dangerouslySetInnerHTML={{ __html: obs.description }}
+          dangerouslySetInnerHTML={{ __html: obs.description ?? "" }}
         />
       </Card>
 
