@@ -16,6 +16,7 @@ import {
 } from "react";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
@@ -987,6 +988,8 @@ function PropPill({ name, value }: { name: string; value: string }) {
 
 function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; error: string; sourceUrl?: string | null }) {
   const [dragging, setDragging] = useState(false);
+  const [, setSearchParams] = useSearchParams();
+  const [urlInput, setUrlInput] = useState("");
   const handleDrop = (e: DragEvent) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) onFile(f); };
   const handleClick = () => {
     const input = document.createElement("input");
@@ -1036,6 +1039,38 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
             )}
           </div>
         )}
+      </div>
+      {/* ── Or fetch from URL ── */}
+      <div style={{ maxWidth: 520, margin: "20px auto 0", textAlign: "left" }}>
+        <p style={{ fontSize: 13, color: colors.gray, marginBottom: 8, textAlign: "center" }}>or load from a URL</p>
+        <form
+          onSubmit={(e) => { e.preventDefault(); const t = urlInput.trim(); if (t) setSearchParams({ url: t }); }}
+          style={{ display: "flex", gap: 8 }}
+        >
+          <input
+            type="url"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="https://example.com/catalog.json"
+            style={{
+              flex: 1, padding: "8px 12px", fontSize: 13, fontFamily: fonts.mono,
+              border: `1px solid ${colors.paleGray}`, borderRadius: radii.sm,
+              backgroundColor: colors.bg, color: colors.black,
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!urlInput.trim()}
+            style={{
+              padding: "8px 18px", fontSize: 13, fontWeight: 600, fontFamily: fonts.sans,
+              border: "none", borderRadius: radii.sm,
+              backgroundColor: urlInput.trim() ? colors.navy : colors.paleGray,
+              color: colors.white, cursor: urlInput.trim() ? "pointer" : "default",
+            }}
+          >
+            Fetch
+          </button>
+        </form>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { OscalProvider } from "./context/OscalContext";
+import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
@@ -16,6 +17,7 @@ import HowItWorksPage from "./pages/HowItWorksPage";
 export default function App() {
   return (
     <ThemeProvider>
+    <AuthProvider>
     <OscalProvider>
     <BrowserRouter>
       <Routes>
@@ -34,6 +36,7 @@ export default function App() {
       </Routes>
     </BrowserRouter>
     </OscalProvider>
+    </AuthProvider>
     </ThemeProvider>
   );
 }

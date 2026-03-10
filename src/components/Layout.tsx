@@ -7,19 +7,24 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { CSSProperties } from "react";
-import { colors, fonts, oscalModels, shadows, brand, alpha } from "../theme/tokens";
+import { colors, fonts, oscalModels, shadows, radii, brand, alpha } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useAuth, isValidJwtFormat } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { IconSun, IconMoon } from "./Icons";
+import { IconSun, IconMoon, IconLock, IconUnlock } from "./Icons";
 import useIsMobile from "../hooks/useIsMobile";
 
 export default function Layout() {
   const location = useLocation();
   const { isLoaded } = useOscal();
   const { resolvedMode, toggleMode } = useTheme();
+  const { token, setToken, clearToken, isAuthenticated } = useAuth();
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [jwtOpen, setJwtOpen] = useState(false);
+  const [jwtDraft, setJwtDraft] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const jwtRef = useRef<HTMLDivElement>(null);
 
   /* Close the menu when the route changes */
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
@@ -34,6 +39,31 @@ export default function Layout() {
     document.addEventListener("touchstart", handler);
     return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
   }, [menuOpen]);
+
+  /* Close JWT popover when tapping outside */
+  useEffect(() => {
+    if (!jwtOpen) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (jwtRef.current && !jwtRef.current.contains(e.target as Node)) setJwtOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
+  }, [jwtOpen]);
+
+  const handleJwtSubmit = () => {
+    if (jwtDraft.trim()) {
+      setToken(jwtDraft.trim());
+      setJwtDraft("");
+      setJwtOpen(false);
+    }
+  };
+
+  const handleJwtClear = () => {
+    clearToken();
+    setJwtDraft("");
+    setJwtOpen(false);
+  };
 
   return (
     <div style={styles.shell}>
@@ -60,6 +90,20 @@ export default function Layout() {
         {!isMobile && (
           brand.logoUrl ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ position: "relative" }} ref={jwtRef}>
+                <button
+                  onClick={() => { setJwtOpen((v) => !v); setJwtDraft(""); }}
+                  aria-label={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                  title={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                  style={{
+                    ...styles.themeToggle,
+                    background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
+                  }}
+                >
+                  {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                </button>
+                {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
+              </div>
               <button
                 onClick={toggleMode}
                 aria-label={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -74,6 +118,20 @@ export default function Layout() {
             </div>
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ position: "relative" }} ref={jwtRef}>
+                <button
+                  onClick={() => { setJwtOpen((v) => !v); setJwtDraft(""); }}
+                  aria-label={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                  title={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                  style={{
+                    ...styles.themeToggle,
+                    background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
+                  }}
+                >
+                  {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                </button>
+                {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
+              </div>
               <button
                 onClick={toggleMode}
                 aria-label={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -87,14 +145,30 @@ export default function Layout() {
           )
         )}
         {isMobile && (
-          <button
-            onClick={toggleMode}
-            aria-label={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            style={styles.themeToggle}
-          >
-            {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ position: "relative" }} ref={!isMobile ? undefined : jwtRef}>
+              <button
+                onClick={() => { setJwtOpen((v) => !v); setJwtDraft(""); }}
+                aria-label={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                title={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                style={{
+                  ...styles.themeToggle,
+                  background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
+                }}
+              >
+                {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+              </button>
+              {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
+            </div>
+            <button
+              onClick={toggleMode}
+              aria-label={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              style={styles.themeToggle}
+            >
+              {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+            </button>
+          </div>
         )}
       </header>
 
@@ -193,6 +267,142 @@ export default function Layout() {
 }
 
 /* ── Small presentational helpers ── */
+
+/** Popover for entering / viewing / clearing a JWT */
+function JwtPopover({
+  token,
+  draft,
+  setDraft,
+  onSubmit,
+  onClear,
+}: {
+  token: string | null;
+  draft: string;
+  setDraft: (v: string) => void;
+  onSubmit: () => void;
+  onClear: () => void;
+}) {
+  const popoverStyle: CSSProperties = {
+    position: "absolute",
+    top: "calc(100% + 8px)",
+    right: 0,
+    width: 320,
+    padding: 16,
+    backgroundColor: colors.card,
+    border: `1px solid ${colors.paleGray}`,
+    borderRadius: radii.md,
+    boxShadow: shadows.lg,
+    zIndex: 200,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  };
+  const labelStyle: CSSProperties = {
+    fontSize: 12,
+    fontWeight: 600,
+    fontFamily: fonts.sans,
+    color: colors.black,
+    marginBottom: 2,
+  };
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    padding: "8px 10px",
+    fontSize: 13,
+    fontFamily: fonts.mono,
+    border: `1px solid ${colors.paleGray}`,
+    borderRadius: radii.sm,
+    backgroundColor: colors.bg,
+    color: colors.black,
+    boxSizing: "border-box",
+  };
+  const btnBase: CSSProperties = {
+    padding: "6px 14px",
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: fonts.sans,
+    border: "none",
+    borderRadius: radii.sm,
+    cursor: "pointer",
+  };
+
+  return (
+    <div style={popoverStyle} onClick={(e) => e.stopPropagation()}>
+      <div style={labelStyle}>
+        {token ? "JWT Token Loaded" : "Load JWT Token"}
+      </div>
+
+      {token ? (
+        <>
+          <div
+            style={{
+              ...inputStyle,
+              wordBreak: "break-all",
+              maxHeight: 80,
+              overflowY: "auto",
+              opacity: 0.7,
+              fontSize: 11,
+            }}
+          >
+            {token.slice(0, 10)}{"\u2022".repeat(20)}{token.slice(-6)}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={onClear}
+              style={{
+                ...btnBase,
+                backgroundColor: colors.red,
+                color: colors.white,
+                flex: 1,
+              }}
+            >
+              Clear Token
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onSubmit();
+              }
+            }}
+            placeholder="Paste your JWT here..."
+            rows={3}
+            style={{
+              ...inputStyle,
+              resize: "vertical" as const,
+            }}
+          />
+          {draft.trim() && !isValidJwtFormat(draft.trim()) && (
+            <div style={{ fontSize: 11, color: colors.red, lineHeight: 1.3 }}>
+              Not a valid JWT format. Expected a JWS (header.payload.signature) or JWE (header.encryptedKey.iv.ciphertext.tag) token.
+            </div>
+          )}
+          <button
+            onClick={onSubmit}
+            disabled={!draft.trim() || !isValidJwtFormat(draft.trim())}
+            style={{
+              ...btnBase,
+              backgroundColor: draft.trim() && isValidJwtFormat(draft.trim()) ? colors.navy : colors.paleGray,
+              color: colors.white,
+            }}
+          >
+            Save Token
+          </button>
+        </>
+      )}
+
+      <div style={{ fontSize: 11, color: colors.gray, lineHeight: 1.4 }}>
+        Token is stored in sessionStorage and sent as a Bearer token with all
+        document fetches. It clears when the tab is closed.
+      </div>
+    </div>
+  );
+}
 
 function StatusDot({ color, loaded }: { color: string; loaded: boolean }) {
   return (
