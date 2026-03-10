@@ -83,8 +83,7 @@ export default function HomePage() {
               <p style={styles.noteText}>
                 This tool is self-contained in your browser. Your OSCAL data never leaves your machine.
                 There is no server. There is no database. There is no cloud.
-                There is only your browser tab, doing all the work, asking for nothing in return.
-                Not even a cookie. 🍪
+                There is only your browser tab, doing all the work, asking for nothing in return. 🛡️
               </p>
             </div>
             <div style={styles.noteCard}>

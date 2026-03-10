@@ -13,6 +13,7 @@ import { useAuth, isValidJwtFormat } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { IconSun, IconMoon, IconLock, IconUnlock } from "./Icons";
 import useIsMobile from "../hooks/useIsMobile";
+import CookieBanner from "./CookieBanner";
 
 export default function Layout() {
   const location = useLocation();
@@ -262,6 +263,14 @@ export default function Layout() {
       <main style={{ ...styles.main, padding: isMobile ? 8 : 24 }}>
         <Outlet />
       </main>
+
+      {/* ── Footer ── */}
+      <footer style={styles.footer}>
+        <NavLink to="/privacy" style={styles.footerLink}>Privacy Policy</NavLink>
+      </footer>
+
+      {/* ── Cookie Consent Banner ── */}
+      <CookieBanner />
     </div>
   );
 }
@@ -580,5 +589,18 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     transition: "background .15s",
     flexShrink: 0,
+  } as CSSProperties,
+  footer: {
+    display: "flex",
+    justifyContent: "center",
+    padding: "16px 24px",
+    borderTop: `1px solid ${colors.paleGray}`,
+    backgroundColor: colors.bg,
+  } as CSSProperties,
+  footerLink: {
+    fontSize: 12,
+    fontFamily: fonts.sans,
+    color: colors.gray,
+    textDecoration: "none",
   } as CSSProperties,
 };

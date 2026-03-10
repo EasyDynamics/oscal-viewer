@@ -5,13 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OSCAL Viewer</title>
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-J56BFX8610"></script>
+    <!-- Google Analytics — only loads if cookie consent was accepted -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-J56BFX8610');
+      (function() {
+        var match = document.cookie.split('; ').find(function(r) { return r.startsWith('cookie_consent='); });
+        if (match && match.split('=')[1] === 'accepted') {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=G-J56BFX8610';
+          document.head.appendChild(s);
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-J56BFX8610');
+        }
+      })();
     </script>
   </head>
   <body>
