@@ -118,10 +118,15 @@ export function authHeaders(token: string | null): Record<string, string> {
 }
 
 /**
- * Fetch a URL with optional auth. When a JWT is present, the request is
- * routed through the Vite dev-server `/__proxy` endpoint so the
- * Authorization header doesn't trigger browser CORS preflight failures.
- * Without a token, it does a normal `fetch()`.
+ * Fetch a URL with optional auth.
+ *
+ * - **Development**: routes through the Vite dev-server `/__proxy` endpoint
+ *   so the Authorization header doesn't trigger browser CORS preflight
+ *   failures (localhost isn't in the registry's allowed origins).
+ * - **Production**: makes a direct request with the Authorization header.
+ *   The registry's CORS policy already allows `viewer.oscal.io`.
+ *
+ * Without a token, it does a normal `fetch()` in both environments.
  */
 export function authFetch(
   url: string,
@@ -133,13 +138,23 @@ export function authFetch(
   }
 
   // In dev, route through the server-side proxy to avoid CORS
-  return fetch("/__proxy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  // (localhost isn't in the registry's allowed origins)
+  if (import.meta.env.DEV) {
+    return fetch("/__proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: opts.signal,
+      body: JSON.stringify({
+        url,
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    });
+  }
+
+  // In production, call the registry directly — its CORS policy
+  // allows the deployed viewer origin.
+  return fetch(url, {
     signal: opts.signal,
-    body: JSON.stringify({
-      url,
-      headers: { Authorization: `Bearer ${token}` },
-    }),
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
