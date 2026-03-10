@@ -13,6 +13,7 @@ import AssessmentResultsPage from "./pages/AssessmentResultsPage";
 import PoamPage from "./pages/PoamPage";
 import ExamplesPage from "./pages/ExamplesPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="poam" element={<PoamPage />} />
           <Route path="examples" element={<ExamplesPage />} />
           <Route path="how-it-works" element={<HowItWorksPage />} />
+          <Route path="privacy" element={<PrivacyPolicyPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
