@@ -1523,7 +1523,7 @@ function PartTree({ part, depth, paramMap }: { part: Part; depth: number; paramM
       {/* Part label (e.g. "a.", "b.", "(1)") */}
       {partLabel && (
         <span style={{
-          fontSize: 12, fontWeight: 700, color: borderColor, fontFamily: fonts.mono, marginRight: 6,
+          fontSize: 13, fontWeight: 700, color: borderColor, fontFamily: fonts.mono, marginRight: 6,
         }}>
           {partLabel}
         </span>
@@ -1575,7 +1575,7 @@ function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<st
   const parts = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
 
   return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
+    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans }}>
       {parts.map((segment, i) => {
         const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
         if (match) {
@@ -1589,7 +1589,7 @@ function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<st
               title={`Parameter: ${paramId}`}
               style={{
                 display: "inline",
-                fontSize: 12,
+                fontSize: 13,
                 fontFamily: fonts.mono,
                 fontWeight: 600,
                 color: isSelection ? colors.cobalt : colors.orange,

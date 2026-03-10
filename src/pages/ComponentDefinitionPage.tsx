@@ -2080,7 +2080,7 @@ function CatalogProseWithParams({
   const segments = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
 
   return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, overflowWrap: "break-word" as const, wordBreak: "break-word" as const }}>
+    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans, overflowWrap: "break-word" as const, wordBreak: "break-word" as const }}>
       {segments.map((segment, i) => {
         const match = segment.match(
           /\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/,
@@ -2098,7 +2098,7 @@ function CatalogProseWithParams({
               title={`Parameter: ${paramId}`}
               style={{
                 display: "inline",
-                fontSize: 12,
+                fontSize: 13,
                 fontFamily: fonts.mono,
                 fontWeight: 600,
                 color: isSelection ? colors.cobalt : colors.orange,

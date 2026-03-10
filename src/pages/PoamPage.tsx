@@ -416,7 +416,7 @@ function ctrlSectionIcon(icon: string, size = 16, style?: CSSProperties): ReactN
 function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<string, CatalogParam> }) {
   const parts = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
   return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
+    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans }}>
       {parts.map((segment, i) => {
         const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
         if (match) {
@@ -426,7 +426,7 @@ function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<st
           const isSelection = param?.select != null;
           return (
             <span key={i} title={`Parameter: ${paramId}`} style={{
-              display: "inline", fontSize: 12, fontFamily: fonts.mono, fontWeight: 600,
+              display: "inline", fontSize: 13, fontFamily: fonts.mono, fontWeight: 600,
               color: isSelection ? colors.cobalt : colors.orange,
               backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
               padding: "1px 6px", borderRadius: radii.sm,
@@ -455,7 +455,7 @@ function CtrlPartTree({ part, depth, paramMap }: { part: CatalogPart; depth: num
       borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
     }}>
       {partLabel && (
-        <span style={{ fontSize: 12, fontWeight: 700, color: borderColor, fontFamily: fonts.mono, marginRight: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: borderColor, fontFamily: fonts.mono, marginRight: 6 }}>
           {partLabel}
         </span>
       )}

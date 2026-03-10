@@ -2255,7 +2255,7 @@ function ResolvedPartTree({ part, depth, paramMap }: {
           {/* Part label (e.g. "a.", "1.") */}
           {partLabel && (
             <span style={{
-              fontSize: 12, fontWeight: 700,
+              fontSize: 13, fontWeight: 700,
               color: isRemoved ? colors.dangerFg : isAdded ? colors.successFg : borderColor,
               fontFamily: fonts.mono, marginRight: 6,
               textDecoration: isRemoved ? "line-through" : "none",
@@ -2369,6 +2369,7 @@ function ProseWithParamsProfile({ text, paramMap, isAdded }: {
     <span style={{
       fontSize: 13, lineHeight: 1.75,
       color: isAdded ? colors.successFg : colors.black,
+      fontFamily: fonts.sans,
     }}>
       {parts.map((segment, i) => {
         const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
@@ -2383,7 +2384,7 @@ function ProseWithParamsProfile({ text, paramMap, isAdded }: {
               title={`Parameter: ${paramId}`}
               style={{
                 display: "inline",
-                fontSize: 12,
+                fontSize: 13,
                 fontFamily: fonts.mono,
                 fontWeight: 600,
                 color: isSelection ? colors.cobalt : colors.orange,
