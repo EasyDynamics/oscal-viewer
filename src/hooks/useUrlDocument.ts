@@ -11,6 +11,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth, authFetch } from "../context/AuthContext";
 
 export interface UrlDocumentResult {
   /** The parsed JSON payload, or null while loading / if no URL was given */
@@ -30,6 +31,7 @@ export interface UrlDocumentResult {
 export function useUrlDocument(): UrlDocumentResult {
   const [searchParams] = useSearchParams();
   const url = searchParams.get("url");
+  const { token } = useAuth();
 
   const [json, setJson] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(!!url);
@@ -44,7 +46,7 @@ export function useUrlDocument(): UrlDocumentResult {
     setError(null);
     setJson(null);
 
-    fetch(url, { signal: controller.signal })
+    authFetch(url, token, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         return res.json();
@@ -66,7 +68,7 @@ export function useUrlDocument(): UrlDocumentResult {
       cancelled = true;
       controller.abort();
     };
-  }, [url]);
+  }, [url, token]);
 
   return { json, isLoading, error, sourceUrl: url };
 }
