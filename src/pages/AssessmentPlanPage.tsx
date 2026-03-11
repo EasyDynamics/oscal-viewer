@@ -351,14 +351,6 @@ function IcoRight({ size = 14, style }: IconProps) {
     </svg>
   );
 }
-function IcoDown({ size = 14, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    METHOD STYLING
@@ -933,10 +925,9 @@ function CtrlPanel({ allControls, onClick, isActive }: {
    VIEW: OVERVIEW (landing page)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ plan, stats, allControls, hCtrl, onCtrl, onSelectActivity }: {
+function OverviewView({ plan, stats, hCtrl, onCtrl, onSelectActivity }: {
   plan: PlanParsed;
   stats: { totalActivities: number; totalSteps: number; totalControls: number; totalTasks: number };
-  allControls: string[];
   hCtrl: string;
   onCtrl: (c: string) => void;
   onSelectActivity: (uuid: string) => void;
@@ -1461,7 +1452,7 @@ export default function AssessmentPlanPage() {
           </div>
           <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
             {page === null && (
-              <OverviewView plan={plan} stats={stats} allControls={allControls} hCtrl={hCtrl} onCtrl={onCtrl}
+              <OverviewView plan={plan} stats={stats} hCtrl={hCtrl} onCtrl={onCtrl}
                 onSelectActivity={(uuid) => navigate({ type: "activity", uuid })} />
             )}
             {page?.type === "activity" && curActivity && (
@@ -1696,7 +1687,7 @@ export default function AssessmentPlanPage() {
         <div ref={contentRef} style={S.content}>
           {page === null && (
             <OverviewView
-              plan={plan} stats={stats} allControls={allControls}
+              plan={plan} stats={stats}
               hCtrl={hCtrl} onCtrl={onCtrl}
               onSelectActivity={(uuid) => navigate({ type: "activity", uuid })}
             />
