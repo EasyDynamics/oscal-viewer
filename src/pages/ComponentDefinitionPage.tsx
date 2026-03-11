@@ -89,6 +89,7 @@ interface ImplementedRequirement {
   uuid: string;
   "control-id": string;
   description?: string | { prose: string };
+  remarks?: string;
   props?: OscalProp[];
   statements?: Statement[];
   links?: Link[];
@@ -2375,6 +2376,18 @@ function RequirementView({
         <Card>
           <SectionLabel>Implementation Description</SectionLabel>
           <MarkupBlock value={req.description} />
+        </Card>
+      )}
+
+      {/* Remarks */}
+      {req.remarks && (
+        <Card
+          style={{
+            borderLeft: `4px solid ${colors.cobalt}`,
+          }}
+        >
+          <SectionLabel>Remarks</SectionLabel>
+          <MarkupBlock value={req.remarks} />
         </Card>
       )}
 
