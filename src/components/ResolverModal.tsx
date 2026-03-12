@@ -137,12 +137,14 @@ function GitHubIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-/* OSCAL.io logo — stylized "O" shield */
+/* OSCAL.io gear icon (from favicon-oscalio.svg) */
 function OscalIoIcon({ size = 18 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M12 2L3 7v6c0 5.25 3.83 10.14 9 11.27C17.17 23.14 21 18.25 21 13V7l-9-5z" stroke="currentColor" strokeWidth="2" fill="none" />
-      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" fill="none" />
+    <svg width={size} height={size} viewBox="0 0 37.76 37.835" fill="none" style={{ flexShrink: 0 }}>
+      <g transform="translate(0.5 -2.708)">
+        <path d="M14.6,3.24V7.31a14.477,14.477,0,0,0-3.8,1.37L8.06,5.94,2.71,11.3l2.55,2.55a14.386,14.386,0,0,0-1.71,3.98H0V25.4H3.64a14.047,14.047,0,0,0,1.75,3.86L2.71,31.94l5.35,5.35,2.97-2.97a14.561,14.561,0,0,0,3.57,1.26V40h3.3V32.31a10.863,10.863,0,0,1,0-21.68V3.24H14.6Z" fill="#00bde3" stroke="#00bde3" strokeWidth="1"/>
+        <path d="M36.76,21.63A18.178,18.178,0,0,0,20.44,3.26v7.49a10.872,10.872,0,0,1,0,21.44v7.79A18.487,18.487,0,0,0,36.76,21.64Z" fill="currentColor" stroke="#00bde3" strokeWidth="1"/>
+      </g>
     </svg>
   );
 }
