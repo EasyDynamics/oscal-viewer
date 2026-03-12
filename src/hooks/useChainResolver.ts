@@ -1,0 +1,351 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   useChainResolver — sequential resolution of OSCAL dependency chains.
+
+   Given an initial import href and a chain of model definitions, this hook
+   resolves each link in sequence, passing the resolved data from each step
+   to extract the next step's import reference.
+
+   Example chains:
+     SSP   → [Profile → Catalog]
+     AP    → [SSP → Profile → Catalog]
+     AR    → [AP → SSP → Profile → Catalog]
+     POA&M → [SSP → Profile → Catalog]
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+import { useState, useEffect, useRef } from "react";
+import { authFetch } from "../context/AuthContext";
+import {
+  resolveHref,
+  type BackMatterResource,
+  type ResolveStatus,
+} from "./useImportResolver";
+import type { ResolverItem } from "../components/ResolverModal";
+
+/* ── Types ── */
+
+export interface ChainLink {
+  /** Display label, e.g. "Profile", "Catalog" */
+  label: string;
+  /** OSCAL model wrapper key, e.g. "profile", "catalog" */
+  modelKey: string;
+  /** Extract the next import href + back-matter from this step's resolved JSON.
+   *  Omit for the last step in the chain. */
+  extractNext?: (json: unknown) => {
+    href: string | null;
+    backMatter: BackMatterResource[];
+  };
+}
+
+export interface ChainStepResult {
+  label: string;
+  modelKey: string;
+  status: ResolveStatus;
+  error: string | null;
+  json: unknown | null;
+  resolvedLabel: string | null;
+  resolvedUrl: string | null;
+}
+
+/* ── Extraction helpers ── */
+
+/** Extract Catalog import from a resolved Profile JSON */
+export function extractCatalogFromProfile(json: unknown): {
+  href: string | null;
+  backMatter: BackMatterResource[];
+} {
+  const obj = json as Record<string, unknown>;
+  const profile = (obj.profile ?? obj) as Record<string, unknown>;
+  const imports = profile.imports as Array<{ href: string }> | undefined;
+  const href = imports?.[0]?.href ?? null;
+  const bm = (((profile["back-matter"] as Record<string, unknown>)
+    ?.resources as BackMatterResource[]) ?? []);
+  return { href, backMatter: bm };
+}
+
+/** Extract Profile import from a resolved SSP JSON */
+export function extractProfileFromSsp(json: unknown): {
+  href: string | null;
+  backMatter: BackMatterResource[];
+} {
+  const obj = json as Record<string, unknown>;
+  const ssp = (obj["system-security-plan"] ?? obj) as Record<string, unknown>;
+  const importProfile = ssp["import-profile"] as
+    | Record<string, unknown>
+    | undefined;
+  const href = (importProfile?.href as string) ?? null;
+  const bm = (((ssp["back-matter"] as Record<string, unknown>)
+    ?.resources as BackMatterResource[]) ?? []);
+  return { href, backMatter: bm };
+}
+
+/** Extract SSP import from a resolved Assessment Plan JSON */
+export function extractSspFromAp(json: unknown): {
+  href: string | null;
+  backMatter: BackMatterResource[];
+} {
+  const obj = json as Record<string, unknown>;
+  const ap = (obj["assessment-plan"] ?? obj) as Record<string, unknown>;
+  const importSsp = ap["import-ssp"] as
+    | Record<string, unknown>
+    | undefined;
+  const href = (importSsp?.href as string) ?? null;
+  const bm = (((ap["back-matter"] as Record<string, unknown>)
+    ?.resources as BackMatterResource[]) ?? []);
+  return { href, backMatter: bm };
+}
+
+/* ── Pre-built chain constants ── */
+
+/** SSP page: Profile → Catalog */
+export const SSP_CHAIN: ChainLink[] = [
+  { label: "Profile", modelKey: "profile", extractNext: extractCatalogFromProfile },
+  { label: "Catalog", modelKey: "catalog" },
+];
+
+/** AP page: SSP → Profile → Catalog */
+export const AP_CHAIN: ChainLink[] = [
+  { label: "SSP", modelKey: "system-security-plan", extractNext: extractProfileFromSsp },
+  { label: "Profile", modelKey: "profile", extractNext: extractCatalogFromProfile },
+  { label: "Catalog", modelKey: "catalog" },
+];
+
+/** AR page: AP → SSP → Profile → Catalog */
+export const AR_CHAIN: ChainLink[] = [
+  { label: "Assessment Plan", modelKey: "assessment-plan", extractNext: extractSspFromAp },
+  { label: "SSP", modelKey: "system-security-plan", extractNext: extractProfileFromSsp },
+  { label: "Profile", modelKey: "profile", extractNext: extractCatalogFromProfile },
+  { label: "Catalog", modelKey: "catalog" },
+];
+
+/** POA&M page: SSP → Profile → Catalog */
+export const POAM_CHAIN: ChainLink[] = [
+  { label: "SSP", modelKey: "system-security-plan", extractNext: extractProfileFromSsp },
+  { label: "Profile", modelKey: "profile", extractNext: extractCatalogFromProfile },
+  { label: "Catalog", modelKey: "catalog" },
+];
+
+/* ── Helpers ── */
+
+function fileNameFromUrl(url: string): string {
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    return segments[segments.length - 1] || url;
+  } catch {
+    return url;
+  }
+}
+
+/* ── Hook ── */
+
+export function useChainResolver(
+  initialHref: string | null | undefined,
+  initialBackMatter: BackMatterResource[],
+  baseUrl: string | null,
+  token: string | null,
+  chain: ChainLink[],
+  skip = false,
+): { steps: ChainStepResult[]; items: ResolverItem[] } {
+  const makeIdle = (): ChainStepResult[] =>
+    chain.map((l) => ({
+      label: l.label,
+      modelKey: l.modelKey,
+      status: "idle" as const,
+      error: null,
+      json: null,
+      resolvedLabel: null,
+      resolvedUrl: null,
+    }));
+
+  const [steps, setSteps] = useState<ChainStepResult[]>(makeIdle);
+  const lastHref = useRef<string | null>(null);
+  const skipRef = useRef(skip);
+  skipRef.current = skip;
+
+  useEffect(() => {
+    // If we already resolved this href, don't re-resolve or reset
+    if (initialHref != null && initialHref === lastHref.current) return;
+
+    // No href → reset
+    if (!initialHref || chain.length === 0) {
+      setSteps(makeIdle());
+      lastHref.current = null;
+      return;
+    }
+
+    // Skip requested → don't start but allow future resolution
+    if (skipRef.current) {
+      lastHref.current = null;
+      return;
+    }
+
+    lastHref.current = initialHref;
+    let cancelled = false;
+
+    (async () => {
+      let href: string | null = initialHref;
+      let bm: BackMatterResource[] = initialBackMatter;
+      let currentBase: string | null = baseUrl;
+
+      // Reset all steps
+      setSteps(makeIdle());
+
+      for (let i = 0; i < chain.length; i++) {
+        if (cancelled) return;
+        const link = chain[i];
+
+        /* 1. Resolve href (may be a #uuid back-matter ref) */
+        const { url: rawUrl, title: resTitle } = resolveHref(href!, bm);
+        if (!rawUrl) {
+          setSteps((prev) => {
+            const n = [...prev];
+            n[i] = {
+              ...n[i],
+              status: "error",
+              error: href!.startsWith("#")
+                ? `Back-matter resource ${href} not found or has no download link.`
+                : "Empty import href.",
+            };
+            return n;
+          });
+          return; // stop chain
+        }
+
+        /* 2. Resolve relative URL */
+        let fetchUrl: string;
+        if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+          fetchUrl = rawUrl;
+        } else if (currentBase) {
+          try {
+            fetchUrl = new URL(rawUrl, currentBase).href;
+          } catch {
+            setSteps((prev) => {
+              const n = [...prev];
+              n[i] = {
+                ...n[i],
+                status: "error",
+                error: `Cannot resolve relative URL: ${rawUrl}`,
+              };
+              return n;
+            });
+            return;
+          }
+        } else {
+          setSteps((prev) => {
+            const n = [...prev];
+            n[i] = {
+              ...n[i],
+              status: "error",
+              error: `Cannot resolve relative URL "${rawUrl}" — no base URL available.`,
+            };
+            return n;
+          });
+          return;
+        }
+
+        /* 3. Set loading */
+        setSteps((prev) => {
+          const n = [...prev];
+          n[i] = { ...n[i], status: "loading", error: null, json: null, resolvedUrl: fetchUrl };
+          return n;
+        });
+
+        /* 4. Fetch */
+        try {
+          const res = await authFetch(fetchUrl, token);
+          if (cancelled) return;
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
+          const ct = res.headers.get("content-type") ?? "";
+          if (
+            ct &&
+            !ct.includes("json") &&
+            !ct.includes("octet-stream") &&
+            !ct.includes("text/plain")
+          ) {
+            throw new Error(`Expected JSON but received "${ct}".`);
+          }
+
+          const text = await res.text();
+          if (cancelled) return;
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            throw new Error("The referenced document is not valid JSON.");
+          }
+
+          const obj = parsed as Record<string, unknown>;
+          const inner = (obj[link.modelKey] ?? obj) as Record<string, unknown>;
+          if (!inner.metadata && !inner.uuid) {
+            throw new Error(
+              `Fetched document does not appear to be a valid OSCAL ${link.modelKey}.`,
+            );
+          }
+
+          const resolvedLabel = resTitle ?? fileNameFromUrl(fetchUrl);
+
+          setSteps((prev) => {
+            const n = [...prev];
+            n[i] = {
+              ...n[i],
+              status: "success",
+              json: parsed,
+              resolvedLabel,
+              resolvedUrl: fetchUrl,
+            };
+            return n;
+          });
+
+          /* 5. Extract next step info */
+          if (link.extractNext && i < chain.length - 1) {
+            const next = link.extractNext(parsed);
+            if (!next.href) return; // no next reference → stop chain
+            href = next.href;
+            bm = next.backMatter;
+            currentBase = fetchUrl; // use fetched URL as base for next step
+          }
+        } catch (err) {
+          if (cancelled) return;
+          if ((err as DOMException).name === "AbortError") return;
+          setSteps((prev) => {
+            const n = [...prev];
+            n[i] = {
+              ...n[i],
+              status: "error",
+              error: err instanceof Error
+                ? err.message
+                : `Failed to fetch ${link.modelKey}`,
+            };
+            return n;
+          });
+          return; // stop chain on error
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialHref, token]);
+
+  /* Build items for ResolverModal.
+     Only populate when the first step has succeeded (user requirement:
+     "Only show this dialogue if the first resolution passes"). */
+  const firstStep = steps[0];
+  const items: ResolverItem[] =
+    firstStep?.status === "success"
+      ? steps
+          .filter((s) => s.status !== "idle")
+          .map((s) => ({
+            label: s.label,
+            status: s.status,
+            error: s.error,
+            resolvedLabel: s.resolvedLabel,
+            resolvedUrl: s.resolvedUrl,
+          }))
+      : [];
+
+  return { steps, items };
+}

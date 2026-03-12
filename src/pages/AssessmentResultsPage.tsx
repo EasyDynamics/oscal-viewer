@@ -17,8 +17,12 @@ import {
 } from "react";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useChainResolver, AR_CHAIN } from "../hooks/useChainResolver";
+import type { BackMatterResource } from "../hooks/useImportResolver";
+import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -490,6 +494,7 @@ function IcoEye({ size = 16, style }: IconProps) {
 
 export default function AssessmentResultsPage() {
   const oscal = useOscal();
+  const { token: authToken } = useAuth();
   const ar = (oscal.assessmentResults?.data as AssessmentResults) ?? null;
   const fileName = oscal.assessmentResults?.fileName ?? "";
   const catalog = oscal.catalog?.data ?? null;
@@ -522,6 +527,36 @@ export default function AssessmentResultsPage() {
       setError(err instanceof Error ? err.message : "Failed to parse fetched document");
     }
   }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Auto-resolve import-ap reference ── */
+  const arBackMatter = useMemo<BackMatterResource[]>(() => {
+    if (!ar) return [];
+    return (ar["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
+  }, [ar]);
+  const importApHref = ar?.["import-ap"]?.href ?? null;
+  const chain = useChainResolver(
+    importApHref,
+    arBackMatter,
+    urlDoc.sourceUrl,
+    authToken,
+    AR_CHAIN,
+    !!oscal.assessmentPlan,
+  );
+  const chainStored = useRef(new Set<string>());
+  useEffect(() => {
+    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
+    for (const step of chain.steps) {
+      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
+        chainStored.current.add(step.modelKey);
+        const raw = step.json as Record<string, unknown>;
+        const data = raw[step.modelKey] ?? raw;
+        if (step.modelKey === "assessment-plan") oscal.setAssessmentPlan(data, step.resolvedLabel ?? "Resolved AP");
+        if (step.modelKey === "system-security-plan") oscal.setSsp(data, step.resolvedLabel ?? "Resolved SSP");
+        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
+        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
+      }
+    }
+  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigate = useCallback((id: string) => {
     setView(id);
@@ -890,6 +925,11 @@ export default function AssessmentResultsPage() {
     return crumbs;
   }, [mobilePath, ar]);
 
+  /* ── Resolver modal ── */
+  const resolverModal = (
+    <ResolverModal items={chain.items} />
+  );
+
   /* ── If no file loaded, show drop zone ── */
   if (!ar) {
     return (
@@ -908,6 +948,7 @@ export default function AssessmentResultsPage() {
     if (mobileShowContent) {
       return (
         <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+          {resolverModal}
           <div style={S.topBar}>
             <div style={S.topBarLeft}>
               <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AR Viewer</div>
@@ -949,6 +990,7 @@ export default function AssessmentResultsPage() {
 
     return (
       <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+        {resolverModal}
         <div style={S.topBar}>
           <div style={S.topBarLeft}>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AR Viewer</div>
@@ -1039,6 +1081,7 @@ export default function AssessmentResultsPage() {
 
   return (
     <div style={S.shell}>
+      {resolverModal}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
