@@ -73,6 +73,22 @@ function resolveInlineParams(text: string, paramMap: Record<string, Param>): str
   });
 }
 
+/** Safely convert any value to a renderable string. OSCAL documents may
+ *  occasionally carry structured objects (e.g. {low, moderate}) where a
+ *  plain string is expected; guard against React error #31. */
+function safeString(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map(safeString).join("\n");
+  if (typeof v === "object") {
+    return Object.entries(v as Record<string, unknown>)
+      .map(([k, val]) => `${k}: ${safeString(val)}`)
+      .join("; ");
+  }
+  return String(v);
+}
+
 function fmtDate(s?: string) {
   if (!s) return "—";
   try {
@@ -961,23 +977,24 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function MField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MField({ label, value, mono }: { label: string; value: unknown; mono?: boolean }) {
+  const displayValue = safeString(value);
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 500, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontSize: 13, color: colors.black, marginTop: 2, fontFamily: mono ? fonts.mono : fonts.sans, wordBreak: "break-all" }}>{value || "—"}</div>
+      <div style={{ fontSize: 13, color: colors.black, marginTop: 2, fontFamily: mono ? fonts.mono : fonts.sans, wordBreak: "break-all" }}>{displayValue || "—"}</div>
     </div>
   );
 }
 
-function PropPill({ name, value }: { name: string; value: string }) {
+function PropPill({ name, value }: { name: string; value: unknown }) {
   return (
     <span style={{
       display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: radii.pill,
       backgroundColor: colors.bg, color: colors.black, fontFamily: fonts.mono,
       border: `1px solid ${colors.paleGray}`, marginRight: 6, marginBottom: 4,
     }}>
-      {name}: {value}
+      {name}: {safeString(value)}
     </span>
   );
 }
@@ -1228,7 +1245,7 @@ function GroupView({ group, catalog: _catalog, navigate }: { group: Group; catal
         <Card>
           {group.parts.map((p, i) => (
             <div key={i}>
-              {p.prose && <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>{p.prose}</p>}
+              {p.prose && <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>{safeString(p.prose)}</p>}
             </div>
           ))}
         </Card>
@@ -1386,7 +1403,7 @@ function ControlView({ control, catalog, navigate }: {
             backgroundColor: colors.bg, color: colors.gray, fontWeight: 600,
             border: `1px solid ${colors.paleGray}`,
           }}>
-            {control.class}
+            {safeString(control.class)}
           </span>
         )}
       </div>
@@ -1539,7 +1556,7 @@ function PartTree({ part, depth, paramMap }: { part: Part; depth: number; paramM
         <div style={{ marginTop: 4 }}>
           {part.links.map((lk, i) => {
             const frag = lk["resource-fragment"];
-            const display = frag ? `${lk.text ?? lk.href} — ${frag}` : (lk.text ?? lk.href);
+            const display = frag ? `${safeString(lk.text ?? lk.href)} — ${safeString(frag)}` : safeString(lk.text ?? lk.href);
             return (
               <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
                 <IcoLink size={11} style={{ color: colors.brightBlue }} />
@@ -1570,9 +1587,10 @@ function PartTree({ part, depth, paramMap }: { part: Part; depth: number; paramM
    tokens with styled inline parameter pills
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<string, Param> }) {
+function ProseWithParams({ text, paramMap }: { text: unknown; paramMap: Record<string, Param> }) {
+  const safeText = safeString(text);
   // Split on {{ insert: param, <id> }} keeping the param id as a capture group
-  const parts = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
+  const parts = safeText.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
 
   return (
     <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans }}>
