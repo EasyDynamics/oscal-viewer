@@ -907,8 +907,7 @@ export default function ProfilePage() {
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
             <ViewRouter view={view} profile={profile} familyGroups={familyGroups}
-              alterMap={alterMap} setParamMap={setParamMap} controlIds={controlIds} navigate={mobileNavigate}
-              catalogFetchStatus={catalogFetchStatus} catalogFetchError={catalogFetchError} />
+              alterMap={alterMap} setParamMap={setParamMap} controlIds={controlIds} navigate={mobileNavigate} />
           </div>
         </div>
       );
@@ -997,8 +996,6 @@ export default function ProfilePage() {
             setParamMap={setParamMap}
             controlIds={controlIds}
             navigate={navigate}
-            catalogFetchStatus={catalogFetchStatus}
-            catalogFetchError={catalogFetchError}
           />
         </div>
       </div>
@@ -1369,7 +1366,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
    VIEW ROUTER
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, controlIds, navigate, catalogFetchStatus, catalogFetchError }: {
+function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, controlIds, navigate }: {
   view: string;
   profile: Profile;
   familyGroups: FamilyGroup[];
@@ -1377,10 +1374,8 @@ function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, contro
   setParamMap: Map<string, SetParameter[]>;
   controlIds: string[];
   navigate: (id: string) => void;
-  catalogFetchStatus: "idle" | "loading" | "success" | "error";
-  catalogFetchError: string | null;
 }) {
-  if (view === "overview") return <OverviewView profile={profile} familyGroups={familyGroups} controlIds={controlIds} navigate={navigate} catalogFetchStatus={catalogFetchStatus} catalogFetchError={catalogFetchError} />;
+  if (view === "overview") return <OverviewView profile={profile} familyGroups={familyGroups} controlIds={controlIds} navigate={navigate} />;
   if (view === "metadata") return <MetadataView profile={profile} navigate={navigate} />;
   if (view === "imports") return <ImportsView profile={profile} controlIds={controlIds} navigate={navigate} />;
 

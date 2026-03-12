@@ -960,7 +960,7 @@ export default function ComponentDefinitionPage() {
             <button style={S.topBtn} onClick={handleNewFile}>New</button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <ViewRouter view={view} cdef={cdef} navigate={mobileNavigate} resMap={resMap} bmRes={bmRes} parties={parties} catalog={oscal.catalog?.data ?? null} catalogResolveStatus={catalogResolver.status} catalogResolveError={catalogResolver.error} catalogResolveLabel={catalogResolver.label} />
+            <ViewRouter view={view} cdef={cdef} navigate={mobileNavigate} resMap={resMap} bmRes={bmRes} parties={parties} catalog={oscal.catalog?.data ?? null} />
           </div>
         </div>
       );
@@ -1098,9 +1098,6 @@ export default function ComponentDefinitionPage() {
             bmRes={bmRes}
             parties={parties}
             catalog={oscal.catalog?.data ?? null}
-            catalogResolveStatus={catalogResolver.status}
-            catalogResolveError={catalogResolver.error}
-            catalogResolveLabel={catalogResolver.label}
           />
         </div>
       </div>
@@ -1120,16 +1117,13 @@ interface ViewRouterProps {
   bmRes: Resource[];
   parties: Party[];
   catalog: OscalCatalog | null;
-  catalogResolveStatus?: import("../hooks/useImportResolver").ResolveStatus;
-  catalogResolveError?: string | null;
-  catalogResolveLabel?: string | null;
 }
 
-function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog, catalogResolveStatus, catalogResolveError, catalogResolveLabel }: ViewRouterProps) {
+function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog }: ViewRouterProps) {
   const comps = cdef.components ?? [];
 
   if (view === "overview")
-    return <OverviewView cdef={cdef} navigate={navigate} catalogResolveStatus={catalogResolveStatus} catalogResolveError={catalogResolveError} catalogResolveLabel={catalogResolveLabel} />;
+    return <OverviewView cdef={cdef} navigate={navigate} />;
   if (view === "metadata")
     return <MetadataView cdef={cdef} navigate={navigate} />;
   if (view === "references")
