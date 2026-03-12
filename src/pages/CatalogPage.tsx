@@ -29,6 +29,7 @@ import type {
   Param,
   Resource,
   OscalProp,
+  ResponsibleParty,
 } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -489,6 +490,11 @@ export default function CatalogPage() {
             navigate={navigate}
             toggleGroup={toggleGroup}
           />
+
+          {/* Back Matter — after the control tree */}
+          <NavRow id="back-matter" label="Back Matter" icon={<IcoBook size={14} style={{ color: colors.navy }} />}
+            active={view === "back-matter" || view.startsWith("resource-")} onClick={() => navigate("back-matter")} depth={0}
+            badge={(catalog["back-matter"]?.resources ?? []).length || undefined} />
         </nav>
 
         {/* ── CONTENT PANEL ── */}
@@ -701,6 +707,9 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
         badge: hasEnh ? (c.controls ?? []).length : undefined,
       });
     }
+    // Back Matter at the bottom
+    nodes.push({ id: "__back-matter", label: "Back Matter", icon: <IcoBook size={16} style={{ color: colors.navy }} />, isBranch: false,
+      badge: (catalog["back-matter"]?.resources ?? []).length || undefined });
     return nodes;
   }
 
@@ -911,6 +920,13 @@ function ViewRouter({ view, catalog, navigate }: {
 }) {
   if (view === "overview") return <OverviewView catalog={catalog} navigate={navigate} />;
   if (view === "metadata") return <MetadataView catalog={catalog} navigate={navigate} />;
+  if (view === "back-matter") return <BackMatterView catalog={catalog} navigate={navigate} />;
+
+  if (view.startsWith("resource-")) {
+    const rUuid = view.replace("resource-", "");
+    const res = (catalog["back-matter"]?.resources ?? []).find((r) => r.uuid === rUuid);
+    if (res) return <ResourceDetailView resource={res} navigate={navigate} />;
+  }
 
   if (view.startsWith("group-")) {
     const gId = view.replace("group-", "");
@@ -1110,7 +1126,9 @@ function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: 
     <div>
       <h1 style={{ fontSize: 22, color: colors.navy, marginBottom: 4 }}>{catalog.metadata.title}</h1>
       <p style={{ fontSize: 13, color: colors.gray, marginBottom: 20 }}>
-        Version {catalog.metadata.version ?? "—"} · OSCAL {catalog.metadata["oscal-version"] ?? "—"} · Last modified {fmtDate(catalog.metadata["last-modified"])}
+        Version {catalog.metadata.version ?? "—"} · OSCAL {catalog.metadata["oscal-version"] ?? "—"}
+        {catalog.metadata.published ? ` · Published ${fmtDate(catalog.metadata.published)}` : ""}
+        {" · Last modified "}{fmtDate(catalog.metadata["last-modified"])}
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
@@ -1119,6 +1137,7 @@ function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: 
           { label: "Total Controls", value: allCtrls.length, color: colors.navy },
           { label: "Active Controls", value: active, color: colors.mint },
           { label: "Withdrawn", value: withdrawn, color: colors.red },
+          { label: "Back Matter Resources", value: (catalog["back-matter"]?.resources ?? []).length, color: colors.brightBlue },
         ].map((s) => (
           <Card key={s.label} style={{ textAlign: "center", borderTop: `3px solid ${s.color}` }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: s.color }}>{s.value}</div>
@@ -1163,43 +1182,459 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
   const catalog = cat;
   const parties = meta.parties ?? [];
   const roles = meta.roles ?? [];
+  const props = meta.props ?? [];
+  const links = meta.links ?? [];
+  const responsibleParties: ResponsibleParty[] = (meta["responsible-parties"] ?? []) as ResponsibleParty[];
+
+  // Build lookup maps
+  const partyMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    parties.forEach((p) => { m[p.uuid] = p.name; });
+    return m;
+  }, [parties]);
+  const roleMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    roles.forEach((r) => { m[r.id] = r.title; });
+    return m;
+  }, [roles]);
 
   return (
     <div>
       <Breadcrumbs items={[{ id: "overview", label: "Overview" }, { id: "metadata", label: "Metadata" }]} navigate={navigate} />
       <h1 style={{ fontSize: 20, color: colors.navy, marginBottom: 16 }}>Document Metadata</h1>
 
+      {/* ── Core fields ── */}
       <Card>
+        <SectionLabel>Document Information</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 16 }}>
           <MField label="Title" value={meta.title} />
           <MField label="Version" value={meta.version ?? "—"} />
+          <MField label="Published" value={fmtDate(meta.published)} />
           <MField label="Last Modified" value={fmtDate(meta["last-modified"])} />
           <MField label="OSCAL Version" value={meta["oscal-version"] ?? "—"} />
           <MField label="Document UUID" value={catalog.uuid} mono />
         </div>
       </Card>
 
+      {/* ── Remarks ── */}
+      {meta.remarks && (
+        <Card>
+          <SectionLabel>Remarks</SectionLabel>
+          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, margin: 0, whiteSpace: "pre-wrap" }}>
+            {meta.remarks}
+          </p>
+        </Card>
+      )}
+
+      {/* ── Properties ── */}
+      {props.length > 0 && (
+        <Card>
+          <SectionLabel>Properties</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 0 }}>
+            {props.map((p, i) => (
+              <div key={i} style={{
+                display: "grid", gridTemplateColumns: "minmax(120px,auto) 1fr", gap: 12,
+                padding: "8px 0", borderBottom: i < props.length - 1 ? `1px solid ${colors.bg}` : "none",
+                alignItems: "baseline",
+              }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy, fontFamily: fonts.mono }}>{p.name}</span>
+                  {p.class && <span style={{ fontSize: 11, color: colors.gray, marginLeft: 6 }}>({p.class})</span>}
+                </div>
+                <div>
+                  <span style={{ fontSize: 13, color: colors.black }}>{p.value}</span>
+                  {p.ns && (
+                    <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono, marginTop: 2, wordBreak: "break-all" }}>
+                      ns: {p.ns}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Responsible Parties ── */}
+      {responsibleParties.length > 0 && (
+        <Card>
+          <SectionLabel>Responsible Parties</SectionLabel>
+          {responsibleParties.map((rp, i) => {
+            const roleName = roleMap[rp["role-id"]] ?? rp["role-id"];
+            const partyNames = (rp["party-uuids"] ?? []).map((uuid) => partyMap[uuid] ?? uuid);
+            return (
+              <div key={i} style={{ padding: "10px 0", borderBottom: i < responsibleParties.length - 1 ? `1px solid ${colors.bg}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{
+                    fontSize: 11, padding: "2px 10px", borderRadius: radii.pill,
+                    backgroundColor: colors.cobalt, color: colors.white, fontWeight: 600,
+                    textTransform: "uppercase", letterSpacing: 0.5,
+                  }}>
+                    {roleName}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {partyNames.map((name, j) => (
+                    <span key={j} style={{
+                      fontSize: 12, padding: "3px 10px", borderRadius: radii.sm,
+                      backgroundColor: colors.bg, color: colors.navy, fontWeight: 500,
+                    }}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      {/* ── Parties ── */}
       {parties.length > 0 && (
         <Card>
           <SectionLabel>Parties</SectionLabel>
           {parties.map((p) => (
-            <div key={p.uuid} style={{ padding: "8px 0", borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{p.name}</div>
-              <div style={{ fontSize: 12, color: colors.gray }}>{p.type}{p["short-name"] ? ` · ${p["short-name"]}` : ""}</div>
-              <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{p.uuid}</div>
+            <div key={p.uuid} style={{ padding: "10px 0", borderBottom: `1px solid ${colors.bg}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{p.name}</div>
+                <span style={{
+                  fontSize: 10, padding: "1px 8px", borderRadius: radii.pill,
+                  backgroundColor: p.type === "organization" ? alpha(colors.cobalt, 0.12) : alpha(colors.mint, 0.18),
+                  color: p.type === "organization" ? colors.cobalt : colors.navy,
+                  fontWeight: 600, textTransform: "capitalize",
+                }}>
+                  {p.type}
+                </span>
+              </div>
+              {p["short-name"] && (
+                <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>Short name: {p["short-name"]}</div>
+              )}
+              <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono, marginTop: 2 }}>{p.uuid}</div>
+              {(p.links ?? []).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                  {(p.links ?? []).map((lnk, li) => (
+                    <a
+                      key={li}
+                      href={lnk.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 11, color: colors.brightBlue, textDecoration: "none",
+                        padding: "2px 8px", borderRadius: radii.sm,
+                        backgroundColor: alpha(colors.brightBlue, 0.08),
+                        fontFamily: fonts.mono, wordBreak: "break-all",
+                      }}
+                    >
+                      {lnk.text ?? lnk.rel ?? lnk.href}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </Card>
       )}
 
+      {/* ── Roles ── */}
       {roles.length > 0 && (
         <Card>
           <SectionLabel>Roles</SectionLabel>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {roles.map((r) => (
-              <span key={r.id} style={{ fontSize: 12, padding: "4px 12px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
+              <span key={r.id} style={{
+                fontSize: 12, padding: "4px 12px", borderRadius: radii.pill,
+                backgroundColor: colors.navy, color: colors.white, fontWeight: 500,
+              }}>
                 {r.title}
+                <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 6 }}>({r.id})</span>
               </span>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Links ── */}
+      {links.length > 0 && (
+        <Card>
+          <SectionLabel>Links</SectionLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {links.map((lnk, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {lnk.rel && (
+                  <span style={{
+                    fontSize: 10, padding: "1px 6px", borderRadius: radii.pill,
+                    backgroundColor: colors.paleGray, color: colors.gray, fontWeight: 600,
+                    textTransform: "uppercase", flexShrink: 0,
+                  }}>
+                    {lnk.rel}
+                  </span>
+                )}
+                <a
+                  href={lnk.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: colors.brightBlue, textDecoration: "none", wordBreak: "break-all" }}
+                >
+                  {lnk.text ?? lnk.href}
+                </a>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BACK MATTER VIEW — browsable list of all back-matter resources
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id: string) => void }) {
+  const resources = catalog["back-matter"]?.resources ?? [];
+  const [search, setSearch] = useState("");
+  const lower = search.toLowerCase().trim();
+
+  const filtered = lower
+    ? resources.filter((r) =>
+        (r.title ?? "").toLowerCase().includes(lower) ||
+        (r.description ?? "").toLowerCase().includes(lower) ||
+        (r.props ?? []).some((p) => p.name.toLowerCase().includes(lower) || p.value.toLowerCase().includes(lower))
+      )
+    : resources;
+
+  // Group resources by definition-type prop if present
+  const typeGroups = useMemo(() => {
+    const map = new Map<string, Resource[]>();
+    for (const r of filtered) {
+      const typeProp = (r.props ?? []).find((p) => p.name === "definition-type");
+      const key = typeProp ? typeProp.value : "other";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    }
+    return map;
+  }, [filtered]);
+
+  return (
+    <div>
+      <Breadcrumbs items={[{ id: "overview", label: "Overview" }, { id: "back-matter", label: "Back Matter" }]} navigate={navigate} />
+      <h1 style={{ fontSize: 20, color: colors.navy, marginBottom: 4 }}>Back Matter</h1>
+      <p style={{ fontSize: 13, color: colors.gray, marginBottom: 16 }}>
+        {resources.length} resource{resources.length !== 1 ? "s" : ""} defined in this catalog
+      </p>
+
+      {/* Search */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ position: "relative" }}>
+          <IcoSearch size={14} style={{ position: "absolute", left: 10, top: 9, color: colors.gray }} />
+          <input
+            type="text"
+            placeholder="Search resources…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%", boxSizing: "border-box", padding: "8px 12px 8px 30px",
+              borderRadius: radii.sm, border: `1px solid ${colors.paleGray}`,
+              fontSize: 13, fontFamily: fonts.sans, outline: "none",
+            }}
+          />
+        </div>
+      </div>
+
+      {filtered.length === 0 && (
+        <Card style={{ textAlign: "center", padding: 32 }}>
+          <p style={{ color: colors.gray, fontSize: 13 }}>No resources match “{search}”</p>
+        </Card>
+      )}
+
+      {Array.from(typeGroups.entries()).map(([type, items]) => (
+        <div key={type}>
+          {typeGroups.size > 1 && (
+            <div style={{
+              fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1,
+              color: colors.gray, marginBottom: 6, marginTop: 12,
+            }}>
+              {type === "other" ? "Resources" : type.replace(/-/g, " ")}
+              <span style={{ fontWeight: 400, marginLeft: 6 }}>({items.length})</span>
+            </div>
+          )}
+          <Card>
+            {items.map((r, i) => {
+              const defType = (r.props ?? []).find((p) => p.name === "definition-type");
+              const otherProps = (r.props ?? []).filter((p) => p.name !== "definition-type");
+              return (
+                <div
+                  key={r.uuid}
+                  onClick={() => navigate(`resource-${r.uuid}`)}
+                  style={{
+                    padding: "12px 0",
+                    borderBottom: i < items.length - 1 ? `1px solid ${colors.bg}` : "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <IcoBook size={14} style={{ color: colors.cobalt, flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
+                      {r.title ?? "Untitled Resource"}
+                    </span>
+                    {defType && (
+                      <span style={{
+                        fontSize: 10, padding: "1px 8px", borderRadius: radii.pill,
+                        backgroundColor: alpha(colors.cobalt, 0.12), color: colors.cobalt,
+                        fontWeight: 600, textTransform: "capitalize", flexShrink: 0,
+                      }}>
+                        {defType.value.replace(/-/g, " ")}
+                      </span>
+                    )}
+                  </div>
+                  {r.description && (
+                    <p style={{
+                      fontSize: 12, color: colors.gray, margin: "4px 0 0 22px",
+                      overflow: "hidden", textOverflow: "ellipsis",
+                      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                    }}>
+                      {r.description}
+                    </p>
+                  )}
+                  {otherProps.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6, marginLeft: 22 }}>
+                      {otherProps.map((p, pi) => (
+                        <span key={pi} style={{
+                          fontSize: 10, padding: "1px 6px", borderRadius: radii.pill,
+                          backgroundColor: colors.bg, color: colors.black, fontFamily: fonts.mono,
+                          border: `1px solid ${colors.paleGray}`,
+                        }}>
+                          {p.name}: {p.value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {r.remarks && (
+                    <p style={{
+                      fontSize: 11, color: colors.gray, fontStyle: "italic",
+                      margin: "4px 0 0 22px", lineHeight: 1.5,
+                      overflow: "hidden", textOverflow: "ellipsis",
+                      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                    }}>
+                      {r.remarks}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESOURCE DETAIL VIEW — individual back-matter resource
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function ResourceDetailView({ resource: r, navigate }: { resource: Resource; navigate: (id: string) => void }) {
+  const rlinks = r.rlinks ?? [];
+  const props = r.props ?? [];
+
+  return (
+    <div>
+      <Breadcrumbs items={[
+        { id: "overview", label: "Overview" },
+        { id: "back-matter", label: "Back Matter" },
+        { id: `resource-${r.uuid}`, label: r.title ?? "Resource" },
+      ]} navigate={navigate} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <IcoBook size={22} style={{ color: colors.cobalt }} />
+        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{r.title ?? "Untitled Resource"}</h1>
+      </div>
+
+      {/* Description */}
+      {r.description && (
+        <Card>
+          <SectionLabel>Description</SectionLabel>
+          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, margin: 0, whiteSpace: "pre-wrap" }}>
+            {r.description}
+          </p>
+        </Card>
+      )}
+
+      {/* Details grid */}
+      <Card>
+        <SectionLabel>Details</SectionLabel>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 16 }}>
+          <MField label="UUID" value={r.uuid} mono />
+          {r.citation && <MField label="Citation" value={r.citation.text} />}
+        </div>
+      </Card>
+
+      {/* Properties */}
+      {props.length > 0 && (
+        <Card>
+          <SectionLabel>Properties</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 0 }}>
+            {props.map((p, i) => (
+              <div key={i} style={{
+                display: "grid", gridTemplateColumns: "minmax(120px,auto) 1fr", gap: 12,
+                padding: "8px 0",
+                borderBottom: i < props.length - 1 ? `1px solid ${colors.bg}` : "none",
+                alignItems: "baseline",
+              }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy, fontFamily: fonts.mono }}>{p.name}</span>
+                  {p.class && <span style={{ fontSize: 11, color: colors.gray, marginLeft: 6 }}>({p.class})</span>}
+                </div>
+                <div>
+                  <span style={{ fontSize: 13, color: colors.black }}>{p.value}</span>
+                  {p.ns && (
+                    <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono, marginTop: 2, wordBreak: "break-all" }}>
+                      ns: {p.ns}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Remarks */}
+      {r.remarks && (
+        <Card>
+          <SectionLabel>Remarks</SectionLabel>
+          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, margin: 0, whiteSpace: "pre-wrap" }}>
+            {r.remarks}
+          </p>
+        </Card>
+      )}
+
+      {/* External Links */}
+      {rlinks.length > 0 && (
+        <Card>
+          <SectionLabel>External Links</SectionLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {rlinks.map((lnk, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <IcoLink size={12} style={{ color: colors.brightBlue, flexShrink: 0 }} />
+                <a
+                  href={lnk.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: colors.brightBlue, textDecoration: "none", wordBreak: "break-all" }}
+                >
+                  {lnk.href}
+                </a>
+                {lnk["media-type"] && (
+                  <span style={{
+                    fontSize: 10, padding: "1px 6px", borderRadius: radii.pill,
+                    backgroundColor: colors.paleGray, color: colors.gray, fontWeight: 600,
+                    flexShrink: 0,
+                  }}>
+                    {lnk["media-type"]}
+                  </span>
+                )}
+              </div>
             ))}
           </div>
         </Card>
@@ -1365,7 +1800,7 @@ function ControlView({ control, catalog, navigate }: {
   resources.forEach((r) => { resMap[r.uuid] = r; });
 
   const resolvedLinks = links
-    .filter((lk) => !lk.rel || lk.rel === "related" || lk.rel === "reference" || lk.rel === "required")
+    .filter((lk) => lk.rel !== "moved-to")
     .map((lk) => {
       const m = lk.href.match(/^#(.+)/);
       if (m) {
@@ -1444,7 +1879,7 @@ function ControlView({ control, catalog, navigate }: {
               <span style={{ fontSize: 15, fontWeight: 700, color: sec.color }}>{sec.label}</span>
             </div>
             {parts.map((part, i) => (
-              <PartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} />
+              <PartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} resMap={resMap} navigate={navigate} />
             ))}
           </Card>
         );
@@ -1470,13 +1905,16 @@ function ControlView({ control, catalog, navigate }: {
             const text = frag ? `${baseTitle} — ${frag}` : baseTitle;
             const baseHref = r.rlinks?.[0]?.href;
             const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
-            return { text, href, rel: lk.rel };
+            return { text, href, rel: lk.rel, onClick: () => navigate(`resource-${r.uuid}`) };
           }
-          if (!lk.href.startsWith("#")) {
-            return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
+          if (lk.href.startsWith("#")) {
+            const refId = lk.href.replace("#", "");
+            const frag = lk["resource-fragment"];
+            const text = frag ? `${refId.toUpperCase()} — ${frag}` : refId.toUpperCase();
+            return { text, rel: lk.rel, onClick: () => navigate(`ctrl-${refId}`) };
           }
-          return null;
-        }).filter(Boolean) as ResolvedLink[];
+          return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
+        });
         return chips.length > 0 ? (
           <Card>
             <LinkChips links={chips} />
@@ -1523,7 +1961,10 @@ function ControlView({ control, catalog, navigate }: {
    PART TREE — recursive hierarchical rendering of a Part
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function PartTree({ part, depth, paramMap }: { part: Part; depth: number; paramMap: Record<string, Param> }) {
+function PartTree({ part, depth, paramMap, resMap, navigate }: {
+  part: Part; depth: number; paramMap: Record<string, Param>;
+  resMap: Record<string, Resource>; navigate: (id: string) => void;
+}) {
   const subParts = part.parts ?? [];
   const partLabel = getLabel(part.props);
 
@@ -1553,18 +1994,63 @@ function PartTree({ part, depth, paramMap }: { part: Part; depth: number; paramM
 
       {/* Links within a part */}
       {part.links && part.links.length > 0 && (
-        <div style={{ marginTop: 4 }}>
+        <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 6 }}>
           {part.links.map((lk, i) => {
             const frag = lk["resource-fragment"];
+            const hashMatch = lk.href.match(/^#(.+)/);
+
+            // Resolve #uuid to back-matter resource
+            if (hashMatch) {
+              const refId = hashMatch[1];
+              const res = resMap[refId];
+              if (res) {
+                const baseTitle = res.title ?? res.citation?.text ?? refId;
+                const display = frag ? `${baseTitle} — ${frag}` : baseTitle;
+                const externalHref = res.rlinks?.[0]?.href;
+                const fullHref = externalHref && frag ? `${externalHref}#${frag}` : externalHref;
+                return (
+                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4 }}>
+                    <IcoLink size={11} style={{ color: colors.brightBlue }} />
+                    <span
+                      onClick={(e) => { e.stopPropagation(); navigate(`resource-${res.uuid}`); }}
+                      style={{ fontSize: 11, color: colors.brightBlue, cursor: "pointer", textDecoration: "underline" }}
+                    >
+                      {display}
+                    </span>
+                    {fullHref && (
+                      <a href={fullHref} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ fontSize: 10, color: colors.gray, marginLeft: 2 }}
+                        title="Open external link"
+                      >↗</a>
+                    )}
+                  </span>
+                );
+              }
+              // Maybe an internal control ref
+              return (
+                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4 }}>
+                  <IcoLink size={11} style={{ color: colors.brightBlue }} />
+                  <span
+                    onClick={(e) => { e.stopPropagation(); navigate(`ctrl-${refId}`); }}
+                    style={{ fontSize: 11, color: colors.brightBlue, cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    {frag ? `${refId.toUpperCase()} — ${frag}` : refId.toUpperCase()}
+                  </span>
+                </span>
+              );
+            }
+
+            // External links
             const display = frag ? `${safeString(lk.text ?? lk.href)} — ${safeString(frag)}` : safeString(lk.text ?? lk.href);
             return (
-              <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4 }}>
                 <IcoLink size={11} style={{ color: colors.brightBlue }} />
-                <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: colors.brightBlue }}>
+                <a href={lk.href} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: colors.brightBlue, textDecoration: "none" }}>
                   {display}
                 </a>
-              </div>
+              </span>
             );
           })}
         </div>
@@ -1574,7 +2060,7 @@ function PartTree({ part, depth, paramMap }: { part: Part; depth: number; paramM
       {subParts.length > 0 && (
         <div style={{ marginTop: 6 }}>
           {subParts.map((sp, i) => (
-            <PartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} />
+            <PartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} resMap={resMap} navigate={navigate} />
           ))}
         </div>
       )}
