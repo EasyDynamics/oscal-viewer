@@ -32,6 +32,12 @@ export interface Party {
   type: string;
   name: string;
   "short-name"?: string;
+  links?: OscalLink[];
+}
+
+export interface ResponsibleParty {
+  "role-id": string;
+  "party-uuids": string[];
 }
 
 export interface Role {
@@ -41,11 +47,14 @@ export interface Role {
 
 export interface CatalogMetadata {
   title: string;
+  published?: string;
   version?: string;
   "last-modified"?: string;
   "oscal-version"?: string;
+  remarks?: string;
   parties?: Party[];
   roles?: Role[];
+  "responsible-parties"?: ResponsibleParty[];
   props?: OscalProp[];
   links?: OscalLink[];
 }
@@ -97,6 +106,8 @@ export interface Resource {
   description?: string;
   citation?: { text: string };
   rlinks?: { href: string; "media-type"?: string }[];
+  props?: OscalProp[];
+  remarks?: string;
 }
 
 export interface Catalog {
