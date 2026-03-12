@@ -124,6 +124,11 @@ export const POAM_CHAIN: ChainLink[] = [
   { label: "Catalog", modelKey: "catalog" },
 ];
 
+/** Profile page: Catalog */
+export const PROFILE_CHAIN: ChainLink[] = [
+  { label: "Catalog", modelKey: "catalog" },
+];
+
 /* ── Helpers ── */
 
 function fileNameFromUrl(url: string): string {
@@ -160,6 +165,8 @@ export function useChainResolver(
   const lastHref = useRef<string | null>(null);
   const skipRef = useRef(skip);
   skipRef.current = skip;
+  // Track whether we've gone through a null→non-null cycle (i.e. "New File" then load)
+  const hasResetRef = useRef(false);
 
   useEffect(() => {
     // If we already resolved this href, don't re-resolve or reset
@@ -168,16 +175,20 @@ export function useChainResolver(
     // No href → reset
     if (!initialHref || chain.length === 0) {
       setSteps(makeIdle());
+      // If we previously resolved something, mark that a reset occurred
+      if (lastHref.current !== null) hasResetRef.current = true;
       lastHref.current = null;
       return;
     }
 
-    // Skip requested → don't start but allow future resolution
-    if (skipRef.current) {
-      lastHref.current = null;
+    // Skip on initial page mount when data is already loaded by another chain,
+    // but NOT after a reset cycle (user clicked "New File" then loaded a new doc)
+    if (skipRef.current && !hasResetRef.current) {
+      lastHref.current = initialHref;
       return;
     }
 
+    hasResetRef.current = false;
     lastHref.current = initialHref;
     let cancelled = false;
 

@@ -17,10 +17,12 @@ import {
 } from "react";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
-import { useAuth, authFetch } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import useIsMobile from "../hooks/useIsMobile";
+import { useChainResolver, PROFILE_CHAIN, extractCatalogFromProfile } from "../hooks/useChainResolver";
+import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
@@ -623,124 +625,36 @@ export default function ProfilePage() {
     }
   }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Auto-fetch catalog from profile import hrefs ── */
-  const [catalogFetchStatus, setCatalogFetchStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
-  const [catalogFetchError, setCatalogFetchError] = useState<string | null>(null);
-  const [catalogFetchUrl, setCatalogFetchUrl] = useState<string | null>(null);
-
+  /* ── Auto-resolve catalog from profile import hrefs ── */
+  const profileBackMatter = useMemo<BackMatterResource[]>(() => {
+    if (!profile) return [];
+    return (profile["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
+  }, [profile]);
+  const importCatalogHref = useMemo(() => {
+    if (!profile) return null;
+    const { href } = extractCatalogFromProfile(profile);
+    return href;
+  }, [profile]);
+  const chain = useChainResolver(
+    importCatalogHref,
+    profileBackMatter,
+    urlDoc.sourceUrl,
+    authToken,
+    PROFILE_CHAIN,
+    !!oscal.catalog,
+  );
+  const chainStored = useRef(new Set<string>());
   useEffect(() => {
-    if (!profile) {
-      setCatalogFetchStatus("idle");
-      setCatalogFetchError(null);
-      setCatalogFetchUrl(null);
-      return;
-    }
-
-    // Find the first import that we can resolve to a URL
-    let catalogUrl: string | null = null;
-    let resourceTitle: string | null = null;
-
-    for (const imp of profile.imports) {
-      const href = imp.href;
-      if (href.startsWith("#")) {
-        // Resolve from back-matter
-        const uuid = href.slice(1);
-        const resources = profile["back-matter"]?.resources ?? [];
-        const resource = resources.find((r) => r.uuid === uuid);
-        if (resource) {
-          resourceTitle = resource.title ?? null;
-          // Prefer JSON rlink
-          const jsonRlink = resource.rlinks?.find(
-            (rl) => rl["media-type"]?.includes("json"),
-          );
-          const anyRlink = resource.rlinks?.[0];
-          const rlink = jsonRlink ?? anyRlink;
-          if (rlink) {
-            catalogUrl = rlink.href;
-          }
-        }
-      } else {
-        // Direct URL
-        catalogUrl = href;
-      }
-      if (catalogUrl) break; // use the first resolvable import
-    }
-
-    if (!catalogUrl) return;
-
-    // If relative URL and we have a source URL for the profile, resolve it
-    if (catalogUrl && !catalogUrl.startsWith("http://") && !catalogUrl.startsWith("https://")) {
-      if (urlDoc.sourceUrl) {
-        try {
-          catalogUrl = new URL(catalogUrl, urlDoc.sourceUrl).href;
-        } catch {
-          // Can't resolve relative URL without a base
-          setCatalogFetchError(
-            `Cannot resolve relative catalog URL: ${catalogUrl}`,
-          );
-          setCatalogFetchStatus("error");
-          return;
-        }
-      } else {
-        // No base URL to resolve against — cannot fetch relative path
-        setCatalogFetchError(
-          `Cannot resolve relative catalog URL "${catalogUrl}" — profile was loaded from a local file. Load the catalog manually or use a profile with absolute URLs.`,
-        );
-        setCatalogFetchStatus("error");
-        return;
+    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
+    for (const step of chain.steps) {
+      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
+        chainStored.current.add(step.modelKey);
+        const raw = step.json as Record<string, unknown>;
+        const data = raw[step.modelKey] ?? raw;
+        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
       }
     }
-
-    // Fetch the catalog
-    let cancelled = false;
-    const controller = new AbortController();
-    setCatalogFetchStatus("loading");
-    setCatalogFetchError(null);
-    setCatalogFetchUrl(catalogUrl);
-
-    authFetch(catalogUrl, authToken, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        return res.json();
-      })
-      .then((json) => {
-        if (cancelled) return;
-        // Unwrap: could be { catalog: { ... } } or just { ... }
-        const catalogData =
-          (json as Record<string, unknown>)["catalog"] ?? json;
-        if (
-          !(catalogData as Record<string, unknown>).metadata ||
-          !(catalogData as Record<string, unknown>).uuid
-        ) {
-          throw new Error(
-            "Fetched document is not a valid OSCAL Catalog (no metadata/uuid).",
-          );
-        }
-        const fetchedFileName =
-          resourceTitle ??
-          fileNameFromUrl(catalogUrl!);
-        oscal.setCatalog(
-          catalogData as import("../context/OscalContext").Catalog,
-          fetchedFileName,
-        );
-        setCatalogFetchStatus("success");
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if ((err as DOMException).name === "AbortError") return;
-        setCatalogFetchError(
-          err instanceof Error ? err.message : "Failed to fetch catalog",
-        );
-        setCatalogFetchStatus("error");
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [profile]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigate = useCallback((id: string) => {
     setView(id);
@@ -878,7 +792,7 @@ export default function ProfilePage() {
 
   /* ── Resolver modal ── */
   const resolverModal = (
-    <ResolverModal items={[{ label: "Catalog", status: catalogFetchStatus, error: catalogFetchError, resolvedLabel: oscal.catalog?.fileName ?? null, resolvedUrl: catalogFetchUrl }]} />
+    <ResolverModal items={chain.items} />
   );
 
   /* ── If no file loaded, show drop zone ── */
