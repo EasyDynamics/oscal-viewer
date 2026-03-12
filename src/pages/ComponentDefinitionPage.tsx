@@ -17,8 +17,12 @@ import {
 import { Marked } from "marked";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useImportResolver } from "../hooks/useImportResolver";
+import type { BackMatterResource } from "../hooks/useImportResolver";
+import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
@@ -627,6 +631,7 @@ interface NavItem {
 
 export default function ComponentDefinitionPage() {
   const oscal = useOscal();
+  const { token: authToken } = useAuth();
   const cdef = (oscal.componentDefinition?.data as ComponentDefinition) ?? null;
   const fileName = oscal.componentDefinition?.fileName ?? "";
   const [error, setError] = useState("");
@@ -712,6 +717,38 @@ export default function ComponentDefinitionPage() {
     });
     return m;
   }, [bmRes]);
+
+  /* ── Auto-resolve source catalog from control-implementation sources ── */
+  const firstSource = useMemo(() => {
+    if (!cdef) return null;
+    const comps = cdef.components ?? [];
+    for (const comp of comps) {
+      for (const ci of comp["control-implementations"] ?? []) {
+        if (ci.source) return ci.source;
+      }
+    }
+    return null;
+  }, [cdef]);
+  const catalogResolver = useImportResolver(
+    firstSource,
+    bmRes as unknown as BackMatterResource[],
+    urlDoc.sourceUrl,
+    authToken,
+    "catalog",
+    !!oscal.catalog,
+  );
+  useEffect(() => {
+    if (catalogResolver.status === "success" && catalogResolver.json && !oscal.catalog) {
+      const obj = catalogResolver.json as Record<string, unknown>;
+      const inner = obj["catalog"] ?? obj;
+      if ((inner as Record<string, unknown>).metadata) {
+        oscal.setCatalog(
+          inner as import("../context/OscalContext").Catalog,
+          catalogResolver.label ?? "Resolved Catalog",
+        );
+      }
+    }
+  }, [catalogResolver.status, catalogResolver.json, catalogResolver.label]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Build navigation tree ── */
   const navTree = useMemo<NavItem[]>(() => {
@@ -842,6 +879,11 @@ export default function ComponentDefinitionPage() {
     });
   }, [navTree, mergedCollapsed]);
 
+  /* ── Resolver modal ── */
+  const resolverModal = (
+    <ResolverModal items={[{ label: "Catalog", status: catalogResolver.status, error: catalogResolver.error, resolvedLabel: catalogResolver.label, resolvedUrl: catalogResolver.resolvedUrl }]} />
+  );
+
   /* ── If no file loaded, show drop zone ── */
   if (!cdef) {
     return (
@@ -911,13 +953,14 @@ export default function ComponentDefinitionPage() {
     if (mobileShowContent) {
       return (
         <div style={S.shell}>
+          {resolverModal}
           <div style={S.topBar}>
             <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>Component Def</div>
             <button style={S.topBtn} onClick={handleNewFile}>New</button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <ViewRouter view={view} cdef={cdef} navigate={mobileNavigate} resMap={resMap} bmRes={bmRes} parties={parties} catalog={oscal.catalog?.data ?? null} />
+            <ViewRouter view={view} cdef={cdef} navigate={mobileNavigate} resMap={resMap} bmRes={bmRes} parties={parties} catalog={oscal.catalog?.data ?? null} catalogResolveStatus={catalogResolver.status} catalogResolveError={catalogResolver.error} catalogResolveLabel={catalogResolver.label} />
           </div>
         </div>
       );
@@ -937,6 +980,7 @@ export default function ComponentDefinitionPage() {
 
     return (
       <div style={S.shell}>
+        {resolverModal}
         <div style={S.topBar}>
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Component Def</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
@@ -984,6 +1028,7 @@ export default function ComponentDefinitionPage() {
 
   return (
     <div style={S.shell}>
+      {resolverModal}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
@@ -1053,6 +1098,9 @@ export default function ComponentDefinitionPage() {
             bmRes={bmRes}
             parties={parties}
             catalog={oscal.catalog?.data ?? null}
+            catalogResolveStatus={catalogResolver.status}
+            catalogResolveError={catalogResolver.error}
+            catalogResolveLabel={catalogResolver.label}
           />
         </div>
       </div>
@@ -1072,13 +1120,16 @@ interface ViewRouterProps {
   bmRes: Resource[];
   parties: Party[];
   catalog: OscalCatalog | null;
+  catalogResolveStatus?: import("../hooks/useImportResolver").ResolveStatus;
+  catalogResolveError?: string | null;
+  catalogResolveLabel?: string | null;
 }
 
-function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog }: ViewRouterProps) {
+function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog, catalogResolveStatus, catalogResolveError, catalogResolveLabel }: ViewRouterProps) {
   const comps = cdef.components ?? [];
 
   if (view === "overview")
-    return <OverviewView cdef={cdef} navigate={navigate} />;
+    return <OverviewView cdef={cdef} navigate={navigate} catalogResolveStatus={catalogResolveStatus} catalogResolveError={catalogResolveError} catalogResolveLabel={catalogResolveLabel} />;
   if (view === "metadata")
     return <MetadataView cdef={cdef} navigate={navigate} />;
   if (view === "references")
@@ -1467,9 +1518,15 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
 function OverviewView({
   cdef,
   navigate,
+  catalogResolveStatus,
+  catalogResolveError,
+  catalogResolveLabel,
 }: {
   cdef: ComponentDefinition;
   navigate: (id: string) => void;
+  catalogResolveStatus?: import("../hooks/useImportResolver").ResolveStatus;
+  catalogResolveError?: string | null;
+  catalogResolveLabel?: string | null;
 }) {
   const comps = cdef.components ?? [];
   const allReqs = comps.flatMap((c) =>

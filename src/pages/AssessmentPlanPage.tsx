@@ -26,6 +26,10 @@ import type {
 } from "../context/OscalContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useAuth } from "../context/AuthContext";
+import { useChainResolver, AP_CHAIN } from "../hooks/useChainResolver";
+import type { BackMatterResource } from "../hooks/useImportResolver";
+import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import useIsMobile from "../hooks/useIsMobile";
 
@@ -1293,6 +1297,7 @@ type PageState = null | { type: "activity"; uuid: string } | { type: "task"; uui
 
 export default function AssessmentPlanPage() {
   const oscal = useOscal();
+  const { token: authToken } = useAuth();
   const raw = oscal.assessmentPlan?.data ?? null;
   const catalog: OscalCatalog | null = oscal.catalog?.data ?? null;
 
@@ -1360,6 +1365,45 @@ export default function AssessmentPlanPage() {
     setSearch("");
   }, [oscal]);
 
+  /* ── Auto-resolve import-ssp reference ── */
+  const rawApObj = useMemo(() => {
+    if (!raw) return null;
+    const r = raw as Record<string, unknown>;
+    return (r["assessment-plan"] ?? r) as Record<string, unknown>;
+  }, [raw]);
+  const apBackMatter = useMemo<BackMatterResource[]>(() => {
+    if (!rawApObj) return [];
+    const bm = rawApObj["back-matter"] as Record<string, unknown> | undefined;
+    return (bm?.resources as BackMatterResource[] | undefined) ?? [];
+  }, [rawApObj]);
+  const importSspHref = useMemo(() => {
+    if (!rawApObj) return null;
+    const imp = rawApObj["import-ssp"] as Record<string, unknown> | undefined;
+    return (imp?.href as string) ?? null;
+  }, [rawApObj]);
+  const chain = useChainResolver(
+    importSspHref,
+    apBackMatter,
+    urlDoc.sourceUrl,
+    authToken,
+    AP_CHAIN,
+    !!oscal.ssp,
+  );
+  const chainStored = useRef(new Set<string>());
+  useEffect(() => {
+    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
+    for (const step of chain.steps) {
+      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
+        chainStored.current.add(step.modelKey);
+        const raw = step.json as Record<string, unknown>;
+        const data = raw[step.modelKey] ?? raw;
+        if (step.modelKey === "system-security-plan") oscal.setSsp(data, step.resolvedLabel ?? "Resolved SSP");
+        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
+        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
+      }
+    }
+  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Derived data ── */
   const allControls = useMemo(() => {
     if (!plan) return [];
@@ -1421,6 +1465,11 @@ export default function AssessmentPlanPage() {
     );
   }, [plan, search]);
 
+  /* ── Resolver modal ── */
+  const resolverModal = (
+    <ResolverModal items={chain.items} />
+  );
+
   /* ── No data — show drop zone ── */
   if (!plan) {
     return (
@@ -1439,6 +1488,7 @@ export default function AssessmentPlanPage() {
     if (mobileShowContent) {
       return (
         <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+          {resolverModal}
           <div style={S.topBar}>
             <div style={S.topBarLeft}>
               <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AP Viewer</div>
@@ -1453,7 +1503,8 @@ export default function AssessmentPlanPage() {
           <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
             {page === null && (
               <OverviewView plan={plan} stats={stats} hCtrl={hCtrl} onCtrl={onCtrl}
-                onSelectActivity={(uuid) => navigate({ type: "activity", uuid })} />
+                onSelectActivity={(uuid) => navigate({ type: "activity", uuid })}
+                />
             )}
             {page?.type === "activity" && curActivity && (
               <ActivityView activity={curActivity} planTitle={plan.title} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} catalog={catalog} />
@@ -1471,6 +1522,7 @@ export default function AssessmentPlanPage() {
 
     return (
       <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+        {resolverModal}
         <div style={S.topBar}>
           <div style={S.topBarLeft}>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AP Viewer</div>
@@ -1562,6 +1614,7 @@ export default function AssessmentPlanPage() {
   /* ── Main layout ── */
   return (
     <div style={S.shell}>
+      {resolverModal}
       {/* Top bar */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>

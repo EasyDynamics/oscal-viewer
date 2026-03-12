@@ -16,8 +16,12 @@ import {
 import { Marked } from "marked";
 import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useChainResolver, SSP_CHAIN } from "../hooks/useChainResolver";
+import type { BackMatterResource } from "../hooks/useImportResolver";
+import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type {
@@ -1168,7 +1172,9 @@ interface NavItem {
    PLACEHOLDER VIEWS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ ssp }: { ssp: SspParsed }) {
+function OverviewView({ ssp }: {
+  ssp: SspParsed;
+}) {
   const { metadata: md, systemCharacteristics: sc, systemImplementation: si, controlImplementation: ci, backMatter: bm } = ssp;
   return (
     <>
@@ -2175,6 +2181,7 @@ function ViewRouter({ view, ssp, navigate, catalog }: ViewRouterProps) {
 
 export default function SspPage() {
   const oscal = useOscal();
+  const { token: authToken } = useAuth();
   const raw = oscal.ssp?.data ?? null;
   const fileName = oscal.ssp?.fileName ?? "";
 
@@ -2208,6 +2215,40 @@ export default function SspPage() {
     try { return parseSsp(raw); }
     catch { return null; }
   }, [raw]);
+
+  /* ── Auto-resolve import-profile reference ── */
+  const rawSspObj = useMemo(() => {
+    if (!raw) return null;
+    const r = raw as Record<string, unknown>;
+    return (r["system-security-plan"] ?? r) as Record<string, unknown>;
+  }, [raw]);
+  const sspBackMatter = useMemo<BackMatterResource[]>(() => {
+    if (!rawSspObj) return [];
+    const bm = rawSspObj["back-matter"] as Record<string, unknown> | undefined;
+    return (bm?.resources as BackMatterResource[] | undefined) ?? [];
+  }, [rawSspObj]);
+  const importProfileHref = ssp?.importProfileHref || null;
+  const chain = useChainResolver(
+    importProfileHref,
+    sspBackMatter,
+    urlDoc.sourceUrl,
+    authToken,
+    SSP_CHAIN,
+    !!oscal.profile,
+  );
+  const chainStored = useRef(new Set<string>());
+  useEffect(() => {
+    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
+    for (const step of chain.steps) {
+      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
+        chainStored.current.add(step.modelKey);
+        const raw = step.json as Record<string, unknown>;
+        const data = raw[step.modelKey] ?? raw;
+        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
+        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
+      }
+    }
+  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Load file ── */
   const loadFile = useCallback((file: File) => {
@@ -2399,6 +2440,11 @@ export default function SspPage() {
     });
   }, [navTree, mergedCollapsed]);
 
+  /* ── Resolver modal ── */
+  const resolverModal = (
+    <ResolverModal items={chain.items} />
+  );
+
   /* ── No data — drop zone ── */
   if (!ssp) {
     return (
@@ -2417,6 +2463,7 @@ export default function SspPage() {
     if (mobileShowContent) {
       return (
         <div style={S.shell}>
+          {resolverModal}
           <div style={S.topBar}>
             <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>SSP</div>
@@ -2444,6 +2491,7 @@ export default function SspPage() {
 
     return (
       <div style={S.shell}>
+        {resolverModal}
         <div style={S.topBar}>
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>SSP</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
@@ -2498,6 +2546,7 @@ export default function SspPage() {
   /* ── Main layout ── */
   return (
     <div style={S.shell}>
+      {resolverModal}
       {/* Top Bar */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>

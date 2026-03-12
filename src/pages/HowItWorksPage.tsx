@@ -123,7 +123,7 @@ export default function HowItWorksPage() {
           How References Flow
         </SectionHeader>
         <p style={S.paragraph}>
-          OSCAL models form a directed reference chain. Each model points "upstream"
+          OSCAL models form a directed reference graph. Each model points "upstream"
           to the model it depends on. The viewer follows these references to enrich
           the data it displays.
         </p>
@@ -132,20 +132,36 @@ export default function HowItWorksPage() {
           <DiagramNode color={colors.navy} label="Catalog" sublabel="Full control text, params, groups" icon={<IcoDatabase size={20} />} />
           <DiagramArrow label="imports from" />
           <DiagramNode color={colors.brightBlue} label="Profile" sublabel="Selects & tailors controls" icon={<IcoSliders size={20} />} />
-          <DiagramArrow label="implemented by" />
-          <DiagramNode color={colors.cobalt} label="Component Definition" sublabel="How a component satisfies controls" icon={<IcoLayers size={20} />} />
-          <DiagramArrow label="references" />
+          <DiagramArrow label="import-profile" />
           <DiagramNode color={colors.darkGreen} label="SSP" sublabel="System-level control implementations" icon={<IcoShield size={20} />} />
-          <DiagramArrow label="assessed by" />
-          <DiagramNode color={colors.purple} label="Assessment Plan / Results" sublabel="Testing & findings" icon={<IcoInfo size={20} />} />
-          <DiagramArrow label="tracked in" />
-          <DiagramNode color={colors.red} label="POA&M" sublabel="Remediation tracking" icon={<IcoLayers size={20} />} />
+
+          {/* SSP branches to AP and POA&M */}
+          <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+              <DiagramArrow label="import-ssp" />
+              <DiagramNode color={colors.purple} label="Assessment Plan" sublabel="What to test" icon={<IcoInfo size={20} />} />
+              <DiagramArrow label="import-ap" />
+              <DiagramNode color={colors.purple} label="Assessment Results" sublabel="Test findings" icon={<IcoInfo size={20} />} />
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+              <DiagramArrow label="import-ssp" />
+              <DiagramNode color={colors.red} label="POA&M" sublabel="Remediation tracking" icon={<IcoLayers size={20} />} />
+            </div>
+          </div>
+
+          {/* Component Definition — references Catalog source */}
+          <div style={{ marginTop: 16, borderTop: `1px dashed ${colors.gray}`, paddingTop: 12 }}>
+            <div style={{ fontSize: 11, color: colors.gray, fontStyle: "italic", textAlign: "center", marginBottom: 8 }}>
+              Also references the Catalog directly:
+            </div>
+            <DiagramNode color={colors.cobalt} label="Component Definition" sublabel="source → Catalog for control details" icon={<IcoLayers size={20} />} />
+          </div>
         </div>
 
         <Callout color={colors.navy}>
-          <strong>Every box below the Catalog</strong> uses the Catalog to look up control
-          titles, statements, and guidance. The viewer stores the loaded Catalog
-          in shared context so all pages can access it.
+          <strong>Key relationships:</strong> Profile imports from Catalog. SSP imports a Profile.
+          Assessment Plan and POA&amp;M both import an SSP. Assessment Results imports an Assessment Plan.
+          Component Definitions reference the Catalog directly via their control-implementation source.
         </Callout>
       </Card>
 

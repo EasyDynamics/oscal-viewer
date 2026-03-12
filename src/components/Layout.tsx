@@ -25,6 +25,7 @@ export default function Layout() {
   const [jwtOpen, setJwtOpen] = useState(false);
   const [jwtDraft, setJwtDraft] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
   const jwtRef = useRef<HTMLDivElement>(null);
 
   /* Close the menu when the route changes */
@@ -34,7 +35,9 @@ export default function Layout() {
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e: MouseEvent | TouchEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      const target = e.target as Node;
+      if (hamburgerRef.current?.contains(target)) return;
+      if (menuRef.current && !menuRef.current.contains(target)) setMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
     document.addEventListener("touchstart", handler);
@@ -73,6 +76,7 @@ export default function Layout() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {isMobile && (
             <button
+              ref={hamburgerRef}
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Toggle navigation menu"
               style={styles.hamburger}

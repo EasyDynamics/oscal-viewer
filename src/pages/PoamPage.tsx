@@ -16,8 +16,12 @@ import {
 } from "react";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
+import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useChainResolver, POAM_CHAIN } from "../hooks/useChainResolver";
+import type { BackMatterResource } from "../hooks/useImportResolver";
+import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -633,6 +637,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
 
 export default function PoamPage() {
   const oscal = useOscal();
+  const { token: authToken } = useAuth();
   const poam = (oscal.poam?.data as Poam) ?? null;
   const catalog = oscal.catalog?.data ?? null;
   const fileName = oscal.poam?.fileName ?? "";
@@ -663,6 +668,35 @@ export default function PoamPage() {
       setError(err instanceof Error ? err.message : "Failed to parse fetched document");
     }
   }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Auto-resolve import-ssp reference ── */
+  const poamBackMatter = useMemo<BackMatterResource[]>(() => {
+    if (!poam) return [];
+    return (poam["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
+  }, [poam]);
+  const importSspHref = poam?.["import-ssp"]?.href ?? null;
+  const chain = useChainResolver(
+    importSspHref,
+    poamBackMatter,
+    urlDoc.sourceUrl,
+    authToken,
+    POAM_CHAIN,
+    !!oscal.ssp,
+  );
+  const chainStored = useRef(new Set<string>());
+  useEffect(() => {
+    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
+    for (const step of chain.steps) {
+      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
+        chainStored.current.add(step.modelKey);
+        const raw = step.json as Record<string, unknown>;
+        const data = raw[step.modelKey] ?? raw;
+        if (step.modelKey === "system-security-plan") oscal.setSsp(data, step.resolvedLabel ?? "Resolved SSP");
+        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
+        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
+      }
+    }
+  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigate = useCallback((id: string) => {
     setView(id);
@@ -803,6 +837,11 @@ export default function PoamPage() {
     setMobileShowContent(false);
   }, []);
 
+  /* ── Resolver modal ── */
+  const resolverModal = (
+    <ResolverModal items={chain.items} />
+  );
+
   /* ── If no file loaded, show drop zone ── */
   if (!poam) {
     return (
@@ -875,6 +914,7 @@ export default function PoamPage() {
     if (mobileShowContent) {
       return (
         <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+          {resolverModal}
           <div style={S.topBar}>
             <div style={S.topBarLeft}>
               <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>POA&amp;M Viewer</div>
@@ -895,6 +935,7 @@ export default function PoamPage() {
 
     return (
       <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
+        {resolverModal}
         <div style={S.topBar}>
           <div style={S.topBarLeft}>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>POA&amp;M Viewer</div>
@@ -953,6 +994,7 @@ export default function PoamPage() {
 
   return (
     <div style={S.shell}>
+      {resolverModal}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>

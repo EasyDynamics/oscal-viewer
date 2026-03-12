@@ -21,6 +21,7 @@ import { useAuth, authFetch } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import useIsMobile from "../hooks/useIsMobile";
+import ResolverModal from "../components/ResolverModal";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -627,11 +628,13 @@ export default function ProfilePage() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [catalogFetchError, setCatalogFetchError] = useState<string | null>(null);
+  const [catalogFetchUrl, setCatalogFetchUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) {
       setCatalogFetchStatus("idle");
       setCatalogFetchError(null);
+      setCatalogFetchUrl(null);
       return;
     }
 
@@ -695,6 +698,7 @@ export default function ProfilePage() {
     const controller = new AbortController();
     setCatalogFetchStatus("loading");
     setCatalogFetchError(null);
+    setCatalogFetchUrl(catalogUrl);
 
     authFetch(catalogUrl, authToken, { signal: controller.signal })
       .then((res) => {
@@ -872,6 +876,11 @@ export default function ProfilePage() {
     });
   }, [defaultCollapsed]);
 
+  /* ── Resolver modal ── */
+  const resolverModal = (
+    <ResolverModal items={[{ label: "Catalog", status: catalogFetchStatus, error: catalogFetchError, resolvedLabel: oscal.catalog?.fileName ?? null, resolvedUrl: catalogFetchUrl }]} />
+  );
+
   /* ── If no file loaded, show drop zone ── */
   if (!profile) {
     return (
@@ -890,6 +899,7 @@ export default function ProfilePage() {
     if (mobileShowContent) {
       return (
         <div style={S.shell}>
+          {resolverModal}
           <div style={S.topBar}>
             <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>Profile</div>
@@ -905,6 +915,7 @@ export default function ProfilePage() {
     }
     return (
       <div style={S.shell}>
+        {resolverModal}
         <div style={S.topBar}>
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Profile</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
@@ -926,6 +937,7 @@ export default function ProfilePage() {
 
   return (
     <div style={S.shell}>
+      {resolverModal}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
@@ -1612,47 +1624,6 @@ function OverviewView({ profile, familyGroups, controlIds, navigate, catalogFetc
           );
         })}
       </Card>
-
-      {/* Catalog fetch status */}
-      {catalogFetchStatus === "loading" && (
-        <Card style={{ borderLeft: `4px solid ${colors.cobalt}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 14 }}>⏳</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.cobalt }}>Fetching referenced catalog…</div>
-              <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>
-                Resolving import source and loading catalog data
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-      {catalogFetchStatus === "success" && oscal.catalog && (
-        <Card style={{ borderLeft: `4px solid ${colors.successFg}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 14 }}>✅</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.successFg }}>Catalog loaded</div>
-              <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>
-                {oscal.catalog.fileName} — controls enriched with full catalog data
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-      {catalogFetchStatus === "error" && catalogFetchError && (
-        <Card style={{ borderLeft: `4px solid ${colors.orange}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <IcoAlert size={16} style={{ color: colors.orange, flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.orange }}>Could not auto-load catalog</div>
-              <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>
-                {catalogFetchError}
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
 
       <Card>
         <SectionLabel>Merge Strategy</SectionLabel>
