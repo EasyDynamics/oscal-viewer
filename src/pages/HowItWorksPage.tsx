@@ -159,7 +159,7 @@ export default function HowItWorksPage() {
         </div>
 
         <Callout color={colors.navy}>
-          <strong>Key relationships:</strong> Profile imports from Catalog. SSP imports a Profile.
+          <strong>Key relationships:</strong> Profile imports a Catalog. SSP imports a Profile.
           Assessment Plan and POA&amp;M both import an SSP. Assessment Results imports an Assessment Plan.
           Component Definitions reference the Catalog directly via their control-implementation source.
         </Callout>
@@ -206,34 +206,75 @@ export default function HowItWorksPage() {
         </p>
       </Card>
 
-      {/* ── Why Not the Profile? ── */}
+      {/* ── Automatic Daisy-Chain Resolution ── */}
       <Card>
-        <SectionHeader icon={<IcoInfo size={18} style={{ color: colors.darkGreen }} />} color={colors.darkGreen}>
-          Why Downstream Models Reference the Catalog, Not the Profile
+        <SectionHeader icon={<IcoLink size={18} style={{ color: colors.darkGreen }} />} color={colors.darkGreen}>
+          Automatic Daisy-Chain Resolution
         </SectionHeader>
         <p style={S.paragraph}>
-          It's a common question: if a Profile selects and tailors controls, why don't
-          SSPs and Component Definitions reference the Profile for control details?
+          OSCAL models form dependency chains — each model references the one
+          upstream of it. When you load a document that has these references, the
+          viewer automatically walks the entire chain, resolving and loading each
+          dependency in sequence. A status dialog shows progress as each link is
+          fetched.
         </p>
-        <ul style={S.list}>
-          <li>
-            <strong>Profiles don't carry control text.</strong> They only carry
-            selection criteria and modification instructions. The actual prose,
-            parameters, and assessment methods live in the Catalog.
-          </li>
-          <li>
-            <strong>Profile resolution is an OSCAL concept.</strong> In OSCAL
-            tooling, "resolving" a Profile against its Catalog produces a
-            resolved catalog — essentially a filtered and tailored copy. The
-            viewer performs this resolution on the fly when both are loaded.
-          </li>
-          <li>
-            <strong>Simplicity and accuracy.</strong> Rather than every model
-            embedding its own copy of control text (which would drift out of date),
-            OSCAL keeps one Catalog as the source of truth and lets models
-            reference control IDs.
-          </li>
-        </ul>
+
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", marginBottom: 16 }}>
+          <MiniCard title="Assessment Results" color={colors.purple}>
+            <p style={{ ...S.paragraph, marginBottom: 4 }}>Resolves the full chain:</p>
+            <p style={{ ...S.paragraph, margin: 0, fontWeight: 600 }}>
+              AR → AP → SSP → Profile → Catalog
+            </p>
+          </MiniCard>
+
+          <MiniCard title="Assessment Plan" color={colors.purple}>
+            <p style={{ ...S.paragraph, marginBottom: 4 }}>Resolves:</p>
+            <p style={{ ...S.paragraph, margin: 0, fontWeight: 600 }}>
+              AP → SSP → Profile → Catalog
+            </p>
+          </MiniCard>
+
+          <MiniCard title="SSP" color={colors.darkGreen}>
+            <p style={{ ...S.paragraph, marginBottom: 4 }}>Resolves:</p>
+            <p style={{ ...S.paragraph, margin: 0, fontWeight: 600 }}>
+              SSP → Profile → Catalog
+            </p>
+          </MiniCard>
+
+          <MiniCard title="POA&M" color={colors.red}>
+            <p style={{ ...S.paragraph, marginBottom: 4 }}>Resolves:</p>
+            <p style={{ ...S.paragraph, margin: 0, fontWeight: 600 }}>
+              POA&amp;M → SSP → Profile → Catalog
+            </p>
+          </MiniCard>
+
+          <MiniCard title="Profile" color={colors.brightBlue}>
+            <p style={{ ...S.paragraph, marginBottom: 4 }}>Resolves:</p>
+            <p style={{ ...S.paragraph, margin: 0, fontWeight: 600 }}>
+              Profile → Catalog
+            </p>
+          </MiniCard>
+        </div>
+
+        <p style={S.paragraph}>
+          Each resolved document is stored in the viewer's shared context. Once
+          loaded, navigating between tabs (e.g. from the AR page to the Profile or
+          Catalog page) uses the already-resolved data — no redundant fetches.
+        </p>
+        <p style={S.paragraph}>
+          If you click <strong>New File</strong> and load a different document on the
+          same page, the viewer detects the change, re-resolves the full dependency
+          chain for the new document, and updates all downstream models accordingly.
+        </p>
+
+        <Callout color={colors.darkGreen}>
+          <strong>How it works under the hood:</strong> Each import reference is
+          either a direct URL or a <code style={S.code}>#uuid</code> back-matter
+          reference. The resolver walks the chain step by step: resolve the href,
+          fetch the JSON, extract the next import reference from the result, and
+          repeat until the final Catalog is loaded. At each step, relative URLs are
+          resolved against the previously fetched document's URL.
+        </Callout>
       </Card>
 
       {/* ── What You See in the Viewer ── */}
@@ -268,6 +309,17 @@ export default function HowItWorksPage() {
           control IDs, parameter constraints, and alter operations — but it cannot
           display the full control text or render inline parameter substitutions.
         </p>
+      </Card>
+
+      {/* ── A Note on Flexibility ── */}
+      <Card>
+        <Callout color={colors.navy}>
+          OSCAL is an extremely flexible standard, and until we encounter more
+          real-world data examples it is impossible to predict every user
+          experience scenario. This viewer is an <strong>opinionated
+          experience</strong> designed to increase collaboration and drive
+          adoption of OSCAL across the security community.
+        </Callout>
       </Card>
     </div>
   );
