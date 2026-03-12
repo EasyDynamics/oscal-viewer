@@ -468,7 +468,7 @@ const S: Record<string, CSSProperties> = {
     padding: "10px 0",
     fontSize: 14,
     fontWeight: 600,
-    fontFamily: fonts.body,
+    fontFamily: fonts.sans,
     color: colors.white,
     backgroundColor: colors.navy,
     border: "none",

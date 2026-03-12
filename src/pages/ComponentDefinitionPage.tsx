@@ -1518,15 +1518,9 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
 function OverviewView({
   cdef,
   navigate,
-  catalogResolveStatus,
-  catalogResolveError,
-  catalogResolveLabel,
 }: {
   cdef: ComponentDefinition;
   navigate: (id: string) => void;
-  catalogResolveStatus?: import("../hooks/useImportResolver").ResolveStatus;
-  catalogResolveError?: string | null;
-  catalogResolveLabel?: string | null;
 }) {
   const comps = cdef.components ?? [];
   const allReqs = comps.flatMap((c) =>

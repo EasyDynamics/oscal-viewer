@@ -1559,12 +1559,9 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
    OVERVIEW VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ profile, familyGroups, controlIds, navigate, catalogFetchStatus, catalogFetchError }: {
+function OverviewView({ profile, familyGroups, controlIds, navigate }: {
   profile: Profile; familyGroups: FamilyGroup[]; controlIds: string[]; navigate: (id: string) => void;
-  catalogFetchStatus: "idle" | "loading" | "success" | "error";
-  catalogFetchError: string | null;
 }) {
-  const oscal = useOscal();
   const totalControls = controlIds.length;
   const setParamCount = profile.modify?.["set-parameters"]?.length ?? 0;
   const alterCount = profile.modify?.alters?.length ?? 0;
