@@ -125,16 +125,18 @@ button:focus-visible {
 .oscal-markup li { margin-bottom: 0.15em; }
 .oscal-markup code {
   font-size: 0.85em;
-  background: var(--color-bg);
+  background: var(--color-code-bg);
+  color: var(--color-code-fg);
   padding: 1px 5px;
   border-radius: 3px;
-  border: 1px solid var(--color-pale-gray);
+  border: 1px solid var(--color-code-border);
 }
 .oscal-markup pre {
-  background: var(--color-bg);
+  background: var(--color-code-bg);
+  color: var(--color-code-fg);
   padding: 8px 12px;
   border-radius: 4px;
-  border: 1px solid var(--color-pale-gray);
+  border: 1px solid var(--color-code-border);
   overflow-x: auto;
   font-size: 0.85em;
   margin: 0.5em 0;

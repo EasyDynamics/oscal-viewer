@@ -93,6 +93,11 @@ export interface ThemeColors {
   loadedDot: string;           /* loaded indicator ring */
   shadow: string;              /* base shadow color */
 
+  /* ── Code / markup ── */
+  codeBg: string;              /* code snippet background */
+  codeFg: string;              /* code snippet text */
+  codeBorder: string;          /* code snippet border */
+
   /* ── Severity / risk ── */
   riskLowBg: string;
   riskLowFg: string;
