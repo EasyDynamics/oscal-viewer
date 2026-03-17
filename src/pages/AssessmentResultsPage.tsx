@@ -22,7 +22,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useChainResolver, AR_CHAIN } from "../hooks/useChainResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
-import ResolverModal from "../components/ResolverModal";
+import ResolveFailSnackbar from "../components/ResolveFailSnackbar";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -925,9 +925,9 @@ export default function AssessmentResultsPage() {
     return crumbs;
   }, [mobilePath, ar]);
 
-  /* ── Resolver modal ── */
-  const resolverModal = (
-    <ResolverModal items={chain.items} />
+  /* ── Snackbar for failed resolution ── */
+  const snackbarEl = (
+    <ResolveFailSnackbar items={chain.steps} />
   );
 
   /* ── If no file loaded, show drop zone ── */
@@ -948,7 +948,7 @@ export default function AssessmentResultsPage() {
     if (mobileShowContent) {
       return (
         <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
-          {resolverModal}
+          {snackbarEl}
           <div style={S.topBar}>
             <div style={S.topBarLeft}>
               <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AR Viewer</div>
@@ -990,7 +990,7 @@ export default function AssessmentResultsPage() {
 
     return (
       <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
-        {resolverModal}
+        {snackbarEl}
         <div style={S.topBar}>
           <div style={S.topBarLeft}>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AR Viewer</div>
@@ -1081,7 +1081,7 @@ export default function AssessmentResultsPage() {
 
   return (
     <div style={S.shell}>
-      {resolverModal}
+      {snackbarEl}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>

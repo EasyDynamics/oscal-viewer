@@ -262,7 +262,10 @@ export function useChainResolver(
 
         /* 4. Fetch */
         try {
-          const res = await authFetch(fetchUrl, token);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10_000);
+          const res = await authFetch(fetchUrl, token, { signal: controller.signal });
+          clearTimeout(timeoutId);
           if (cancelled) return;
           if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
@@ -318,15 +321,17 @@ export function useChainResolver(
           }
         } catch (err) {
           if (cancelled) return;
-          if ((err as DOMException).name === "AbortError") return;
+          const isTimeout = (err as DOMException).name === "AbortError";
           setSteps((prev) => {
             const n = [...prev];
             n[i] = {
               ...n[i],
               status: "error",
-              error: err instanceof Error
-                ? err.message
-                : `Failed to fetch ${link.modelKey}`,
+              error: isTimeout
+                ? `Timed out resolving ${link.modelKey} from ${fetchUrl}`
+                : err instanceof Error
+                  ? err.message
+                  : `Failed to fetch ${link.modelKey}`,
             };
             return n;
           });

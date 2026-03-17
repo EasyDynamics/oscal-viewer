@@ -22,7 +22,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useImportResolver } from "../hooks/useImportResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
-import ResolverModal from "../components/ResolverModal";
+import ResolveFailSnackbar from "../components/ResolveFailSnackbar";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
@@ -879,9 +879,9 @@ export default function ComponentDefinitionPage() {
     });
   }, [navTree, mergedCollapsed]);
 
-  /* ── Resolver modal ── */
-  const resolverModal = (
-    <ResolverModal items={[{ label: "Catalog", status: catalogResolver.status, error: catalogResolver.error, resolvedLabel: catalogResolver.label, resolvedUrl: catalogResolver.resolvedUrl }]} />
+  /* ── Snackbar for failed dependency resolution ── */
+  const snackbarEl = (
+    <ResolveFailSnackbar items={[{ label: "Catalog", status: catalogResolver.status, resolvedUrl: catalogResolver.resolvedUrl, error: catalogResolver.error }]} />
   );
 
   /* ── If no file loaded, show drop zone ── */
@@ -953,7 +953,7 @@ export default function ComponentDefinitionPage() {
     if (mobileShowContent) {
       return (
         <div style={S.shell}>
-          {resolverModal}
+          {snackbarEl}
           <div style={S.topBar}>
             <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>Component Def</div>
@@ -980,7 +980,7 @@ export default function ComponentDefinitionPage() {
 
     return (
       <div style={S.shell}>
-        {resolverModal}
+        {snackbarEl}
         <div style={S.topBar}>
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Component Def</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
@@ -1028,7 +1028,7 @@ export default function ComponentDefinitionPage() {
 
   return (
     <div style={S.shell}>
-      {resolverModal}
+      {snackbarEl}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
@@ -2910,4 +2910,5 @@ const S: Record<string, CSSProperties> = {
     display: "flex", flexWrap: "wrap" as const, gap: 2, padding: "10px 16px",
     fontSize: 12, color: colors.gray, borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.bg,
   },
+
 };
