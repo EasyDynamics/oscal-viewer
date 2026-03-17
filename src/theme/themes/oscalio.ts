@@ -83,6 +83,11 @@ const lightColors: ThemeColors = {
   loadedDot: "#22c55e",
   shadow: "rgba(0,0,0,0.12)",
 
+  /* ── Code / markup ── */
+  codeBg: "#E8EDF4",
+  codeFg: "#1A1A2E",
+  codeBorder: "#B0B8C8",
+
   /* ── Severity / risk ── */
   riskLowBg: "#e8f5e9",
   riskLowFg: "#2e7d32",
@@ -172,6 +177,11 @@ const darkColors: ThemeColors = {
   /* ── Misc ── */
   loadedDot: "#4ADE80",
   shadow: "rgba(0,0,0,0.40)",
+
+  /* ── Code / markup ── */
+  codeBg: "#1E2030",
+  codeFg: "#D4D8E8",
+  codeBorder: "#3A3F55",
 
   /* ── Severity / risk ── */
   riskLowBg: "#1B3A25",

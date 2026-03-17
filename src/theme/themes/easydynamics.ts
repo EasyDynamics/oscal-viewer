@@ -96,6 +96,11 @@ const easydynamics: ThemeDefinition = {
     loadedDot: "#22c55e",
     shadow: "rgba(0,0,0,0.12)",
 
+    /* ── Code / markup ── */
+    codeBg: "#E8EDF4",
+    codeFg: "#1A1A2E",
+    codeBorder: "#B0B8C8",
+
     /* ── Severity / risk ── */
     riskLowBg: "#e8f5e9",
     riskLowFg: "#2e7d32",
