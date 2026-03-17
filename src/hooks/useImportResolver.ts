@@ -170,6 +170,7 @@ export function useImportResolver(
     // 3. Fetch
     let cancelled = false;
     const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     setStatus("loading");
     setError(null);
     setJson(null);
@@ -210,16 +211,23 @@ export function useImportResolver(
         setJson(parsed);
         setLabel(resourceTitle ?? fileNameFromUrl(fetchUrl));
         setStatus("success");
+        clearTimeout(timeoutId);
       })
       .catch((err) => {
         if (cancelled) return;
-        if ((err as DOMException).name === "AbortError") return;
+        clearTimeout(timeoutId);
+        if ((err as DOMException).name === "AbortError") {
+          setError(`Timed out resolving ${modelKey} from ${fetchUrl}`);
+          setStatus("error");
+          return;
+        }
         setError(err instanceof Error ? err.message : `Failed to fetch ${modelKey}`);
         setStatus("error");
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
       controller.abort();
     };
   }, [href, backMatter, baseUrl, token, modelKey, skip]);

@@ -21,7 +21,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useChainResolver, SSP_CHAIN } from "../hooks/useChainResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
-import ResolverModal from "../components/ResolverModal";
+import ResolveFailSnackbar from "../components/ResolveFailSnackbar";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type {
@@ -2440,9 +2440,9 @@ export default function SspPage() {
     });
   }, [navTree, mergedCollapsed]);
 
-  /* ── Resolver modal ── */
-  const resolverModal = (
-    <ResolverModal items={chain.items} />
+  /* ── Snackbar for failed resolution ── */
+  const snackbarEl = (
+    <ResolveFailSnackbar items={chain.steps} />
   );
 
   /* ── No data — drop zone ── */
@@ -2463,7 +2463,7 @@ export default function SspPage() {
     if (mobileShowContent) {
       return (
         <div style={S.shell}>
-          {resolverModal}
+          {snackbarEl}
           <div style={S.topBar}>
             <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>SSP</div>
@@ -2491,7 +2491,7 @@ export default function SspPage() {
 
     return (
       <div style={S.shell}>
-        {resolverModal}
+        {snackbarEl}
         <div style={S.topBar}>
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>SSP</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
@@ -2546,7 +2546,7 @@ export default function SspPage() {
   /* ── Main layout ── */
   return (
     <div style={S.shell}>
-      {resolverModal}
+      {snackbarEl}
       {/* Top Bar */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>

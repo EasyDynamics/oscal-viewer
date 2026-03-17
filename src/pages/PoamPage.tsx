@@ -21,7 +21,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useChainResolver, POAM_CHAIN } from "../hooks/useChainResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
-import ResolverModal from "../components/ResolverModal";
+import ResolveFailSnackbar from "../components/ResolveFailSnackbar";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -837,9 +837,9 @@ export default function PoamPage() {
     setMobileShowContent(false);
   }, []);
 
-  /* ── Resolver modal ── */
-  const resolverModal = (
-    <ResolverModal items={chain.items} />
+  /* ── Snackbar for failed resolution ── */
+  const snackbarEl = (
+    <ResolveFailSnackbar items={chain.steps} />
   );
 
   /* ── If no file loaded, show drop zone ── */
@@ -914,7 +914,7 @@ export default function PoamPage() {
     if (mobileShowContent) {
       return (
         <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
-          {resolverModal}
+          {snackbarEl}
           <div style={S.topBar}>
             <div style={S.topBarLeft}>
               <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>POA&amp;M Viewer</div>
@@ -935,7 +935,7 @@ export default function PoamPage() {
 
     return (
       <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
-        {resolverModal}
+        {snackbarEl}
         <div style={S.topBar}>
           <div style={S.topBarLeft}>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>POA&amp;M Viewer</div>
@@ -994,7 +994,7 @@ export default function PoamPage() {
 
   return (
     <div style={S.shell}>
-      {resolverModal}
+      {snackbarEl}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>
