@@ -1,8 +1,10 @@
 # OSCAL Viewer
 
-A client-side React application for viewing and navigating [OSCAL](https://pages.nist.gov/OSCAL/) (Open Security Controls Assessment Language) documents. Built by [Easy Dynamics](https://www.easydynamics.com/).
+A client-side React application for viewing and navigating [OSCAL](https://pages.nist.gov/OSCAL/) (Open Security Controls Assessment Language) documents.
 
 All processing happens in the browser — no server, no uploads, no data leaves your machine.
+
+**Production instance:** [https://viewer.oscal.io](https://viewer.oscal.io)
 
 ## OSCAL Models
 
@@ -25,7 +27,7 @@ The **Component Definition** viewer is fully implemented with a sidebar navigati
 - **React 19** + **TypeScript** — UI framework
 - **Vite** — build tool and dev server
 - **React Router** — client-side routing
-- **EZD Brand Tokens** — centralized design system (Navy / Orange / Yellow palette, Roboto font)
+- **Theming** — token-based design system with multiple theme support
 
 ## Prerequisites
 
@@ -82,12 +84,31 @@ npm run lint
 ```
 src/
 ├── theme/
-│   ├── tokens.ts        # Colors, fonts, spacing, radii, shadows
-│   └── global.css       # Reset, base styles, Roboto import
+│   ├── tokens.ts          # Colors, fonts, spacing, radii, shadows
+│   ├── themeContract.ts   # CSS-variable contract for theming
+│   ├── themeConfig.ts     # Theme registry and configuration
+│   ├── applyTheme.ts      # Runtime theme application
+│   ├── global.css         # Reset, base styles, font import
+│   └── themes/            # Per-tenant theme definitions
 ├── components/
-│   ├── Layout.tsx        # App shell — header + tab navigation
-│   ├── Icons.tsx         # Shared SVG icon components
-│   └── PageStub.tsx      # Reusable placeholder for unfinished viewers
+│   ├── Layout.tsx              # App shell — header + tab navigation
+│   ├── Icons.tsx               # Shared SVG icon components
+│   ├── PageStub.tsx            # Reusable placeholder for unfinished viewers
+│   ├── CookieBanner.tsx        # Cookie consent banner
+│   ├── ImportResolverBanner.tsx # Import resolution UI
+│   ├── ResolverModal.tsx       # Modal for resolving OSCAL imports
+│   ├── ResolveFailSnackbar.tsx # Error notification for failed resolutions
+│   └── LinkChips.tsx           # Chip-style link components
+├── context/
+│   ├── AuthContext.tsx    # Authentication state
+│   ├── OscalContext.tsx   # Loaded OSCAL document state
+│   └── ThemeContext.tsx   # Active theme state
+├── hooks/
+│   ├── useImportResolver.ts  # Resolve OSCAL import chains
+│   ├── useChainResolver.ts   # Chained profile resolution
+│   ├── useUrlDocument.ts     # Load document from URL
+│   ├── useCookieConsent.ts   # Cookie consent logic
+│   └── useIsMobile.ts        # Responsive breakpoint hook
 ├── pages/
 │   ├── HomePage.tsx
 │   ├── CatalogPage.tsx
@@ -96,7 +117,10 @@ src/
 │   ├── SspPage.tsx
 │   ├── AssessmentPlanPage.tsx
 │   ├── AssessmentResultsPage.tsx
-│   └── PoamPage.tsx
+│   ├── PoamPage.tsx
+│   ├── ExamplesPage.tsx
+│   ├── HowItWorksPage.tsx
+│   └── PrivacyPolicyPage.tsx
 ├── App.tsx               # React Router wiring
 └── main.tsx              # Entry point
 ```
