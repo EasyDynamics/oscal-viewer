@@ -214,27 +214,27 @@ export default function Layout() {
             );
           })}
 
-          <NavLink
-            to="/examples"
-            style={() => ({
+          <a
+            href="https://registry.oscal.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
               marginLeft: "auto",
               display: "inline-flex",
               alignItems: "center",
               padding: "10px 16px",
               fontSize: 12,
-              fontWeight: location.pathname === "/examples" ? 600 : 400,
+              fontWeight: 400,
               fontFamily: fonts.sans,
-              color: location.pathname === "/examples" ? colors.navy : colors.gray,
+              color: colors.gray,
               textDecoration: "none",
-              borderBottom: location.pathname === "/examples"
-                ? `3px solid ${colors.navy}`
-                : "3px solid transparent",
+              borderBottom: "3px solid transparent",
               whiteSpace: "nowrap" as const,
               transition: "color .15s, border-color .15s",
-            })}
+            }}
           >
-            JSON Examples
-          </NavLink>
+            Content Registry ↗
+          </a>
         </nav>
       )}
 
@@ -258,7 +258,22 @@ export default function Layout() {
                 />
               );
             })}
-            <MobileMenuItem to="/examples" label="JSON Examples" isActive={location.pathname === "/examples"} onTap={() => setMenuOpen(false)} />
+            <a
+              href="https://registry.oscal.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                display: "block",
+                padding: "12px 20px",
+                fontSize: 14,
+                fontFamily: fonts.sans,
+                color: colors.gray,
+                textDecoration: "none",
+              }}
+            >
+              Content Registry ↗
+            </a>
           </div>
         </>
       )}
