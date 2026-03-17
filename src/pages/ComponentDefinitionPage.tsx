@@ -86,6 +86,7 @@ interface Statement {
   "statement-id": string;
   uuid: string;
   description?: string | { prose: string };
+  remarks?: string | { prose: string };
   props?: OscalProp[];
 }
 
@@ -93,7 +94,7 @@ interface ImplementedRequirement {
   uuid: string;
   "control-id": string;
   description?: string | { prose: string };
-  remarks?: string;
+  remarks?: string | { prose: string };
   props?: OscalProp[];
   statements?: Statement[];
   links?: Link[];
@@ -103,6 +104,7 @@ interface ImplementedRequirement {
 interface ControlImplementation {
   uuid: string;
   description?: string | { prose: string };
+  remarks?: string | { prose: string };
   source: string;
   "implemented-requirements": ImplementedRequirement[];
 }
@@ -194,7 +196,8 @@ function trunc(s: string, n: number) {
 }
 
 /** Derive a human-readable label for a control implementation from its source URI. */
-function implLabel(impl: ControlImplementation, index: number): string {
+function implLabel(impl: ControlImplementation, index: number, resolvedTitle?: string | null): string {
+  if (resolvedTitle) return resolvedTitle;
   try {
     const url = new URL(impl.source);
     // Use the filename without extension, cleaned up
@@ -336,6 +339,50 @@ function MarkupBlock({ value, style }: { value: unknown; style?: CSSProperties }
       }}
       dangerouslySetInnerHTML={{ __html: html }}
     />
+  );
+}
+
+/** Remarks toggle — collapsed by default, click to reveal */
+function CollapsibleRemarks({ value, compact }: { value: unknown; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const raw = txt(value);
+  if (!raw) return null;
+  return compact ? (
+    <div style={{ marginTop: 6 }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          fontSize: 11, color: colors.cobalt, fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+        }}
+      >
+        <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>&#9654;</span>
+        Remarks
+      </button>
+      {open && (
+        <div style={{ marginTop: 4, paddingLeft: 10, borderLeft: `3px solid ${colors.cobalt}`, fontStyle: "italic" }}>
+          <MarkupBlock value={value} style={{ fontSize: 12, color: colors.gray }} />
+        </div>
+      )}
+    </div>
+  ) : (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          fontSize: 13, color: colors.cobalt, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+        }}
+      >
+        <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>&#9654;</span>
+        Remarks
+      </button>
+      {open && (
+        <div style={{ marginTop: 8 }}>
+          <MarkupBlock value={value} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -750,6 +797,18 @@ export default function ComponentDefinitionPage() {
     }
   }, [catalogResolver.status, catalogResolver.json, catalogResolver.label]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Title from the resolved catalog, used to replace GUID/filename in nav labels */
+  const resolvedCatalogTitle = useMemo(() => {
+    const cat = oscal.catalog?.data;
+    return cat?.metadata?.title ?? null;
+  }, [oscal.catalog]);
+
+  /** Look up a resolved title for a control-implementation source */
+  const resolvedTitleForSource = useCallback(
+    (source: string) => (source === firstSource ? resolvedCatalogTitle : null),
+    [firstSource, resolvedCatalogTitle],
+  );
+
   /* ── Build navigation tree ── */
   const navTree = useMemo<NavItem[]>(() => {
     if (!cdef) return [];
@@ -769,7 +828,7 @@ export default function ComponentDefinitionPage() {
         const reqCount = impl["implemented-requirements"].length;
         items.push({
           id: implId,
-          label: implLabel(impl, ii),
+          label: implLabel(impl, ii, resolvedTitleForSource(impl.source)),
           icon: "layers",
           color: colors.brightBlue,
           depth: 1,
@@ -833,7 +892,7 @@ export default function ComponentDefinitionPage() {
     }
 
     return items;
-  }, [cdef, bmRes]);
+  }, [cdef, bmRes, resolvedTitleForSource]);
 
   /* ── Child counts for groups ── */
   const childCounts = useMemo(() => {
@@ -960,7 +1019,7 @@ export default function ComponentDefinitionPage() {
             <button style={S.topBtn} onClick={handleNewFile}>New</button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <ViewRouter view={view} cdef={cdef} navigate={mobileNavigate} resMap={resMap} bmRes={bmRes} parties={parties} catalog={oscal.catalog?.data ?? null} />
+            <ViewRouter view={view} cdef={cdef} navigate={mobileNavigate} resMap={resMap} bmRes={bmRes} parties={parties} catalog={oscal.catalog?.data ?? null} resolvedTitleForSource={resolvedTitleForSource} />
           </div>
         </div>
       );
@@ -1098,6 +1157,7 @@ export default function ComponentDefinitionPage() {
             bmRes={bmRes}
             parties={parties}
             catalog={oscal.catalog?.data ?? null}
+            resolvedTitleForSource={resolvedTitleForSource}
           />
         </div>
       </div>
@@ -1117,9 +1177,10 @@ interface ViewRouterProps {
   bmRes: Resource[];
   parties: Party[];
   catalog: OscalCatalog | null;
+  resolvedTitleForSource: (source: string) => string | null;
 }
 
-function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog }: ViewRouterProps) {
+function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog, resolvedTitleForSource }: ViewRouterProps) {
   const comps = cdef.components ?? [];
 
   if (view === "overview")
@@ -1141,6 +1202,7 @@ function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog }: V
           compIdx={ci}
           parties={parties}
           navigate={navigate}
+          resolvedTitleForSource={resolvedTitleForSource}
         />
       );
   }
@@ -1162,6 +1224,7 @@ function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog }: V
           parties={parties}
           navigate={navigate}
           resMap={resMap}
+          resolvedTitleForSource={resolvedTitleForSource}
         />
       );
   }
@@ -1187,6 +1250,7 @@ function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog }: V
               navigate={navigate}
               resMap={resMap}
               catalog={catalog}
+              resolvedTitleForSource={resolvedTitleForSource}
             />
           );
       }
@@ -1806,11 +1870,13 @@ function ComponentView({
   compIdx,
   parties: _parties,
   navigate,
+  resolvedTitleForSource,
 }: {
   comp: Component;
   compIdx: number;
   parties: Party[];
   navigate: (id: string) => void;
+  resolvedTitleForSource: (source: string) => string | null;
 }) {
   const impls = comp["control-implementations"] ?? [];
   const allReqs = impls.flatMap((ci) => ci["implemented-requirements"]);
@@ -1867,9 +1933,7 @@ function ComponentView({
       {comp.purpose && (
         <Card>
           <SectionLabel>Purpose</SectionLabel>
-          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>
-            {txt(comp.purpose)}
-          </p>
+          <MarkupBlock value={comp.purpose} />
         </Card>
       )}
 
@@ -1931,7 +1995,7 @@ function ComponentView({
                   color: colors.brightBlue,
                 }}
               >
-                {implLabel(impl, ii)}
+                {implLabel(impl, ii, resolvedTitleForSource(impl.source))}
               </span>
               <span style={{ fontSize: 12, color: colors.gray }}>
                 — {impl["implemented-requirements"].length} requirements
@@ -1968,6 +2032,7 @@ function ControlImplView({
   parties: _parties,
   navigate,
   resMap: _resMap,
+  resolvedTitleForSource,
 }: {
   impl: ControlImplementation;
   comp: Component;
@@ -1976,6 +2041,7 @@ function ControlImplView({
   parties: Party[];
   navigate: (id: string) => void;
   resMap: Record<string, Resource>;
+  resolvedTitleForSource: (source: string) => string | null;
 }) {
   const reqs = impl["implemented-requirements"];
   const familySet = new Set(reqs.map((r) => familyOf(r["control-id"])));
@@ -1988,7 +2054,7 @@ function ControlImplView({
           { id: `comp-${compIdx}`, label: comp.title },
           {
             id: `comp-${compIdx}-ci-${implIdx}`,
-            label: implLabel(impl, implIdx),
+            label: implLabel(impl, implIdx, resolvedTitleForSource(impl.source)),
           },
         ]}
         navigate={navigate}
@@ -2003,7 +2069,7 @@ function ControlImplView({
       >
         <IcoLayers size={22} style={{ color: colors.brightBlue }} />
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
-          {implLabel(impl, implIdx)}
+          {implLabel(impl, implIdx, resolvedTitleForSource(impl.source))}
         </h1>
       </div>
 
@@ -2025,6 +2091,12 @@ function ControlImplView({
         <Card>
           <SectionLabel>Description</SectionLabel>
           <MarkupBlock value={impl.description} />
+        </Card>
+      )}
+
+      {impl.remarks && (
+        <Card style={{ borderLeft: `4px solid ${colors.cobalt}` }}>
+          <CollapsibleRemarks value={impl.remarks} />
         </Card>
       )}
 
@@ -2305,6 +2377,7 @@ function RequirementView({
   navigate,
   resMap,
   catalog,
+  resolvedTitleForSource,
 }: {
   req: ImplementedRequirement;
   comp: Component;
@@ -2314,6 +2387,7 @@ function RequirementView({
   navigate: (id: string) => void;
   resMap: Record<string, Resource>;
   catalog: OscalCatalog | null;
+  resolvedTitleForSource: (source: string) => string | null;
 }) {
   const impl = comp["control-implementations"]?.[implIdx];
   const status =
@@ -2350,7 +2424,7 @@ function RequirementView({
           { id: `comp-${compIdx}`, label: comp.title },
           {
             id: `comp-${compIdx}-ci-${implIdx}`,
-            label: impl ? implLabel(impl, implIdx) : `Control Implementation ${implIdx + 1}`,
+            label: impl ? implLabel(impl, implIdx, resolvedTitleForSource(impl.source)) : `Control Implementation ${implIdx + 1}`,
           },
           {
             id: `req-${req.uuid}`,
@@ -2431,8 +2505,7 @@ function RequirementView({
             borderLeft: `4px solid ${colors.cobalt}`,
           }}
         >
-          <SectionLabel>Remarks</SectionLabel>
-          <MarkupBlock value={req.remarks} />
+          <CollapsibleRemarks value={req.remarks} />
         </Card>
       )}
 
@@ -2497,6 +2570,9 @@ function RequirementView({
                 {/* Implementation description for this statement */}
                 {stmt.description && (
                   <MarkupBlock value={stmt.description} />
+                )}
+                {stmt.remarks && (
+                  <CollapsibleRemarks value={stmt.remarks} compact />
                 )}
               </div>
             );

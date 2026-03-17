@@ -86,6 +86,7 @@ interface ByComponent {
   componentUuid: string;
   uuid: string;
   description: string;
+  remarks: string;
   implementationStatus: string;
 }
 
@@ -93,6 +94,7 @@ interface SspStatement {
   statementId: string;
   uuid: string;
   description: string;
+  remarks: string;
   byComponents: ByComponent[];
 }
 
@@ -100,6 +102,7 @@ interface ImplementedRequirement {
   uuid: string;
   controlId: string;
   description: string;
+  remarks: string;
   props: OscalProp[];
   statements: SspStatement[];
   byComponents: ByComponent[];
@@ -258,18 +261,22 @@ function parseSsp(raw: any): SspParsed {
     uuid: ir.uuid,
     controlId: ir["control-id"] || "",
     description: txt(ir.description),
+    remarks: txt(ir.remarks),
     props: ir.props || [],
     statements: (ir.statements || []).map((st: any) => ({
       statementId: st["statement-id"] || "",
       uuid: st.uuid,
       description: txt(st.description),
+      remarks: txt(st.remarks),
       byComponents: (st["by-components"] || []).map((bc: any) => ({
         componentUuid: bc["component-uuid"], uuid: bc.uuid, description: txt(bc.description),
+        remarks: txt(bc.remarks),
         implementationStatus: bc["implementation-status"]?.state || "",
       })),
     })),
     byComponents: (ir["by-components"] || []).map((bc: any) => ({
       componentUuid: bc["component-uuid"], uuid: bc.uuid, description: txt(bc.description),
+      remarks: txt(bc.remarks),
       implementationStatus: bc["implementation-status"]?.state || "",
     })),
     responsibleRoles: (ir["responsible-roles"] || []).map((rr: any) => ({
@@ -323,6 +330,50 @@ function MarkupBlock({ value, style }: { value: unknown; style?: CSSProperties }
       style={{ fontSize: 13, color: colors.black, lineHeight: 1.75, ...style }}
       dangerouslySetInnerHTML={{ __html: renderMarkup(raw) }}
     />
+  );
+}
+
+/** Remarks toggle — collapsed by default, click to reveal */
+function CollapsibleRemarks({ value, compact }: { value: unknown; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const raw = txt(value);
+  if (!raw) return null;
+  return compact ? (
+    <div style={{ marginTop: 6 }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          fontSize: 11, color: colors.cobalt, fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+        }}
+      >
+        <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>&#9654;</span>
+        Remarks
+      </button>
+      {open && (
+        <div style={{ marginTop: 4, paddingLeft: 10, borderLeft: `3px solid ${colors.cobalt}`, fontStyle: "italic" }}>
+          <MarkupBlock value={value} style={{ fontSize: 12, color: colors.gray }} />
+        </div>
+      )}
+    </div>
+  ) : (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          fontSize: 13, color: colors.cobalt, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+        }}
+      >
+        <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>&#9654;</span>
+        Remarks
+      </button>
+      {open && (
+        <div style={{ marginTop: 8 }}>
+          <MarkupBlock value={value} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1725,6 +1776,13 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
         </Card>
       )}
 
+      {/* Remarks */}
+      {ir.remarks && (
+        <Card style={{ borderLeft: `4px solid ${colors.cobalt}` }}>
+          <CollapsibleRemarks value={ir.remarks} />
+        </Card>
+      )}
+
       {/* Component-level implementations */}
       {allComponents.length > 0 && (
         <Card>
@@ -1785,6 +1843,7 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                       Component Implementation
                     </div>
                     <MarkupBlock value={reqBc.description} style={{ fontSize: 13 }} />
+                    {reqBc.remarks && <CollapsibleRemarks value={reqBc.remarks} compact />}
                   </div>
                 )}
 
@@ -1828,6 +1887,7 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                           )}
                           {/* Component's implementation for this statement */}
                           {bc.description && <MarkupBlock value={bc.description} />}
+                          {bc.remarks && <CollapsibleRemarks value={bc.remarks} compact />}
                         </div>
                       );
                     })}
@@ -2095,6 +2155,7 @@ function SspComponentDetailView({
                       <div style={{ marginBottom: 4 }}><ImplStatusBadge status={bc.implementationStatus} /></div>
                     )}
                     <MarkupBlock value={bc.description} style={{ fontSize: 12.5 }} />
+                    {bc.remarks && <CollapsibleRemarks value={bc.remarks} compact />}
                   </div>
                 ))}
                 {stmtByComps.map((sbc) => (
@@ -2106,6 +2167,7 @@ function SspComponentDetailView({
                       {sbc.implementationStatus && <ImplStatusBadge status={sbc.implementationStatus} />}
                     </div>
                     <MarkupBlock value={sbc.description} style={{ fontSize: 12.5 }} />
+                    {sbc.remarks && <CollapsibleRemarks value={sbc.remarks} compact />}
                   </div>
                 ))}
               </div>
