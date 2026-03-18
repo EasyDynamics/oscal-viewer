@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from "react";
 import { authFetch } from "../context/AuthContext";
 import {
   resolveHref,
+  checkUrlFormat,
   type BackMatterResource,
   type ResolveStatus,
 } from "./useImportResolver";
@@ -205,7 +206,15 @@ export function useChainResolver(
         const link = chain[i];
 
         /* 1. Resolve href (may be a #uuid back-matter ref) */
-        const { url: rawUrl, title: resTitle } = resolveHref(href!, bm);
+        const { url: rawUrl, title: resTitle, formatError } = resolveHref(href!, bm);
+        if (formatError) {
+          setSteps((prev) => {
+            const n = [...prev];
+            n[i] = { ...n[i], status: "error", error: formatError };
+            return n;
+          });
+          return; // stop chain
+        }
         if (!rawUrl) {
           setSteps((prev) => {
             const n = [...prev];
@@ -253,14 +262,25 @@ export function useChainResolver(
           return;
         }
 
-        /* 3. Set loading */
+        /* 3. Pre-flight: reject unsupported URL extensions */
+        const urlFormatError = checkUrlFormat(fetchUrl);
+        if (urlFormatError) {
+          setSteps((prev) => {
+            const n = [...prev];
+            n[i] = { ...n[i], status: "error", error: urlFormatError };
+            return n;
+          });
+          return; // stop chain
+        }
+
+        /* 4. Set loading */
         setSteps((prev) => {
           const n = [...prev];
           n[i] = { ...n[i], status: "loading", error: null, json: null, resolvedUrl: fetchUrl };
           return n;
         });
 
-        /* 4. Fetch */
+        /* 5. Fetch */
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10_000);
@@ -270,13 +290,16 @@ export function useChainResolver(
           if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
           const ct = res.headers.get("content-type") ?? "";
+          if (ct.includes("xml") || ct.includes("yaml")) {
+            throw new Error(`Referenced document is not JSON (${ct}): ${fetchUrl}`);
+          }
           if (
             ct &&
             !ct.includes("json") &&
             !ct.includes("octet-stream") &&
             !ct.includes("text/plain")
           ) {
-            throw new Error(`Expected JSON but received "${ct}".`);
+            throw new Error(`Expected JSON but received "${ct}": ${fetchUrl}`);
           }
 
           const text = await res.text();
@@ -286,7 +309,12 @@ export function useChainResolver(
           try {
             parsed = JSON.parse(text);
           } catch {
-            throw new Error("The referenced document is not valid JSON.");
+            // Check if it looks like XML
+            const trimmed = text.trimStart();
+            if (trimmed.startsWith("<")) {
+              throw new Error(`Referenced document is not JSON (appears to be XML): ${fetchUrl}`);
+            }
+            throw new Error(`Referenced document is not valid JSON: ${fetchUrl}`);
           }
 
           const obj = parsed as Record<string, unknown>;
@@ -311,7 +339,7 @@ export function useChainResolver(
             return n;
           });
 
-          /* 5. Extract next step info */
+          /* 6. Extract next step info */
           if (link.extractNext && i < chain.length - 1) {
             const next = link.extractNext(parsed);
             if (!next.href) return; // no next reference → stop chain

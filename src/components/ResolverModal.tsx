@@ -472,6 +472,7 @@ const S: Record<string, CSSProperties> = {
     fontSize: 11,
     color: colors.dangerFg,
     marginTop: 2,
+    wordBreak: "break-all" as const,
   },
   btn: {
     display: "block",
