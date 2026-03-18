@@ -277,6 +277,26 @@ export default function HowItWorksPage() {
         </Callout>
       </Card>
 
+      {/* ── Supported Format ── */}
+      <Card>
+        <SectionHeader icon={<IcoInfo size={18} style={{ color: colors.orange }} />} color={colors.orange}>
+          Supported Format: JSON Only
+        </SectionHeader>
+        <p style={S.paragraph}>
+          OSCAL defines three serialization formats: JSON, XML, and YAML. This
+          viewer <strong>supports JSON only</strong>. All documents — whether loaded
+          directly or resolved through import references — must be valid OSCAL JSON
+          files.
+        </p>
+        <p style={S.paragraph}>
+          If an import reference points to an XML or YAML document, the resolver
+          will report an error and display a "could not resolve" indicator rather
+          than attempting to parse it. To use a non-JSON document with the viewer,
+          convert it to JSON first using the{" "}
+          <code style={S.code}>oscal-cli</code> tool or an equivalent converter.
+        </p>
+      </Card>
+
       {/* ── What You See in the Viewer ── */}
       <Card>
         <SectionHeader icon={<IcoLayers size={18} style={{ color: colors.purple }} />} color={colors.purple}>

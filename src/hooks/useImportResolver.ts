@@ -39,6 +39,38 @@ export interface ResolveResult {
 
 /* ── Helpers ── */
 
+const UNSUPPORTED_EXTENSIONS = [".xml", ".yaml", ".yml"];
+
+/**
+ * Check whether a URL points to a supported OSCAL format (JSON).
+ * Returns an error message if the format is unsupported, or null if OK / indeterminate.
+ */
+export function checkUrlFormat(url: string): string | null {
+  try {
+    const pathname = new URL(url, "https://placeholder").pathname.toLowerCase();
+    if (UNSUPPORTED_EXTENSIONS.some((ext) => pathname.endsWith(ext))) {
+      return `Referenced document is not JSON: ${url}`;
+    }
+  } catch {
+    // Can't parse — let the fetch attempt surface the real error
+  }
+  return null;
+}
+
+/**
+ * Check whether an rlink has a supported media type (JSON).
+ */
+function isRlinkSupported(rl: { href: string; "media-type"?: string }): boolean {
+  const mt = rl["media-type"]?.toLowerCase() ?? "";
+  if (mt.includes("xml")) return false;
+  if (mt.includes("json")) return true;
+  if (mt.includes("yaml")) return false;
+  // No media-type — check file extension
+  const href = rl.href.toLowerCase();
+  if (UNSUPPORTED_EXTENSIONS.some((ext) => href.endsWith(ext))) return false;
+  return true; // unknown — give it a try
+}
+
 /**
  * Resolve an href that may be a #uuid back-matter reference.
  * Returns the resolved URL (or null) and an optional resource title.
@@ -46,23 +78,34 @@ export interface ResolveResult {
 export function resolveHref(
   href: string,
   backMatterResources: BackMatterResource[],
-): { url: string | null; title: string | null } {
-  if (!href) return { url: null, title: null };
+): { url: string | null; title: string | null; formatError: string | null } {
+  if (!href) return { url: null, title: null, formatError: null };
   if (href.startsWith("#")) {
     const uuid = href.slice(1);
     const resource = backMatterResources.find((r) => r.uuid === uuid);
     if (resource) {
-      // Prefer JSON rlink
+      // Prefer JSON rlink, skip XML/YAML
       const jsonRlink = resource.rlinks?.find(
         (rl) => rl["media-type"]?.includes("json"),
       );
-      const anyRlink = resource.rlinks?.[0];
-      const rlink = jsonRlink ?? anyRlink;
-      return { url: rlink?.href ?? null, title: resource.title ?? null };
+      const supportedRlink = resource.rlinks?.find(isRlinkSupported);
+      const rlink = jsonRlink ?? supportedRlink;
+      if (!rlink && resource.rlinks && resource.rlinks.length > 0) {
+        // All rlinks are unsupported formats (e.g. XML)
+        const firstHref = resource.rlinks[0].href;
+        return {
+          url: null,
+          title: resource.title ?? null,
+          formatError: `Referenced document is not JSON: ${firstHref}`,
+        };
+      }
+      return { url: rlink?.href ?? null, title: resource.title ?? null, formatError: null };
     }
-    return { url: null, title: null };
+    return { url: null, title: null, formatError: null };
   }
-  return { url: href, title: null };
+  // Direct URL — check extension
+  const formatError = checkUrlFormat(href);
+  return { url: formatError ? null : href, title: null, formatError };
 }
 
 /** Extract a human-readable filename from a URL (last path segment). */
@@ -148,7 +191,12 @@ export function useImportResolver(
     lastHref.current = href;
 
     // 1. Resolve href (could be #uuid)
-    const { url: rawUrl, title: resourceTitle } = resolveHref(href, backMatter);
+    const { url: rawUrl, title: resourceTitle, formatError } = resolveHref(href, backMatter);
+    if (formatError) {
+      setStatus("error");
+      setError(formatError);
+      return;
+    }
     if (!rawUrl) {
       setStatus("error");
       setError(
@@ -176,27 +224,46 @@ export function useImportResolver(
     setJson(null);
     setResolvedUrl(fetchUrl);
 
+    // Pre-flight: reject unsupported URL extensions before fetching
+    const urlFormatError = checkUrlFormat(fetchUrl);
+    if (urlFormatError) {
+      setStatus("error");
+      setError(urlFormatError);
+      return;
+    }
+
     authFetch(fetchUrl, token, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         // Validate that the response is JSON
         const ct = res.headers.get("content-type") ?? "";
+        if (ct.includes("xml") || ct.includes("yaml")) {
+          throw new Error(
+            `Referenced document is not JSON (${ct}): ${fetchUrl}`,
+          );
+        }
         if (ct && !ct.includes("json") && !ct.includes("octet-stream") && !ct.includes("text/plain")) {
           throw new Error(
-            `Expected JSON but received "${ct}". The referenced document does not appear to be a JSON file.`,
+            `Expected JSON but received "${ct}": ${fetchUrl}`,
           );
         }
         return res.text();
       })
       .then((text) => {
         if (cancelled) return;
-        // Validate the text is actually JSON
         let parsed: unknown;
         try {
           parsed = JSON.parse(text);
         } catch {
+          // Check if it looks like XML (starts with < or <?xml)
+          const trimmed = text.trimStart();
+          if (trimmed.startsWith("<")) {
+            throw new Error(
+              `Referenced document is not JSON (appears to be XML): ${fetchUrl}`,
+            );
+          }
           throw new Error(
-            "The referenced document is not valid JSON. Please ensure the import points to a JSON OSCAL document.",
+            `Referenced document is not valid JSON: ${fetchUrl}`,
           );
         }
         // Unwrap if wrapped in model key
