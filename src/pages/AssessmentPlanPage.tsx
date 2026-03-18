@@ -29,7 +29,7 @@ import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAuth } from "../context/AuthContext";
 import { useChainResolver, AP_CHAIN } from "../hooks/useChainResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
-import ResolveFailSnackbar from "../components/ResolveFailSnackbar";
+import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import useIsMobile from "../hooks/useIsMobile";
 
@@ -1465,9 +1465,9 @@ export default function AssessmentPlanPage() {
     );
   }, [plan, search]);
 
-  /* ── Snackbar for failed resolution ── */
-  const snackbarEl = (
-    <ResolveFailSnackbar items={chain.steps} />
+  /* ── Modal for dependency resolution status ── */
+  const resolverModalEl = (
+    <ResolverModal items={chain.items} />
   );
 
   /* ── No data — show drop zone ── */
@@ -1488,7 +1488,7 @@ export default function AssessmentPlanPage() {
     if (mobileShowContent) {
       return (
         <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
-          {snackbarEl}
+          {resolverModalEl}
           <div style={S.topBar}>
             <div style={S.topBarLeft}>
               <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AP Viewer</div>
@@ -1522,7 +1522,7 @@ export default function AssessmentPlanPage() {
 
     return (
       <div style={{ ...S.shell, height: "calc(100vh - 120px)" }}>
-        {snackbarEl}
+        {resolverModalEl}
         <div style={S.topBar}>
           <div style={S.topBarLeft}>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>AP Viewer</div>
@@ -1614,7 +1614,7 @@ export default function AssessmentPlanPage() {
   /* ── Main layout ── */
   return (
     <div style={S.shell}>
-      {snackbarEl}
+      {resolverModalEl}
       {/* Top bar */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>

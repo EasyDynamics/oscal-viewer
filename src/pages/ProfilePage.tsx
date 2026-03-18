@@ -23,7 +23,7 @@ import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import useIsMobile from "../hooks/useIsMobile";
 import { useChainResolver, PROFILE_CHAIN, extractCatalogFromProfile } from "../hooks/useChainResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
-import ResolveFailSnackbar from "../components/ResolveFailSnackbar";
+import ResolverModal from "../components/ResolverModal";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -790,9 +790,9 @@ export default function ProfilePage() {
     });
   }, [defaultCollapsed]);
 
-  /* ── Snackbar for failed resolution ── */
-  const snackbarEl = (
-    <ResolveFailSnackbar items={chain.steps} />
+  /* ── Modal for dependency resolution status ── */
+  const resolverModalEl = (
+    <ResolverModal items={chain.items} />
   );
 
   /* ── If no file loaded, show drop zone ── */
@@ -813,7 +813,7 @@ export default function ProfilePage() {
     if (mobileShowContent) {
       return (
         <div style={S.shell}>
-          {snackbarEl}
+          {resolverModalEl}
           <div style={S.topBar}>
             <button onClick={() => setMobileShowContent(false)} style={S.mobileBackBtn}>← Back</button>
             <div style={{ fontSize: 14, fontWeight: 700, color: colors.white, flex: 1, textAlign: "center" }}>Profile</div>
@@ -828,7 +828,7 @@ export default function ProfilePage() {
     }
     return (
       <div style={S.shell}>
-        {snackbarEl}
+        {resolverModalEl}
         <div style={S.topBar}>
           <div style={{ fontSize: 14, fontWeight: 700, color: colors.white }}>Profile</div>
           <button style={S.topBtn} onClick={handleNewFile}>New</button>
@@ -850,7 +850,7 @@ export default function ProfilePage() {
 
   return (
     <div style={S.shell}>
-      {snackbarEl}
+      {resolverModalEl}
       {/* ── TOP BAR ── */}
       <div style={S.topBar}>
         <div style={S.topBarLeft}>

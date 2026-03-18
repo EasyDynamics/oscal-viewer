@@ -347,21 +347,17 @@ export function useChainResolver(
   }, [initialHref, token]);
 
   /* Build items for ResolverModal.
-     Only populate when the first step has succeeded (user requirement:
-     "Only show this dialogue if the first resolution passes"). */
-  const firstStep = steps[0];
-  const items: ResolverItem[] =
-    firstStep?.status === "success"
-      ? steps
-          .filter((s) => s.status !== "idle")
-          .map((s) => ({
-            label: s.label,
-            status: s.status,
-            error: s.error,
-            resolvedLabel: s.resolvedLabel,
-            resolvedUrl: s.resolvedUrl,
-          }))
-      : [];
+     Populate whenever any step is non-idle so the modal shows
+     both successful and failed resolutions. */
+  const items: ResolverItem[] = steps
+    .filter((s) => s.status !== "idle")
+    .map((s) => ({
+      label: s.label,
+      status: s.status,
+      error: s.error,
+      resolvedLabel: s.resolvedLabel,
+      resolvedUrl: s.resolvedUrl,
+    }));
 
   return { steps, items };
 }

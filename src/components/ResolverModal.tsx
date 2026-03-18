@@ -238,6 +238,8 @@ export default function ResolverModal({ items }: Props) {
   const displayItems = items.map((item) => snapshotRef.current.get(item.label) ?? item);
 
   const anyLoading = displayItems.some((i) => i.status === "loading");
+  const anyError = displayItems.some((i) => i.status === "error");
+  const successCount = displayItems.filter((i) => i.status === "success").length;
   const doneCount = displayItems.filter((i) => i.status === "success" || i.status === "error").length;
   const totalCount = displayItems.length;
   const progressPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -261,7 +263,9 @@ export default function ResolverModal({ items }: Props) {
             <p style={S.subtitle}>
               {anyLoading
                 ? "Fetching and validating referenced documents\u2026"
-                : "All dependencies resolved"}
+                : anyError
+                  ? "Some dependencies could not be resolved"
+                  : "All dependencies resolved"}
             </p>
           </div>
         </div>
@@ -272,11 +276,17 @@ export default function ResolverModal({ items }: Props) {
             style={{
               ...S.progressFill,
               width: `${progressPct}%`,
-              backgroundColor: anyLoading ? colors.cobalt : colors.successFg,
+              backgroundColor: anyLoading ? colors.cobalt : anyError ? colors.dangerFg : colors.successFg,
             }}
           />
         </div>
-        <div style={S.progressLabel}>{doneCount} of {totalCount} resolved</div>
+        <div style={S.progressLabel}>
+          {anyLoading
+            ? `${doneCount} of ${totalCount} resolved`
+            : anyError
+              ? `${successCount} of ${totalCount} resolved successfully`
+              : `${totalCount} of ${totalCount} resolved`}
+        </div>
 
         {/* Item list */}
         <div style={S.itemList}>
