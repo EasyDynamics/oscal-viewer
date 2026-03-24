@@ -221,8 +221,43 @@ interface FamilyGroup {
   allIds: string[];        // all ids in order
 }
 
+/**
+ * Resolve a family name from the catalog or fall back to hardcoded names.
+ *
+ * Fallback chain:
+ * 1. If catalog is loaded, find a control with the given prefix and look up its group title
+ * 2. Fall back to hardcoded FAMILY_NAMES mapping (NIST 800-53 standard names)
+ * 3. Fall back to prefix.toUpperCase() if no mapping exists
+ *
+ * This allows custom catalogs with different family naming conventions to be displayed correctly.
+ */
+function getFamilyNameFromCatalog(
+  catalog: Catalog | null,
+  prefix: string,
+  controlIds: string[]
+): string {
+  if (!catalog) {
+    return FAMILY_NAMES[prefix] || prefix.toUpperCase();
+  }
+
+  // Find any control with this prefix to locate its group
+  const controlWithPrefix = controlIds.find((id) => familyPrefix(id) === prefix);
+  if (!controlWithPrefix) {
+    return FAMILY_NAMES[prefix] || prefix.toUpperCase();
+  }
+
+  // Find the group this control belongs to
+  const group = findControlGroupInCatalog(catalog, controlWithPrefix);
+  if (group && group.title) {
+    return group.title;
+  }
+
+  // Fall back to hardcoded names
+  return FAMILY_NAMES[prefix] || prefix.toUpperCase();
+}
+
 /** Build grouped family structure from a list of control IDs */
-function buildFamilyGroups(controlIds: string[]): FamilyGroup[] {
+function buildFamilyGroups(controlIds: string[], catalog?: Catalog | null): FamilyGroup[] {
   const familyMap = new Map<string, { controls: string[]; enhancements: string[]; allIds: string[] }>();
 
   for (const id of controlIds) {
@@ -241,7 +276,7 @@ function buildFamilyGroups(controlIds: string[]): FamilyGroup[] {
 
   return Array.from(familyMap.entries()).map(([prefix, data]) => ({
     prefix,
-    name: FAMILY_NAMES[prefix] || prefix.toUpperCase(),
+    name: getFamilyNameFromCatalog(catalog ?? null, prefix, controlIds),
     controls: data.controls,
     enhancements: data.enhancements,
     allIds: data.allIds,
@@ -752,7 +787,7 @@ export default function ProfilePage() {
     return ids;
   }, [profile, catalog]);
 
-  const familyGroups = useMemo(() => buildFamilyGroups(controlIds), [controlIds]);
+  const familyGroups = useMemo(() => buildFamilyGroups(controlIds, catalog), [controlIds, catalog]);
 
   const alterMap = useMemo(
     () => buildAlterMap(profile?.modify?.alters ?? []),
