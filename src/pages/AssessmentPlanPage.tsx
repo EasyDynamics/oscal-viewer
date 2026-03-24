@@ -697,69 +697,99 @@ function RelatedControlsSection({ controlIds, catalog, hCtrl, onCtrl }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   STEP CARD
+   STEP TABLE WITH DETAIL — compact summary rows + inline expand
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function StepCard({ step, index, hCtrl, onCtrl }: {
-  step: StepParsed; index: number; hCtrl: string; onCtrl: (c: string) => void;
-}) {
-  const hit = hCtrl && step.controls.includes(hCtrl);
-  return (
-    <div style={{
-      background: hit ? colors.tintOrange : colors.card,
-      borderLeft: `3px solid ${hit ? colors.orange : colors.paleGray}`,
-      padding: "10px 14px", transition: "all 0.15s",
-      borderBottom: `1px solid ${colors.borderSubtle}`,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: colors.gray, fontWeight: 600, fontFamily: fonts.mono, minWidth: 22 }}>
-          {String(index + 1).padStart(2, "0")}
-        </span>
-        <span style={{ fontSize: 12, fontWeight: 700, fontFamily: fonts.mono, color: colors.navy, whiteSpace: "nowrap" }}>
-          {step.title}
-        </span>
-        <MethTag v={step.method} />
-        <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "flex-end" }}>
-          {step.controls.map((c) => <ControlBadge key={c} control={c} active={hCtrl === c} onClick={onCtrl} />)}
-        </div>
-      </div>
-      {step.description && (
-        <MarkupBlock value={step.description} style={{ margin: "0 0 0 30px", fontSize: 12, lineHeight: 1.4 }} />
-      )}
-      {step.remarks && (
-        <p style={{ fontSize: 11.5, color: colors.blueGray, lineHeight: 1.4, margin: "4px 0 0 30px", fontFamily: fonts.sans, fontStyle: "italic" }}>
-          {step.remarks}
-        </p>
-      )}
-      {step.links.length > 0 && (
-        <LinkChips
-          links={step.links.map((l) => {
-            const frag = (l as { "resource-fragment"?: string })["resource-fragment"];
-            const baseText = l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : "Reference");
-            const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
-            return { text, href: l.href, rel: l.rel || undefined };
-          })}
-          label={null}
-          style={{ marginTop: 5, marginLeft: 30 }}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   STEP LIST
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-function StepList({ activity, hCtrl, onCtrl }: {
+function StepTableWithDetail({ activity, hCtrl, onCtrl }: {
   activity: ActivityParsed; hCtrl: string; onCtrl: (c: string) => void;
 }) {
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
+
   return (
     <div style={{ border: `1px solid ${colors.border}`, borderRadius: "0 0 8px 8px", overflow: "hidden", borderTop: "none" }}>
-      {activity.steps.map((step, i) => (
-        <StepCard key={step.uuid} step={step} index={i} hCtrl={hCtrl} onCtrl={onCtrl} />
-      ))}
+      {/* Column header */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "36px 1fr auto auto", alignItems: "center",
+        padding: "6px 14px", gap: 8,
+        background: colors.surfaceMuted, borderBottom: `1px solid ${colors.border}`,
+        fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em",
+        color: colors.gray, fontFamily: fonts.sans,
+      }}>
+        <span>#</span>
+        <span>Step</span>
+        <span>Method</span>
+        <span style={{ textAlign: "right" }}>Controls</span>
+      </div>
+
+      {activity.steps.map((step, i) => {
+        const hit = hCtrl && step.controls.includes(hCtrl);
+        const isOpen = selectedUuid === step.uuid;
+        return (
+          <div key={step.uuid}>
+            {/* Summary row */}
+            <div
+              onClick={() => setSelectedUuid(isOpen ? null : step.uuid)}
+              style={{
+                display: "grid", gridTemplateColumns: "36px 1fr auto auto", alignItems: "center",
+                padding: "8px 14px", gap: 8, cursor: "pointer",
+                background: isOpen ? alpha(colors.brightBlue, 6) : hit ? colors.tintOrange : colors.card,
+                borderLeft: `3px solid ${isOpen ? colors.brightBlue : hit ? colors.orange : "transparent"}`,
+                borderBottom: isOpen ? "none" : `1px solid ${colors.borderSubtle}`,
+                transition: "background 0.12s",
+              }}
+            >
+              <span style={{ fontSize: 10, color: colors.gray, fontWeight: 600, fontFamily: fonts.mono }}>
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span style={{
+                fontSize: 12, fontWeight: isOpen ? 700 : 500, fontFamily: fonts.mono,
+                color: isOpen ? colors.brightBlue : colors.navy,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {step.title}
+              </span>
+              <MethTag v={step.method} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "flex-end" }}>
+                {step.controls.map((c) => <ControlBadge key={c} control={c} active={hCtrl === c} onClick={onCtrl} />)}
+              </div>
+            </div>
+
+            {/* Expanded detail panel */}
+            {isOpen && (
+              <div style={{
+                padding: "12px 14px 14px 53px",
+                background: alpha(colors.brightBlue, 4),
+                borderLeft: `3px solid ${colors.brightBlue}`,
+                borderBottom: `1px solid ${colors.borderSubtle}`,
+              }}>
+                {step.description && (
+                  <MarkupBlock value={step.description} style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 6 }} />
+                )}
+                {step.remarks && (
+                  <p style={{ fontSize: 11.5, color: colors.blueGray, lineHeight: 1.4, margin: "0 0 6px", fontFamily: fonts.sans, fontStyle: "italic" }}>
+                    {step.remarks}
+                  </p>
+                )}
+                {step.links.length > 0 && (
+                  <LinkChips
+                    links={step.links.map((l) => {
+                      const frag = (l as { "resource-fragment"?: string })["resource-fragment"];
+                      const baseText = l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : "Reference");
+                      const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
+                      return { text, href: l.href, rel: l.rel || undefined };
+                    })}
+                    label={null}
+                    style={{ marginTop: 2 }}
+                  />
+                )}
+                {!step.description && !step.remarks && step.links.length === 0 && (
+                  <span style={{ fontSize: 12, color: colors.gray, fontStyle: "italic" }}>No additional details for this step.</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1012,7 +1042,7 @@ function ActivityView({ activity, planTitle, hCtrl, onCtrl, onHome, catalog }: {
     <>
       <BreadcrumbHeader planTitle={planTitle} crumbs={[activity.title]} onHome={onHome} />
       <ActivityHeader activity={activity} hCtrl={hCtrl} onCtrl={onCtrl} />
-      <StepList activity={activity} hCtrl={hCtrl} onCtrl={onCtrl} />
+      <StepTableWithDetail activity={activity} hCtrl={hCtrl} onCtrl={onCtrl} />
       {activity.relatedControls.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <RelatedControlsSection controlIds={activity.relatedControls} catalog={catalog} hCtrl={hCtrl} onCtrl={onCtrl} />
@@ -1051,7 +1081,7 @@ function TaskView({ task, planTitle, hCtrl, onCtrl, onHome, catalog }: {
       {task.associatedActivities.map((act) => (
         <div key={act.uuid} style={{ marginBottom: 20 }}>
           <ActivitySubheader activity={act} hCtrl={hCtrl} onCtrl={onCtrl} />
-          <StepList activity={act} hCtrl={hCtrl} onCtrl={onCtrl} />
+          <StepTableWithDetail activity={act} hCtrl={hCtrl} onCtrl={onCtrl} />
           {act.relatedControls.length > 0 && (
             <div style={{ marginTop: 12 }}>
               <RelatedControlsSection controlIds={act.relatedControls} catalog={catalog} hCtrl={hCtrl} onCtrl={onCtrl} />
