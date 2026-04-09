@@ -39,7 +39,7 @@ export interface ResolveResult {
 
 /* ── Helpers ── */
 
-const UNSUPPORTED_EXTENSIONS = [".xml", ".yaml", ".yml"];
+const UNSUPPORTED_EXTENSIONS = [".xml", ".yaml", ".yml", ".html", ".htm"];
 
 /**
  * Check whether a URL points to a supported OSCAL format (JSON).
@@ -63,6 +63,7 @@ export function checkUrlFormat(url: string): string | null {
 function isRlinkSupported(rl: { href: string; "media-type"?: string }): boolean {
   const mt = rl["media-type"]?.toLowerCase() ?? "";
   if (mt.includes("xml")) return false;
+  if (mt.includes("html")) return false;
   if (mt.includes("json")) return true;
   if (mt.includes("yaml")) return false;
   // No media-type — check file extension

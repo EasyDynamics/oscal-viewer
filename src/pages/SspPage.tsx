@@ -2504,7 +2504,7 @@ export default function SspPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} />
+    <ResolverModal items={chain.items} onSkip={chain.cancel} />
   );
 
   /* ── No data — drop zone ── */

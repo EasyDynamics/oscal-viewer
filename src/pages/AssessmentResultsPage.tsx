@@ -927,7 +927,7 @@ export default function AssessmentResultsPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} />
+    <ResolverModal items={chain.items} onSkip={chain.cancel} />
   );
 
   /* ── If no file loaded, show drop zone ── */

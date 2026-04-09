@@ -1497,7 +1497,7 @@ export default function AssessmentPlanPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} />
+    <ResolverModal items={chain.items} onSkip={chain.cancel} />
   );
 
   /* ── No data — show drop zone ── */
