@@ -12,7 +12,7 @@
      POA&M → [SSP → Profile → Catalog]
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "../context/AuthContext";
 import {
   resolveHref,
@@ -150,7 +150,7 @@ export function useChainResolver(
   token: string | null,
   chain: ChainLink[],
   skip = false,
-): { steps: ChainStepResult[]; items: ResolverItem[] } {
+): { steps: ChainStepResult[]; items: ResolverItem[]; cancel: () => void } {
   const makeIdle = (): ChainStepResult[] =>
     chain.map((l) => ({
       label: l.label,
@@ -168,6 +168,8 @@ export function useChainResolver(
   skipRef.current = skip;
   // Track whether we've gone through a null→non-null cycle (i.e. "New File" then load)
   const hasResetRef = useRef(false);
+  // Track the active AbortController so cleanup and cancel can abort in-flight fetches
+  const controllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     // If we already resolved this href, don't re-resolve or reset
@@ -281,11 +283,12 @@ export function useChainResolver(
         });
 
         /* 5. Fetch */
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10_000);
+          controllerRef.current = controller;
+          timeoutId = setTimeout(() => controller.abort(), 10_000);
           const res = await authFetch(fetchUrl, token, { signal: controller.signal });
-          clearTimeout(timeoutId);
           if (cancelled) return;
           if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
@@ -303,6 +306,8 @@ export function useChainResolver(
           }
 
           const text = await res.text();
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
           if (cancelled) return;
 
           let parsed: unknown;
@@ -364,12 +369,16 @@ export function useChainResolver(
             return n;
           });
           return; // stop chain on error
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
         }
       }
     })();
 
     return () => {
       cancelled = true;
+      controllerRef.current?.abort();
+      controllerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialHref, token]);
@@ -387,5 +396,10 @@ export function useChainResolver(
       resolvedUrl: s.resolvedUrl,
     }));
 
-  return { steps, items };
+  const cancel = useCallback(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+  }, []);
+
+  return { steps, items, cancel };
 }

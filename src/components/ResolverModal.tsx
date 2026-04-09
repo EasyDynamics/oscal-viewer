@@ -30,6 +30,8 @@ export interface ResolverItem {
 interface Props {
   /** Array of dependencies being resolved */
   items: ResolverItem[];
+  /** Called when the user clicks "Skip" to abort in-flight fetches */
+  onSkip?: () => void;
 }
 
 /* ── Color scheme matching How-It-Works page ── */
@@ -168,7 +170,7 @@ function SourceIcon({ url }: { url: string }) {
 
 /* ── Component ── */
 
-export default function ResolverModal({ items }: Props) {
+export default function ResolverModal({ items, onSkip }: Props) {
   injectKeyframes();
 
   // "activated" latches to true once any item goes non-idle,
@@ -337,17 +339,29 @@ export default function ResolverModal({ items }: Props) {
           })}
         </div>
 
-        {/* Continue button */}
-        <button
-          style={{
-            ...S.btn,
-            ...(anyLoading ? S.btnDisabled : {}),
-          }}
-          disabled={anyLoading}
-          onClick={handleContinue}
-        >
-          {anyLoading ? "Please wait\u2026" : "Continue"}
-        </button>
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 8, padding: "8px 24px 24px" }}>
+          {anyLoading && (
+            <button
+              style={{ ...S.btn, margin: 0, flex: 1, backgroundColor: colors.gray }}
+              onClick={() => { onSkip?.(); handleContinue(); }}
+            >
+              Skip
+            </button>
+          )}
+          <button
+            style={{
+              ...S.btn,
+              margin: 0,
+              flex: 1,
+              ...(anyLoading ? S.btnDisabled : {}),
+            }}
+            disabled={anyLoading}
+            onClick={handleContinue}
+          >
+            {anyLoading ? "Please wait\u2026" : "Continue"}
+          </button>
+        </div>
       </div>
     </div>
   );

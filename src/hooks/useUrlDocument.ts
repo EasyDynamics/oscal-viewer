@@ -42,6 +42,7 @@ export function useUrlDocument(): UrlDocumentResult {
 
     let cancelled = false;
     const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     setIsLoading(true);
     setError(null);
     setJson(null);
@@ -53,19 +54,26 @@ export function useUrlDocument(): UrlDocumentResult {
       })
       .then((data) => {
         if (!cancelled) {
+          clearTimeout(timeoutId);
           setJson(data as Record<string, unknown>);
           setIsLoading(false);
         }
       })
       .catch((err) => {
-        if (!cancelled && (err as DOMException).name !== "AbortError") {
-          setError(err instanceof Error ? err.message : "Failed to fetch document");
+        if (!cancelled) {
+          clearTimeout(timeoutId);
+          if ((err as DOMException).name === "AbortError") {
+            setError(`Request timed out fetching ${url}`);
+          } else {
+            setError(err instanceof Error ? err.message : "Failed to fetch document");
+          }
           setIsLoading(false);
         }
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
       controller.abort();
     };
   }, [url, token]);
