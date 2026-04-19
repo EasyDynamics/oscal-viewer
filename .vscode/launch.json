@@ -15,7 +15,6 @@
       "request": "launch",
       "url": "http://localhost:5173",
       "webRoot": "${workspaceFolder}/src",
-      "runtimeExecutable": "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe",
       "preLaunchTask": "dev"
     }
   ]

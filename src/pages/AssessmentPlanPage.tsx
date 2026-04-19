@@ -65,6 +65,8 @@ interface TaskParsed {
   description: string;
   timing: string;
   associatedActivities: ActivityParsed[];
+  tasks: TaskParsed[];
+  props: OscalProp[];
 }
 
 interface PlanParsed {
@@ -252,7 +254,7 @@ function parseAssessmentPlan(raw: any): PlanParsed {
   const actMap: Record<string, ActivityParsed> = {};
   activities.forEach((a) => { actMap[a.uuid] = a; });
 
-  const tasks: TaskParsed[] = (ap.tasks || []).map((t: any) => {
+  function parseTask(t: any): TaskParsed {
     const assocActs = (t["associated-activities"] || [])
       .map((aa: any) => actMap[aa["activity-uuid"]])
       .filter(Boolean);
@@ -275,8 +277,11 @@ function parseAssessmentPlan(raw: any): PlanParsed {
       description: txt(t.description),
       timing,
       associatedActivities: assocActs,
-    } as TaskParsed;
-  });
+      tasks: (t.tasks || []).map(parseTask),
+      props: t.props || [],
+    };
+  }
+  const tasks: TaskParsed[] = (ap.tasks || []).map(parseTask);
 
   return {
     title: md.title || "Untitled Assessment Plan",
@@ -290,6 +295,58 @@ function parseAssessmentPlan(raw: any): PlanParsed {
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TASK TREE HELPERS — recursive search within nested tasks
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function findTaskRecursive(tasks: TaskParsed[], uuid: string): TaskParsed | null {
+  for (const t of tasks) {
+    if (t.uuid === uuid) return t;
+    const found = findTaskRecursive(t.tasks, uuid);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findTaskPath(tasks: TaskParsed[], uuid: string): TaskParsed[] | null {
+  for (const t of tasks) {
+    if (t.uuid === uuid) return [t];
+    const sub = findTaskPath(t.tasks, uuid);
+    if (sub) return [t, ...sub];
+  }
+  return null;
+}
+
+function filterTasksRecursive(tasks: TaskParsed[], q: string): TaskParsed[] {
+  const result: TaskParsed[] = [];
+  for (const t of tasks) {
+    const matchesSelf = t.title.toLowerCase().includes(q) || t.type.toLowerCase().includes(q);
+    const filteredChildren = filterTasksRecursive(t.tasks, q);
+    const matchesActivities = t.associatedActivities.some(
+      (a) => a.title.toLowerCase().includes(q) || a.steps.some((s) => s.title.toLowerCase().includes(q)),
+    );
+    if (matchesSelf || filteredChildren.length > 0 || matchesActivities) {
+      result.push({ ...t, tasks: matchesSelf ? t.tasks : filteredChildren });
+    }
+  }
+  return result;
+}
+
+function collectAllActivities(tasks: TaskParsed[]): ActivityParsed[] {
+  const all: ActivityParsed[] = [];
+  for (const t of tasks) {
+    all.push(...t.associatedActivities);
+    all.push(...collectAllActivities(t.tasks));
+  }
+  return all;
+}
+
+function countAllTasks(tasks: TaskParsed[]): number {
+  let count = tasks.length;
+  for (const t of tasks) count += countAllTasks(t.tasks);
+  return count;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ICONS
@@ -959,13 +1016,15 @@ function CtrlPanel({ allControls, onClick, isActive }: {
    VIEW: OVERVIEW (landing page)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ plan, stats, hCtrl, onCtrl, onSelectActivity }: {
+function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCtrl }: {
   plan: PlanParsed;
   stats: { totalActivities: number; totalSteps: number; totalControls: number; totalTasks: number };
+  onSelectTask: (uuid: string) => void;
+  onSelectActivity: (uuid: string) => void;
   hCtrl: string;
   onCtrl: (c: string) => void;
-  onSelectActivity: (uuid: string) => void;
 }) {
+  const hasTasks = plan.tasks.length > 0;
   return (
     <>
       {/* Metadata header */}
@@ -982,12 +1041,12 @@ function OverviewView({ plan, stats, hCtrl, onCtrl, onSelectActivity }: {
         </div>
 
         {/* Stats chips */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
           {[
+            ...(stats.totalTasks > 0 ? [{ v: stats.totalTasks, l: "Tasks", c: colors.purple }] : []),
             { v: stats.totalActivities, l: "Activities", c: colors.navy },
             { v: stats.totalSteps, l: "Steps", c: colors.brightBlue },
             { v: stats.totalControls, l: "Controls", c: colors.darkGreen },
-            ...(stats.totalTasks > 0 ? [{ v: stats.totalTasks, l: "Tasks", c: colors.purple }] : []),
           ].map((s) => (
             <div key={s.l} style={{ textAlign: "center", background: colors.surfaceMuted, borderRadius: 6, padding: "8px 16px", minWidth: 72 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: s.c }}>{s.v}</div>
@@ -997,8 +1056,41 @@ function OverviewView({ plan, stats, hCtrl, onCtrl, onSelectActivity }: {
         </div>
       </Card>
 
-      {/* Activity cards */}
-      {plan.activities.map((a) => {
+      {/* Task cards (when tasks exist) */}
+      {hasTasks && plan.tasks.map((t) => {
+        const actCount = t.associatedActivities.length + collectAllActivities(t.tasks).length;
+        const subTaskCount = countAllTasks(t.tasks);
+        return (
+          <div key={t.uuid} onClick={() => onSelectTask(t.uuid)} style={{
+            background: colors.card, borderRadius: 8,
+            border: `1px solid ${colors.paleGray}`,
+            padding: "14px 18px", marginBottom: 10, cursor: "pointer", transition: "all 0.15s",
+            boxShadow: shadows.sm,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <IcoTask size={16} style={{ color: colors.purple, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, fontFamily: fonts.sans }}>{t.title}</h3>
+                {t.description && (
+                  <MarkupBlock value={t.description} style={{ fontSize: 12, color: colors.blueGray, margin: "2px 0 0", fontFamily: fonts.sans, maxHeight: 40, overflow: "hidden" }} />
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 6, fontSize: 10, fontWeight: 600, fontFamily: fonts.mono, flexShrink: 0 }}>
+                {subTaskCount > 0 && (
+                  <span style={{ background: colors.surfaceSubtle, color: colors.purple, padding: "2px 7px", borderRadius: 3 }}>{subTaskCount} sub-tasks</span>
+                )}
+                {actCount > 0 && (
+                  <span style={{ background: colors.surfaceSubtle, color: colors.navy, padding: "2px 7px", borderRadius: 3 }}>{actCount} activities</span>
+                )}
+              </div>
+              <IcoRight size={16} />
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Activity cards (when no tasks exist) */}
+      {!hasTasks && plan.activities.map((a) => {
         const ctrls = [...new Set([...a.steps.flatMap((s) => s.controls), ...a.relatedControls])].sort();
         const matchCount = hCtrl ? a.steps.filter((s) => s.controls.includes(hCtrl)).length + (a.relatedControls.includes(hCtrl) ? 1 : 0) : 0;
         return (
@@ -1009,6 +1101,7 @@ function OverviewView({ plan, stats, hCtrl, onCtrl, onSelectActivity }: {
             boxShadow: matchCount > 0 ? `0 0 0 1px ${alpha(colors.orange, 13)}` : shadows.sm,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <IcoAct size={16} style={{ color: colors.navy, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, fontFamily: fonts.sans }}>{a.title}</h3>
                 {a.description && (
@@ -1053,15 +1146,20 @@ function ActivityView({ activity, planTitle, hCtrl, onCtrl, onHome, catalog }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   VIEW: TASK (timing + associated activities)
+   VIEW: TASK (nested tasks + associated activities + steps)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function TaskView({ task, planTitle, hCtrl, onCtrl, onHome, catalog }: {
-  task: TaskParsed; planTitle: string; hCtrl: string; onCtrl: (c: string) => void; onHome: () => void; catalog: OscalCatalog | null;
+function TaskView({ task, planTitle, planTasks, hCtrl, onCtrl, onHome, catalog, onNavigateTask }: {
+  task: TaskParsed; planTitle: string; planTasks: TaskParsed[];
+  hCtrl: string; onCtrl: (c: string) => void; onHome: () => void;
+  catalog: OscalCatalog | null; onNavigateTask: (uuid: string) => void;
 }) {
+  const path = useMemo(() => findTaskPath(planTasks, task.uuid) ?? [task], [planTasks, task]);
+  const crumbs = path.map((t) => t.title);
+
   return (
     <>
-      <BreadcrumbHeader planTitle={planTitle} crumbs={["Tasks", task.title]} onHome={onHome} />
+      <BreadcrumbHeader planTitle={planTitle} crumbs={crumbs} onHome={onHome} />
 
       {/* Task info card */}
       <Card>
@@ -1072,10 +1170,48 @@ function TaskView({ task, planTitle, hCtrl, onCtrl, onHome, catalog }: {
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
           <MField label="Type" value={task.type} />
           {task.timing && <MField label="Timing" value={task.timing} />}
-          <MField label="Associated Activities" value={String(task.associatedActivities.length)} />
+          {task.tasks.length > 0 && <MField label="Sub-tasks" value={String(task.tasks.length)} />}
+          {task.associatedActivities.length > 0 && <MField label="Activities" value={String(task.associatedActivities.length)} />}
         </div>
         {task.description && <MarkupBlock value={task.description} />}
       </Card>
+
+      {/* Sub-tasks */}
+      {task.tasks.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: colors.gray, marginBottom: 8 }}>
+            Sub-tasks ({task.tasks.length})
+          </div>
+          {task.tasks.map((st) => (
+            <div
+              key={st.uuid}
+              onClick={() => onNavigateTask(st.uuid)}
+              style={{
+                background: colors.card, borderRadius: radii.md, padding: "12px 16px", marginBottom: 8,
+                border: `1px solid ${colors.border}`, cursor: "pointer", transition: "all 0.12s",
+                display: "flex", alignItems: "center", gap: 10,
+              }}
+            >
+              <IcoTask size={14} style={{ color: colors.navy, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{st.title}</div>
+                {st.description && (
+                  <MarkupBlock value={st.description} style={{ fontSize: 11.5, color: colors.blueGray, marginTop: 2, maxHeight: 36, overflow: "hidden" }} />
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 6, fontSize: 10, fontWeight: 600, fontFamily: fonts.mono, flexShrink: 0 }}>
+                {st.tasks.length > 0 && (
+                  <span style={{ background: colors.surfaceSubtle, color: colors.navy, padding: "2px 7px", borderRadius: 3 }}>{st.tasks.length} sub-tasks</span>
+                )}
+                {st.associatedActivities.length > 0 && (
+                  <span style={{ background: colors.surfaceSubtle, color: colors.purple, padding: "2px 7px", borderRadius: 3 }}>{st.associatedActivities.length} activities</span>
+                )}
+              </div>
+              <IcoRight size={14} style={{ color: colors.gray }} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Associated activities with their full step lists */}
       {task.associatedActivities.map((act) => (
@@ -1097,8 +1233,8 @@ function TaskView({ task, planTitle, hCtrl, onCtrl, onHome, catalog }: {
    VIEW: CONTROLS (control-centric view showing activities per control)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ControlsView({ plan, allControls, catalog, hCtrl, onCtrl, onHome, onSelectActivity }: {
-  plan: PlanParsed; allControls: string[]; catalog: OscalCatalog | null;
+function ControlsView({ plan, allControls, allActivitiesList, catalog, hCtrl, onCtrl, onHome, onSelectActivity }: {
+  plan: PlanParsed; allControls: string[]; allActivitiesList: ActivityParsed[]; catalog: OscalCatalog | null;
   hCtrl: string; onCtrl: (c: string) => void; onHome: () => void;
   onSelectActivity: (uuid: string) => void;
 }) {
@@ -1107,7 +1243,7 @@ function ControlsView({ plan, allControls, catalog, hCtrl, onCtrl, onHome, onSel
   // Build control → activities mapping
   const controlActivityMap = useMemo(() => {
     const map: Record<string, { activity: ActivityParsed; via: "step" | "related" }[]> = {};
-    for (const a of plan.activities) {
+    for (const a of allActivitiesList) {
       const stepCtrls = new Set(a.steps.flatMap((s) => s.controls));
       const relCtrls = new Set(a.relatedControls);
       const allCtrls = new Set([...stepCtrls, ...relCtrls]);
@@ -1117,7 +1253,7 @@ function ControlsView({ plan, allControls, catalog, hCtrl, onCtrl, onHome, onSel
       }
     }
     return map;
-  }, [plan.activities]);
+  }, [allActivitiesList]);
 
   const filteredControls = useMemo(() => {
     if (!search) return allControls;
@@ -1320,6 +1456,101 @@ function NavItem({ label, sublabel, isActive, stepCount, onClick, icon }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   TASK TREE NAV — recursive sidebar tree for nested tasks
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function TaskTreeNavItem({ task, depth, activePage, onNavigate, expandedTasks, onToggleTask }: {
+  task: TaskParsed; depth: number; activePage: PageState;
+  onNavigate: (p: PageState) => void;
+  expandedTasks: Set<string>;
+  onToggleTask: (uuid: string) => void;
+}) {
+  const hasChildren = task.tasks.length > 0 || task.associatedActivities.length > 0;
+  const isExpanded = expandedTasks.has(task.uuid);
+  const isActive = activePage?.type === "task" && activePage.uuid === task.uuid;
+
+  return (
+    <>
+      <button
+        onClick={() => onNavigate({ type: "task", uuid: task.uuid })}
+        style={{
+          display: "flex", alignItems: "center", width: "100%", textAlign: "left",
+          padding: `6px 10px 6px ${10 + depth * 14}px`, border: "none", cursor: "pointer",
+          background: isActive ? alpha(colors.navy, 8) : "transparent",
+          borderLeft: `3px solid ${isActive ? colors.orange : "transparent"}`,
+          transition: "all 0.1s", borderRadius: 0, fontFamily: fonts.sans, gap: 4,
+        }}
+      >
+        {hasChildren ? (
+          <span
+            onClick={(e) => { e.stopPropagation(); onToggleTask(task.uuid); }}
+            style={{
+              display: "inline-flex", alignItems: "center", cursor: "pointer", padding: 2,
+              color: colors.gray, flexShrink: 0,
+            }}
+          >
+            <IcoRight size={10} style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s" }} />
+          </span>
+        ) : (
+          <span style={{ width: 14, flexShrink: 0 }} />
+        )}
+        <IcoTask size={12} style={{ color: isActive ? colors.orange : colors.gray, flexShrink: 0 }} />
+        <span style={{
+          fontSize: 11.5, fontWeight: isActive ? 700 : 500,
+          color: isActive ? colors.navy : colors.black,
+          lineHeight: 1.3, overflow: "hidden", display: "-webkit-box",
+          WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+        }}>
+          {task.title}
+        </span>
+      </button>
+
+      {isExpanded && task.tasks.map((st) => (
+        <TaskTreeNavItem
+          key={st.uuid} task={st} depth={depth + 1}
+          activePage={activePage} onNavigate={onNavigate}
+          expandedTasks={expandedTasks} onToggleTask={onToggleTask}
+        />
+      ))}
+
+      {isExpanded && task.associatedActivities.map((act) => (
+        <button
+          key={act.uuid}
+          onClick={() => onNavigate({ type: "activity", uuid: act.uuid })}
+          style={{
+            display: "flex", alignItems: "center", width: "100%", textAlign: "left",
+            padding: `4px 10px 4px ${10 + (depth + 1) * 14}px`,
+            border: "none", cursor: "pointer", gap: 4,
+            background: activePage?.type === "activity" && activePage.uuid === act.uuid
+              ? alpha(colors.navy, 8) : "transparent",
+            borderLeft: `3px solid ${activePage?.type === "activity" && activePage.uuid === act.uuid
+              ? colors.orange : "transparent"}`,
+            borderRadius: 0, fontFamily: fonts.sans,
+          }}
+        >
+          <span style={{ width: 14, flexShrink: 0 }} />
+          <IcoAct size={11} style={{ color: colors.gray, flexShrink: 0 }} />
+          <span style={{
+            fontSize: 10.5, fontWeight: 500, color: colors.blueGray,
+            lineHeight: 1.3, overflow: "hidden", display: "-webkit-box",
+            WebkitLineClamp: 2, WebkitBoxOrient: "vertical", flex: 1,
+          }}>
+            {act.title}
+          </span>
+          <span style={{
+            fontSize: 9, fontWeight: 600, background: colors.surfaceSubtle,
+            color: colors.navy, padding: "1px 5px", borderRadius: 2,
+            fontFamily: fonts.mono, flexShrink: 0,
+          }}>
+            {act.steps.length}
+          </span>
+        </button>
+      ))}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    MAIN PAGE COMPONENT
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1334,11 +1565,19 @@ export default function AssessmentPlanPage() {
   const [error, setError] = useState("");
   const [hCtrl, setHCtrl] = useState("");
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState<"activities" | "tasks">("activities");
   const [page, setPage] = useState<PageState>(null);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const [mobileShowContent, setMobileShowContent] = useState(false);
+
+  const toggleTask = useCallback((uuid: string) => {
+    setExpandedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(uuid)) next.delete(uuid); else next.add(uuid);
+      return next;
+    });
+  }, []);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -1352,7 +1591,7 @@ export default function AssessmentPlanPage() {
       setPage(null);
       setHCtrl("");
       setSearch("");
-      setMode("activities");
+      setExpandedTasks(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse fetched document");
     }
@@ -1379,7 +1618,7 @@ export default function AssessmentPlanPage() {
         setPage(null);
         setHCtrl("");
         setSearch("");
-        setMode("activities");
+        setExpandedTasks(new Set());
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to parse JSON");
       }
@@ -1393,6 +1632,7 @@ export default function AssessmentPlanPage() {
     setPage(null);
     setHCtrl("");
     setSearch("");
+    setExpandedTasks(new Set());
   }, [oscal]);
 
   /* ── Auto-resolve import-ssp reference ── */
@@ -1435,23 +1675,30 @@ export default function AssessmentPlanPage() {
   }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Derived data ── */
+  const allActivities = useMemo(() => {
+    if (!plan) return [] as ActivityParsed[];
+    return [...plan.activities, ...collectAllActivities(plan.tasks)];
+  }, [plan]);
+
   const allControls = useMemo(() => {
     if (!plan) return [];
-    const stepCtrls = plan.activities.flatMap((a) => a.steps.flatMap((s) => s.controls));
-    const actCtrls = plan.activities.flatMap((a) => a.relatedControls);
+    const acts = allActivities;
+    const stepCtrls = acts.flatMap((a) => a.steps.flatMap((s) => s.controls));
+    const actCtrls = acts.flatMap((a) => a.relatedControls);
     return [...new Set([...stepCtrls, ...actCtrls])].sort();
-  }, [plan]);
+  }, [plan, allActivities]);
 
   const stats = useMemo(() => {
     if (!plan) return { totalActivities: 0, totalSteps: 0, totalControls: 0, totalTasks: 0 };
-    const totalSteps = plan.activities.reduce((n, a) => n + a.steps.length, 0);
+    const acts = allActivities;
+    const totalSteps = acts.reduce((n, a) => n + a.steps.length, 0);
     return {
-      totalActivities: plan.activities.length,
+      totalActivities: acts.length,
       totalSteps,
       totalControls: allControls.length,
-      totalTasks: plan.tasks.length,
+      totalTasks: countAllTasks(plan.tasks),
     };
-  }, [plan, allControls]);
+  }, [plan, allControls, allActivities]);
 
   /* ── Navigation ── */
   const navigate = useCallback((p: PageState) => {
@@ -1468,32 +1715,35 @@ export default function AssessmentPlanPage() {
 
   const curActivity = useMemo(() => {
     if (!plan || page?.type !== "activity") return null;
-    return plan.activities.find((a) => a.uuid === page.uuid) ?? null;
-  }, [plan, page]);
+    // Search in both top-level activities and task-associated activities
+    const found = plan.activities.find((a) => a.uuid === page.uuid);
+    if (found) return found;
+    return allActivities.find((a) => a.uuid === page.uuid) ?? null;
+  }, [plan, page, allActivities]);
 
   const curTask = useMemo(() => {
     if (!plan || page?.type !== "task") return null;
-    return plan.tasks.find((t) => t.uuid === page.uuid) ?? null;
+    return findTaskRecursive(plan.tasks, page.uuid);
   }, [plan, page]);
 
   /* ── Filtered sidebar ── */
-  const filteredActivities = useMemo(() => {
-    if (!plan) return [];
-    const q = search.toLowerCase();
-    if (!q) return plan.activities;
-    return plan.activities.filter(
-      (a) => a.title.toLowerCase().includes(q) || a.relatedControls.some((c) => c.toLowerCase().includes(q)) || a.steps.some((s) => s.title.toLowerCase().includes(q) || s.controls.some((c) => c.toLowerCase().includes(q))),
-    );
-  }, [plan, search]);
+  const hasTasks = plan ? plan.tasks.length > 0 : false;
 
   const filteredTasks = useMemo(() => {
     if (!plan) return [];
     const q = search.toLowerCase();
     if (!q) return plan.tasks;
-    return plan.tasks.filter(
-      (t) => t.title.toLowerCase().includes(q) || t.type.toLowerCase().includes(q),
-    );
+    return filterTasksRecursive(plan.tasks, q);
   }, [plan, search]);
+
+  const filteredActivities = useMemo(() => {
+    if (!plan || hasTasks) return [];
+    const q = search.toLowerCase();
+    if (!q) return plan.activities;
+    return plan.activities.filter(
+      (a) => a.title.toLowerCase().includes(q) || a.relatedControls.some((c) => c.toLowerCase().includes(q)) || a.steps.some((s) => s.title.toLowerCase().includes(q) || s.controls.some((c) => c.toLowerCase().includes(q))),
+    );
+  }, [plan, search, hasTasks]);
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
@@ -1532,18 +1782,20 @@ export default function AssessmentPlanPage() {
           </div>
           <div ref={contentRef} style={{ ...S.content, padding: 12 }}>
             {page === null && (
-              <OverviewView plan={plan} stats={stats} hCtrl={hCtrl} onCtrl={onCtrl}
+              <OverviewView plan={plan} stats={stats}
+                onSelectTask={(uuid) => navigate({ type: "task", uuid })}
                 onSelectActivity={(uuid) => navigate({ type: "activity", uuid })}
+                hCtrl={hCtrl} onCtrl={onCtrl}
                 />
             )}
             {page?.type === "activity" && curActivity && (
               <ActivityView activity={curActivity} planTitle={plan.title} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} catalog={catalog} />
             )}
             {page?.type === "task" && curTask && (
-              <TaskView task={curTask} planTitle={plan.title} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} catalog={catalog} />
+              <TaskView task={curTask} planTitle={plan.title} planTasks={plan.tasks} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} catalog={catalog} onNavigateTask={(uuid) => navigate({ type: "task", uuid })} />
             )}
             {page?.type === "controls" && (
-              <ControlsView plan={plan} allControls={allControls} catalog={catalog} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} onSelectActivity={(uuid) => navigate({ type: "activity", uuid })} />
+              <ControlsView plan={plan} allControls={allControls} allActivitiesList={allActivities} catalog={catalog} hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)} onSelectActivity={(uuid) => navigate({ type: "activity", uuid })} />
             )}
           </div>
         </div>
@@ -1589,47 +1841,37 @@ export default function AssessmentPlanPage() {
           )}
         </div>
 
-        {/* Mode toggle */}
-        <div style={{ display: "flex", borderBottom: `1px solid ${colors.bg}` }}>
-          {(["activities", "tasks"] as const).map((m) => (
-            <button key={m} onClick={() => { setMode(m); setPage(null); }} style={{
-              flex: 1, padding: "10px 0", border: "none", cursor: "pointer", fontSize: 12,
-              fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-              color: mode === m ? colors.navy : colors.gray,
-              borderBottom: mode === m ? `2px solid ${colors.orange}` : "2px solid transparent",
-              background: "transparent", fontFamily: fonts.sans, minHeight: 44,
-            }}>
-              {m === "activities" ? <><IcoAct size={12} /> Activities</> : <><IcoTask size={12} /> Tasks</>}
-            </button>
-          ))}
-        </div>
-
         {/* Nav items */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {mode === "activities" && (
-            <>
-              <NavItem label="Overview" sublabel={`${stats.totalSteps} total steps`}
-                isActive={false} onClick={() => navigate(null)} icon={<IcoHome size={14} />} />
-              {filteredActivities.map((a) => (
-                <NavItem key={a.uuid} label={a.title} isActive={false}
-                  stepCount={a.steps.length}
-                  onClick={() => navigate({ type: "activity", uuid: a.uuid })}
-                  icon={<IcoAct size={14} />} />
-              ))}
-            </>
-          )}
-          {mode === "tasks" && (
+          <NavItem label="Overview" sublabel={hasTasks ? `${stats.totalTasks} tasks · ${stats.totalActivities} activities` : `${stats.totalActivities} activities · ${stats.totalSteps} steps`}
+            isActive={false} onClick={() => navigate(null)} icon={<IcoHome size={14} />} />
+          {hasTasks ? (
             <>
               {filteredTasks.map((t) => (
-                <NavItem key={t.uuid} label={t.title}
-                  sublabel={[t.type, t.timing].filter(Boolean).join(" · ")}
-                  isActive={false}
-                  stepCount={t.associatedActivities.reduce((n, a) => n + a.steps.length, 0)}
-                  onClick={() => navigate({ type: "task", uuid: t.uuid })}
-                  icon={<IcoTask size={14} />} />
+                <TaskTreeNavItem
+                  key={t.uuid} task={t} depth={0}
+                  activePage={page} onNavigate={navigate}
+                  expandedTasks={expandedTasks} onToggleTask={toggleTask}
+                />
               ))}
               {filteredTasks.length === 0 && (
                 <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: colors.gray }}>No tasks found</div>
+              )}
+            </>
+          ) : (
+            <>
+              {filteredActivities.map((a) => (
+                <NavItem
+                  key={a.uuid}
+                  label={a.title}
+                  isActive={false}
+                  stepCount={a.steps.length}
+                  onClick={() => navigate({ type: "activity", uuid: a.uuid })}
+                  icon={<IcoAct size={14} />}
+                />
+              ))}
+              {filteredActivities.length === 0 && (
+                <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: colors.gray }}>No activities found</div>
               )}
             </>
           )}
@@ -1702,32 +1944,32 @@ export default function AssessmentPlanPage() {
             )}
           </div>
 
-          {/* Mode toggle */}
-          <div style={{ display: "flex", borderBottom: `1px solid ${colors.bg}` }}>
-            {(["activities", "tasks"] as const).map((m) => (
-              <button key={m} onClick={() => { setMode(m); setPage(null); }} style={{
-                flex: 1, padding: "8px 0", border: "none", cursor: "pointer", fontSize: 11,
-                fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-                color: mode === m ? colors.navy : colors.gray,
-                borderBottom: mode === m ? `2px solid ${colors.orange}` : "2px solid transparent",
-                background: "transparent", fontFamily: fonts.sans,
-              }}>
-                {m === "activities" ? <><IcoAct size={12} /> Activities</> : <><IcoTask size={12} /> Tasks</>}
-              </button>
-            ))}
-          </div>
-
           {/* Nav items */}
           <div style={{ overflowY: "auto", flex: 1 }}>
-            {mode === "activities" && (
+            <NavItem
+              label="Overview"
+              sublabel={hasTasks ? `${stats.totalTasks} tasks · ${stats.totalActivities} activities` : `${stats.totalActivities} activities · ${stats.totalSteps} steps`}
+              isActive={page === null}
+              onClick={() => navigate(null)}
+              icon={<IcoHome size={14} />}
+            />
+            {hasTasks ? (
               <>
-                <NavItem
-                  label="Overview"
-                  sublabel={`${stats.totalSteps} total steps`}
-                  isActive={page === null}
-                  onClick={() => navigate(null)}
-                  icon={<IcoHome size={14} />}
-                />
+                {filteredTasks.map((t) => (
+                  <TaskTreeNavItem
+                    key={t.uuid} task={t} depth={0}
+                    activePage={page} onNavigate={navigate}
+                    expandedTasks={expandedTasks} onToggleTask={toggleTask}
+                  />
+                ))}
+                {filteredTasks.length === 0 && (
+                  <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: colors.gray }}>
+                    No tasks found
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
                 {filteredActivities.map((a) => (
                   <NavItem
                     key={a.uuid}
@@ -1738,24 +1980,9 @@ export default function AssessmentPlanPage() {
                     icon={<IcoAct size={14} />}
                   />
                 ))}
-              </>
-            )}
-            {mode === "tasks" && (
-              <>
-                {filteredTasks.map((t) => (
-                  <NavItem
-                    key={t.uuid}
-                    label={t.title}
-                    sublabel={[t.type, t.timing].filter(Boolean).join(" · ")}
-                    isActive={page?.type === "task" && page.uuid === t.uuid}
-                    stepCount={t.associatedActivities.reduce((n, a) => n + a.steps.length, 0)}
-                    onClick={() => navigate({ type: "task", uuid: t.uuid })}
-                    icon={<IcoTask size={14} />}
-                  />
-                ))}
-                {filteredTasks.length === 0 && (
+                {filteredActivities.length === 0 && (
                   <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: colors.gray }}>
-                    No tasks found
+                    No activities found
                   </div>
                 )}
               </>
@@ -1771,8 +1998,9 @@ export default function AssessmentPlanPage() {
           {page === null && (
             <OverviewView
               plan={plan} stats={stats}
-              hCtrl={hCtrl} onCtrl={onCtrl}
+              onSelectTask={(uuid) => navigate({ type: "task", uuid })}
               onSelectActivity={(uuid) => navigate({ type: "activity", uuid })}
+              hCtrl={hCtrl} onCtrl={onCtrl}
             />
           )}
           {page?.type === "activity" && curActivity && (
@@ -1784,14 +2012,14 @@ export default function AssessmentPlanPage() {
           )}
           {page?.type === "task" && curTask && (
             <TaskView
-              task={curTask} planTitle={plan.title}
+              task={curTask} planTitle={plan.title} planTasks={plan.tasks}
               hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)}
-              catalog={catalog}
+              catalog={catalog} onNavigateTask={(uuid) => navigate({ type: "task", uuid })}
             />
           )}
           {page?.type === "controls" && (
             <ControlsView
-              plan={plan} allControls={allControls} catalog={catalog}
+              plan={plan} allControls={allControls} allActivitiesList={allActivities} catalog={catalog}
               hCtrl={hCtrl} onCtrl={onCtrl} onHome={() => navigate(null)}
               onSelectActivity={(uuid) => navigate({ type: "activity", uuid })}
             />
