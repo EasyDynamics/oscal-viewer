@@ -15,6 +15,9 @@ dist-ssr
 # Environment overrides (keep .env and .env.example tracked)
 .env*.local
 
+# Local working notes, plans, research — not committed
+.development/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
