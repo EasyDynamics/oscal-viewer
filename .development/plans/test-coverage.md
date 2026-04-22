@@ -167,7 +167,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci
       - run: npm test
@@ -182,8 +182,8 @@ Notes:
 - The workflow is named **Tests** and the job is named **test** — the
   GitHub Actions status check ID becomes `Tests / test`, which is what
   you'd reference in branch-protection settings.
-- Node 20: matches the existing `npm ci` flow in the Azure workflow
-  (which doesn't pin a version, so we're not breaking parity).
+- Node 22 (current LTS). The existing Azure workflow doesn't pin a
+  version, so we're setting the floor here.
 - No coverage upload yet. `@vitest/coverage-v8` is installed but
   unused — we'll wire it in a future round.
 
