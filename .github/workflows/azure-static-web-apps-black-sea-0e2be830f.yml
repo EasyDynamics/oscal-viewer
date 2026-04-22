@@ -1,13 +1,11 @@
 name: Azure Static Web Apps CI/CD
 
+# Deploy pipeline is paused while the test-coverage gate is being built
+# out. To re-enable, restore the previous `push` / `pull_request`
+# triggers (see commit history). Manual runs are still possible via the
+# Actions tab (workflow_dispatch).
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   build_and_deploy_job:
