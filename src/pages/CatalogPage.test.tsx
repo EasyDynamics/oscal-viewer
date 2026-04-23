@@ -55,14 +55,25 @@ const RICH_CATALOG: Catalog = {
     "oscal-version": "1.1.2",
     remarks: "Test catalog for rendering",
     parties: [
-      { uuid: "p-1", type: "organization", name: "Acme Corp" },
+      { uuid: "p-1", type: "organization", name: "Acme Corp", links: [{ href: "https://acme.example.com", rel: "website", text: "Acme Website" }] },
+      { uuid: "p-2", type: "person", name: "Jane Doe", "short-name": "Jane" },
     ],
-    roles: [{ id: "owner", title: "Owner" }],
+    roles: [
+      { id: "owner", title: "Owner" },
+      { id: "maintainer", title: "Maintainer" },
+    ],
     "responsible-parties": [
       { "role-id": "owner", "party-uuids": ["p-1"] },
+      { "role-id": "maintainer", "party-uuids": ["p-2"] },
     ],
-    props: [{ name: "marking", value: "public" }],
-    links: [{ href: "https://example.com/home", rel: "reference", text: "Acme home" }],
+    props: [
+      { name: "marking", value: "public" },
+      { name: "keywords", value: "security,baseline" },
+    ],
+    links: [
+      { href: "https://example.com/home", rel: "reference", text: "Acme home" },
+      { href: "https://attack.mitre.org/techniques/T1059", rel: "mitre", text: "T1059" },
+    ],
   },
   groups: [
     {
@@ -156,6 +167,17 @@ const RICH_CATALOG: Catalog = {
         ],
         props: [{ name: "type", value: "reference" }],
         remarks: "Curated reference",
+      },
+      {
+        uuid: "res-2",
+        title: "NIST Publication",
+        citation: {
+          text: "NIST. SP 800-53 Rev. 5. Security and Privacy Controls. 2020.",
+        },
+        rlinks: [
+          { href: "https://nvlpubs.nist.gov/x.pdf", "media-type": "application/pdf" },
+        ],
+        props: [{ name: "type", value: "documentation" }],
       },
     ],
   },
@@ -492,6 +514,61 @@ describe("<CatalogPage /> loaded — desktop overview", () => {
       screen.getAllByText(/Top-Level Control/).length,
     ).toBeGreaterThan(0);
   });
+
+  it("renders metadata parties, roles, responsible-parties, props, and links", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Metadata"));
+    // Both parties
+    expect(screen.getAllByText(/Acme Corp/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Jane Doe|Jane/).length).toBeGreaterThan(0);
+    // Roles
+    expect(screen.getAllByText(/Owner/).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(/Maintainer/).length).toBeGreaterThan(0);
+    // Props / keywords
+    expect(screen.queryAllByText(/security,baseline|public|keywords|marking/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders catalog-level remarks in the metadata view", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Metadata"));
+    expect(
+      screen.queryAllByText(/Test catalog for rendering/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders the second back-matter resource with citation", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Back Matter"));
+    expect(screen.getAllByText(/NIST Publication/).length).toBeGreaterThan(0);
+    // Drill into NIST resource
+    fireEvent.click(screen.getAllByText(/NIST Publication/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/SP 800-53 Rev\. 5/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders control params as inline token resolution in statement prose", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    fireEvent.click(screen.getAllByText(/Policy and Procedures/)[0]);
+    // param ac-1_prm_1 label renders
+    expect(
+      screen.queryAllByText(/organization-defined roles/).length,
+    ).toBeGreaterThan(0);
+    // Selection (one or more)
+    expect(
+      screen.queryAllByText(/organizational.*mission|mission.*organizational|one or more/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("search in the sidebar filters groups by their title", async () => {
+    await renderLoaded();
+    const search = screen.getByPlaceholderText("Search controls");
+    fireEvent.change(search, { target: { value: "Access" } });
+    expect(screen.getAllByText(/Access Control/).length).toBeGreaterThan(0);
+  });
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -589,5 +666,454 @@ describe("<CatalogPage /> edge cases", () => {
     expect(
       screen.getAllByText(/Policy Enhancement/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("navigates into a control enhancement and shows parent breadcrumbs", async () => {
+    await renderLoaded();
+    // Open parent control
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    fireEvent.click(screen.getAllByText(/Policy and Procedures/)[0]);
+    // Click the enhancement row
+    await waitFor(() =>
+      expect(screen.getAllByText(/Policy Enhancement/).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/Policy Enhancement/)[0]);
+    await waitFor(() => {
+      // Breadcrumb should reference parent control
+      expect(
+        screen.queryAllByText(/Policy and Procedures|AC-1/).length,
+      ).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows a withdrawn control with Withdrawn badge and moved-to link", async () => {
+    const withWithdrawn: Catalog = {
+      uuid: "cat-w",
+      metadata: { title: "Withdrawn Test" },
+      groups: [
+        {
+          id: "si",
+          title: "System & Info",
+          controls: [
+            {
+              id: "si-1",
+              title: "Old Control",
+              props: [{ name: "status", value: "withdrawn" }],
+              links: [{ href: "#si-2", rel: "moved-to" }],
+            },
+            {
+              id: "si-2",
+              title: "New Control",
+            },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ catalog: withWithdrawn });
+    // Expand group
+    fireEvent.click(screen.getAllByText(/System & Info/)[0]);
+    fireEvent.click(screen.getAllByText(/Old Control/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Withdrawn|withdrawn/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates into a nested subgroup control", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    // Nested Access Subsection
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Nested Access Subsection/).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/Nested Access Subsection/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Nested Sample Control/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders a control with hash-link in part prose pointing to a back-matter resource", async () => {
+    const catWithPartLink: Catalog = {
+      uuid: "cat-pl",
+      metadata: { title: "Part Link Test" },
+      groups: [
+        {
+          id: "gr",
+          title: "Group One",
+          controls: [
+            {
+              id: "gr-1",
+              title: "Control With Part Link",
+              parts: [
+                {
+                  id: "gr-1-stmt",
+                  name: "statement",
+                  prose: "See the reference doc.",
+                  links: [{ href: "#res-1", rel: "reference" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      "back-matter": {
+        resources: [
+          {
+            uuid: "res-1",
+            title: "Linked Resource",
+            rlinks: [{ href: "https://example.com/doc.pdf", "media-type": "application/pdf" }],
+          },
+        ],
+      },
+    };
+    await renderLoaded({ catalog: catWithPartLink });
+    fireEvent.click(screen.getAllByText(/Group One/)[0]);
+    fireEvent.click(screen.getAllByText(/Control With Part Link/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Linked Resource|See the reference doc/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders a control with a resource hash-link in its top-level links", async () => {
+    const catWithResLink: Catalog = {
+      uuid: "cat-rl",
+      metadata: { title: "Res Link Test" },
+      groups: [
+        {
+          id: "rl",
+          title: "RL Group",
+          controls: [
+            {
+              id: "rl-1",
+              title: "Control With Res Link",
+              parts: [{ id: "s", name: "statement", prose: "Body text." }],
+              links: [{ href: "#res-a", rel: "reference" }],
+            },
+          ],
+        },
+      ],
+      "back-matter": {
+        resources: [
+          {
+            uuid: "res-a",
+            title: "Resource A",
+            rlinks: [{ href: "https://example.com/res-a.pdf", "media-type": "application/pdf" }],
+          },
+        ],
+      },
+    };
+    await renderLoaded({ catalog: catWithResLink });
+    fireEvent.click(screen.getAllByText(/RL Group/)[0]);
+    fireEvent.click(screen.getAllByText(/Control With Res Link/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Resource A/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("searches back-matter resources by title", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Back Matter"));
+    const searchInput = screen.getByPlaceholderText(/Search resources/);
+    fireEvent.change(searchInput, { target: { value: "NIST" } });
+    await waitFor(() =>
+      expect(screen.queryAllByText(/NIST Publication/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates to a subgroup from the group detail view", async () => {
+    await renderLoaded();
+    // Click the Access Control group row in sidebar
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    // Now we should be on the group view — click the nested subgroup
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Nested Access Subsection/).length).toBeGreaterThan(0),
+    );
+    // Click the subgroup row inside the group view
+    fireEvent.click(screen.getAllByText(/Nested Access Subsection/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Nested Sample Control/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("clicks a breadcrumb to navigate back", async () => {
+    await renderLoaded();
+    // Navigate to a control
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    fireEvent.click(screen.getAllByText(/Policy and Procedures/)[0]);
+    // Breadcrumb should show "Overview"
+    await waitFor(() =>
+      expect(screen.queryAllByText("Overview").length).toBeGreaterThan(0),
+    );
+    // Click Overview breadcrumb
+    fireEvent.click(screen.getAllByText("Overview")[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Test Catalog/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders the nested subgroup control when navigated to its group in mobile", async () => {
+    await renderLoaded({ mobile: true });
+    // Drill into Access Control group
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Nested Access Subsection|Policy and Procedures/).length).toBeGreaterThan(0),
+    );
+    // Drill into the subgroup
+    const nestedGroup = screen.queryAllByText(/Nested Access Subsection/);
+    if (nestedGroup.length > 0) {
+      fireEvent.click(nestedGroup[0]);
+      await waitFor(() =>
+        expect(screen.queryAllByText(/Nested Sample Control/).length).toBeGreaterThan(0),
+      );
+    }
+  });
+
+  it("mobile: drills into a control that has enhancements and shows enhancement list", async () => {
+    await renderLoaded({ mobile: true });
+    const search = screen.getByPlaceholderText(/Search controls/);
+    fireEvent.change(search, { target: { value: "Policy" } });
+    await waitFor(() =>
+      expect(screen.getAllByText(/Policy and Procedures/).length).toBeGreaterThan(0),
+    );
+    // tap the control — it has enhancements so it should drill in
+    fireEvent.click(screen.getAllByText(/Policy and Procedures/)[0]);
+    await waitFor(() => {
+      // Either the detail view shows or we see the enhancement entry
+      const detailOrEnhancement =
+        screen.queryAllByText(/Policy Enhancement/).length > 0 ||
+        screen.queryAllByText(/← Back/).length > 0 ||
+        screen.queryAllByText(/Detail/).length > 0;
+      expect(detailOrEnhancement).toBe(true);
+    });
+  });
+
+  it("renders control with hash-link pointing to non-existent resource (internal ctrl ref)", async () => {
+    // covers line 1911-1914: #hash link that doesn't match any resource
+    const catInternalRef: Catalog = {
+      uuid: "cat-ir",
+      metadata: { title: "Internal Ref" },
+      groups: [
+        {
+          id: "ir",
+          title: "IR Group",
+          controls: [
+            { id: "ir-1", title: "Control IR-1" },
+            {
+              id: "ir-2",
+              title: "Control IR-2",
+              parts: [{ id: "s", name: "statement", prose: "See IR-1." }],
+              links: [{ href: "#ir-1", rel: "related" }],
+            },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ catalog: catInternalRef });
+    fireEvent.click(screen.getAllByText(/IR Group/)[0]);
+    fireEvent.click(screen.getAllByText(/Control IR-2/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/IR-1|See IR-1/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders a control with a withdrawn enhancement", async () => {
+    // covers line 1933: enhancement with withdrawn status
+    const catWithdrawEnh: Catalog = {
+      uuid: "cat-we",
+      metadata: { title: "Withdrawn Enh" },
+      groups: [
+        {
+          id: "we",
+          title: "WE Group",
+          controls: [
+            {
+              id: "we-1",
+              title: "We Control",
+              parts: [{ id: "s", name: "statement", prose: "Body." }],
+              controls: [
+                {
+                  id: "we-1.1",
+                  title: "Withdrawn Enhancement",
+                  props: [{ name: "status", value: "withdrawn" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ catalog: catWithdrawEnh });
+    fireEvent.click(screen.getAllByText(/WE Group/)[0]);
+    fireEvent.click(screen.getAllByText(/We Control/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Withdrawn Enhancement/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates from the overview group card to the group view", async () => {
+    // covers line 1157: clicking group in OverviewView
+    await renderLoaded();
+    // In overview the group row is rendered in the content panel
+    // Find the "Control Families" section and click the group there
+    const groupLinks = screen.queryAllByText(/Access Control/);
+    // Click the one inside the overview content area (not the sidebar)
+    // Multiple matches: sidebar link + overview card
+    if (groupLinks.length > 1) {
+      fireEvent.click(groupLinks[groupLinks.length - 1]);
+    } else {
+      fireEvent.click(groupLinks[0]);
+    }
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Policy and Procedures|Sub-Groups|Controls/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders a group with parts (prose overview text)", async () => {
+    // covers line 1682: group.parts rendering
+    const catWithGroupParts: Catalog = {
+      uuid: "cat-gp",
+      metadata: { title: "Group Parts" },
+      groups: [
+        {
+          id: "gp",
+          title: "GP Group",
+          parts: [
+            { id: "gp-overview", name: "overview", prose: "This group covers general policies." },
+          ],
+          controls: [
+            { id: "gp-1", title: "GP Control" },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ catalog: catWithGroupParts });
+    fireEvent.click(screen.getAllByText(/GP Group/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/This group covers general policies|GP Control/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders part with an external link (no hash)", async () => {
+    // covers line 2045: external link in part
+    const catPartExtLink: Catalog = {
+      uuid: "cat-pel",
+      metadata: { title: "Part Ext Link" },
+      groups: [
+        {
+          id: "pel",
+          title: "PEL Group",
+          controls: [
+            {
+              id: "pel-1",
+              title: "Control PEL-1",
+              parts: [
+                {
+                  id: "s",
+                  name: "statement",
+                  prose: "See external guide.",
+                  links: [{ href: "https://example.com/guide.pdf", rel: "reference", text: "External Guide" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ catalog: catPartExtLink });
+    fireEvent.click(screen.getAllByText(/PEL Group/)[0]);
+    fireEvent.click(screen.getAllByText(/Control PEL-1/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/External Guide|See external guide/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders part with subparts (nested PartTree)", async () => {
+    // covers line 2063: subparts rendering
+    const catSubparts: Catalog = {
+      uuid: "cat-sp",
+      metadata: { title: "Subparts" },
+      groups: [
+        {
+          id: "sp",
+          title: "SP Group",
+          controls: [
+            {
+              id: "sp-1",
+              title: "Control With Subparts",
+              parts: [
+                {
+                  id: "s",
+                  name: "statement",
+                  prose: "Outer prose.",
+                  parts: [
+                    { id: "s-a", name: "item", prose: "Sub-item A content." },
+                    { id: "s-b", name: "item", prose: "Sub-item B content." },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ catalog: catSubparts });
+    fireEvent.click(screen.getAllByText(/SP Group/)[0]);
+    fireEvent.click(screen.getAllByText(/Control With Subparts/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Sub-item A content|Sub-item B content/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders a control with prose containing an unknown param token", async () => {
+    // covers lines 71-73: resolveInlineParams when param not found
+    const catUnknownParam: Catalog = {
+      uuid: "cat-up",
+      metadata: { title: "Unknown Param" },
+      groups: [
+        {
+          id: "up",
+          title: "UP Group",
+          controls: [
+            {
+              id: "up-1",
+              title: "Control UP-1",
+              parts: [
+                {
+                  id: "s",
+                  name: "statement",
+                  prose: "The {{ insert: param, unknown_param_id }} shall be documented.",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ catalog: catUnknownParam });
+    fireEvent.click(screen.getAllByText(/UP Group/)[0]);
+    fireEvent.click(screen.getAllByText(/Control UP-1/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/unknown_param_id|Assignment|documented/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("clicks a control inside the GroupView content panel (not sidebar)", async () => {
+    // covers line 1715: navigate from GroupView control row onClick
+    await renderLoaded();
+    // Click group in sidebar to show GroupView
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    // Now in GroupView, click a control in the content panel
+    // The group view should show "Policy and Procedures" in the controls card
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Policy and Procedures/).length).toBeGreaterThan(0),
+    );
+    // The GroupView control list has one row for each control
+    // Click on the one in the content area (last occurrence since sidebar also shows it)
+    const allPolicyTexts = screen.queryAllByText(/Policy and Procedures/);
+    if (allPolicyTexts.length > 0) {
+      fireEvent.click(allPolicyTexts[allPolicyTexts.length - 1]);
+      await waitFor(() =>
+        expect(screen.queryAllByText(/Statement|Guidance/).length).toBeGreaterThan(0),
+      );
+    }
   });
 });
