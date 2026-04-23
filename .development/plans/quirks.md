@@ -99,6 +99,15 @@ Organised into three buckets:
   The root shows "POA&M Items (N)", "Risks (N)", "Findings (N)",
   "Observations (N)" as branch rows; you click a section first,
   then the item inside.
+- **AssessmentResultsPage sidebar conditionally renders results.**
+  When `ar.results.length === 1`, the sidebar skips the per-result
+  row and renders the observation group tree directly. Only when
+  there are 2+ results do individual result rows with titles
+  appear. Tests that exercise the `ResultView` need a multi-result
+  fixture.
+- **Observations group by their `control-group` prop.** Missing
+  prop → "Uncategorized" group. Seen in
+  `AssessmentResultsPage.getControlGroup`.
 - **`<Outlet />` tests need Route nesting.** Layout tests wrap in
   `<MemoryRouter><Routes><Route element={<Layout/>}><Route …/></Routes></MemoryRouter>`
   to get `Outlet` to mount a child page. Plain `<Layout/>` renders
