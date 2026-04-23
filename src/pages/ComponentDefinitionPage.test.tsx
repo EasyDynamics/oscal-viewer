@@ -96,6 +96,22 @@ const RICH_CDEF = {
                   uuid: "stmt-1",
                   "statement-id": "ac-1_smt.a",
                   description: "Part (a) inherited.",
+                  remarks: "Applicable to specific subnets only.",
+                  props: [{ name: "implementation-status", value: "partial" }],
+                  "by-components": [
+                    {
+                      uuid: "stmt-bc-1",
+                      "component-uuid": "comp-1",
+                      description: "MongoDB enforces at record level.",
+                      remarks: "Applies to write operations.",
+                    },
+                  ],
+                  "responsible-roles": [
+                    { "role-id": "owner", "party-uuids": ["party-1"] },
+                  ],
+                  links: [
+                    { href: "https://example.com/stmt", rel: "reference", text: "Statement SOP" },
+                  ],
                 },
               ],
             },
@@ -113,6 +129,72 @@ const RICH_CDEF = {
       type: "software",
       title: "Application",
       description: "Node.js backend.",
+    },
+    {
+      uuid: "comp-3",
+      type: "hardware",
+      title: "HSM Appliance",
+      description: "Hardware security module.",
+    },
+    {
+      uuid: "comp-4",
+      type: "network",
+      title: "Core Switch",
+      description: "Network backbone.",
+    },
+    {
+      uuid: "comp-5",
+      type: "process",
+      title: "Nightly Backup Process",
+      description: "Scheduled job.",
+    },
+    {
+      uuid: "comp-6",
+      type: "policy",
+      title: "Access Policy",
+      description: "Written policy document.",
+    },
+    {
+      uuid: "comp-7",
+      type: "physical",
+      title: "Data Center",
+      description: "Physical hosting site.",
+    },
+    {
+      uuid: "comp-8",
+      type: "validation",
+      title: "FIPS Validation",
+      description: "Third-party validation reference.",
+    },
+    {
+      uuid: "comp-9",
+      type: "standard",
+      title: "NIST SP 800-171",
+      description: "Applicable standard.",
+    },
+    {
+      uuid: "comp-10",
+      type: "this-system",
+      title: "Target System",
+      description: "System under assessment.",
+    },
+    {
+      uuid: "comp-11",
+      type: "external-system",
+      title: "External API",
+      description: "Third-party integration.",
+    },
+    {
+      uuid: "comp-12",
+      type: "interconnection",
+      title: "VPN Tunnel",
+      description: "Site-to-site connection.",
+    },
+    {
+      uuid: "comp-13",
+      type: "service",
+      title: "Authentication Service",
+      description: "OAuth provider.",
     },
   ],
   "back-matter": {
@@ -510,5 +592,83 @@ describe("<ComponentDefinitionPage /> edge cases", () => {
     expect(
       screen.queryByText(/References \(\d+\)/),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders every component type variant (hardware, network, process, etc.)", async () => {
+    await renderLoaded();
+    // One sidebar entry per component of each type
+    for (const title of [
+      "MongoDB",
+      "Application",
+      "HSM Appliance",
+      "Core Switch",
+      "Nightly Backup Process",
+      "Access Policy",
+      "Data Center",
+      "FIPS Validation",
+      "NIST SP 800-171",
+      "Target System",
+      "External API",
+      "VPN Tunnel",
+      "Authentication Service",
+    ]) {
+      expect(screen.getAllByText(new RegExp(title)).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("drills into a requirement and surfaces statement description", async () => {
+    await renderLoaded();
+    // Expand MongoDB → Sample Catalog CI → AC-1 requirement
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    fireEvent.click(screen.getAllByText(/Sample Catalog/)[0]);
+    fireEvent.click(screen.getAllByText(/AC-1/)[0]);
+    // RequirementView surfaces the statement's description
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Part \(a\) inherited/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into a hardware-type component detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/HSM Appliance/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Hardware security module/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into a policy-type component detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Access Policy/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Written policy document/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into a this-system component detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Target System/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/System under assessment/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into the Architecture documentation resource (non-catalog type)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText(/References \(\d+\)/));
+    fireEvent.click(screen.getAllByText(/System Architecture Diagram/)[0]);
+    // Resource detail view
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/System Architecture Diagram/).length,
+      ).toBeGreaterThan(0),
+    );
   });
 });
