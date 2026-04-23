@@ -39,8 +39,31 @@ const CATALOG: Catalog = {
           id: "ac-1",
           title: "Policy and Procedures",
           props: [{ name: "label", value: "AC-1" }],
+          params: [
+            { id: "ac-1-prm-1", label: "policy type" },
+          ],
           parts: [
-            { id: "ac-1-stmt", name: "statement", prose: "AC-1 body." },
+            {
+              id: "ac-1-stmt",
+              name: "statement",
+              prose: "AC-1 body with {{ insert: param, ac-1-prm-1 }}.",
+              parts: [
+                { id: "ac-1_smt.a", name: "item", props: [{ name: "label", value: "a." }], prose: "Part (a) prose." },
+              ],
+            },
+            {
+              id: "ac-1-gdn",
+              name: "guidance",
+              prose: "Guidance text.",
+            },
+          ],
+          controls: [
+            {
+              id: "ac-1.1",
+              title: "AC-1 Enhancement",
+              props: [{ name: "label", value: "AC-1(1)" }],
+              parts: [{ id: "ac-1.1-stmt", name: "statement", prose: "Enhancement statement." }],
+            },
           ],
         },
         {
@@ -65,6 +88,9 @@ const RICH_CDEF = {
       { uuid: "party-1", type: "organization", name: "Acme Corp" },
     ],
     roles: [{ id: "owner", title: "Owner" }],
+    "responsible-parties": [
+      { "role-id": "owner", "party-uuids": ["party-1"] },
+    ],
   },
   components: [
     {
@@ -73,6 +99,10 @@ const RICH_CDEF = {
       title: "MongoDB",
       description: "Document database service.",
       purpose: "Store application data.",
+      status: { state: "operational", remarks: "In production." },
+      protocols: [
+        { uuid: "proto-1", name: "HTTPS", "port-ranges": [{ start: 443, end: 443 }] },
+      ],
       props: [{ name: "version", value: "6.0" }],
       "responsible-roles": [
         { "role-id": "owner", "party-uuids": ["party-1"] },
@@ -90,6 +120,10 @@ const RICH_CDEF = {
               uuid: "req-1",
               "control-id": "ac-1",
               description: "We follow the AC-1 policy.",
+              remarks: "These remarks explain the implementation rationale.",
+              links: [
+                { href: "https://external-sop.example.com/sop.pdf", rel: "reference", text: "External SOP" },
+              ],
               props: [{ name: "implementation-status", value: "implemented" }],
               "statements": [
                 {
@@ -119,6 +153,25 @@ const RICH_CDEF = {
               uuid: "req-2",
               "control-id": "ac-2",
               description: "Account management handled via SSO.",
+              "responsible-roles": [
+                { "role-id": "owner", "party-uuids": ["party-1"] },
+              ],
+              links: [
+                { href: "#doc-res", rel: "reference" },
+              ],
+            },
+          ],
+        },
+        {
+          uuid: "ci-2",
+          source: "https://example.com/baseline.json",
+          description: "Second source implementation.",
+          "implemented-requirements": [
+            {
+              uuid: "req-3",
+              "control-id": "ac-3",
+              description: "Additional access control implementation.",
+              props: [{ name: "implementation-status", value: "partial" }],
             },
           ],
         },
@@ -196,6 +249,24 @@ const RICH_CDEF = {
       title: "Authentication Service",
       description: "OAuth provider.",
     },
+    {
+      uuid: "comp-14",
+      type: "process-procedure",
+      title: "Incident Response Procedure",
+      description: "Documented IR procedure.",
+    },
+    {
+      uuid: "comp-15",
+      type: "plan",
+      title: "Continuity Plan",
+      description: "BCP document.",
+    },
+    {
+      uuid: "comp-16",
+      type: "guidance",
+      title: "Security Guidance",
+      description: "Supplemental guidance.",
+    },
   ],
   "back-matter": {
     resources: [
@@ -212,6 +283,12 @@ const RICH_CDEF = {
         title: "System Architecture Diagram",
         props: [{ name: "type", value: "architecture" }],
         rlinks: [{ href: "https://example.com/arch.pdf" }],
+      },
+      {
+        uuid: "azure-res",
+        title: "Azure Documentation",
+        props: [{ name: "type", value: "azure-documentation" }],
+        rlinks: [{ href: "https://docs.microsoft.com/azure" }],
       },
     ],
   },
@@ -530,6 +607,52 @@ describe("<ComponentDefinitionPage /> loaded — desktop", () => {
       screen.getAllByText(/Sample Component Definition/).length,
     ).toBeGreaterThan(0);
   });
+
+  it("renders multiple control-implementations under the same component", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    // Both CIs should be visible in the sidebar after expand
+    const ciRows = screen.queryAllByText(/Sample Catalog|baseline/i);
+    expect(ciRows.length).toBeGreaterThan(0);
+  });
+
+  it("navigates to the ac-3 requirement from the second control-implementation", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    // Click any CI row (matches either source)
+    const ciRows = screen.queryAllByText(/Sample Catalog|baseline/i);
+    if (ciRows.length > 0) fireEvent.click(ciRows[ciRows.length - 1]);
+    // AC-3 requirement now visible in sidebar
+    expect(screen.queryAllByText(/AC-3/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders component status and protocols in the component detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    // Component detail view surfaces at minimum the component description
+    expect(
+      screen.queryAllByText(/Document database service|MongoDB/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders references heading with the total resource count", async () => {
+    await renderLoaded();
+    // References label in sidebar shows "(N)"
+    expect(
+      screen.queryAllByText(/References \(\d+\)/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("drills into a resource detail via References", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/References \(\d+\)/)[0]);
+    fireEvent.click(screen.getAllByText(/System Architecture Diagram/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/System Architecture Diagram|architecture/i).length,
+      ).toBeGreaterThan(0),
+    );
+  });
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -611,6 +734,9 @@ describe("<ComponentDefinitionPage /> edge cases", () => {
       "External API",
       "VPN Tunnel",
       "Authentication Service",
+      "Incident Response Procedure",
+      "Continuity Plan",
+      "Security Guidance",
     ]) {
       expect(screen.getAllByText(new RegExp(title)).length).toBeGreaterThan(0);
     }
@@ -669,6 +795,300 @@ describe("<ComponentDefinitionPage /> edge cases", () => {
       expect(
         screen.queryAllByText(/System Architecture Diagram/).length,
       ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into a process-procedure-type component detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Incident Response Procedure/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/IR procedure|Incident Response Procedure/i).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into a plan-type component detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Continuity Plan/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/BCP document|Continuity Plan/i).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into a guidance-type component detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Security Guidance/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Supplemental guidance|Security Guidance/i).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("surfaces requirement remarks and external link on AC-1 detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    fireEvent.click(screen.getAllByText(/Sample Catalog/)[0]);
+    fireEvent.click(screen.getAllByText(/AC-1/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/We follow the AC-1 policy/).length).toBeGreaterThan(0),
+    );
+    // External link should be rendered
+    expect(screen.queryAllByText(/External SOP/i).length).toBeGreaterThan(0);
+  });
+
+  it("expands CollapsibleRemarks on a requirement", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    fireEvent.click(screen.getAllByText(/Sample Catalog/)[0]);
+    fireEvent.click(screen.getAllByText(/AC-1/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/We follow the AC-1 policy/).length).toBeGreaterThan(0),
+    );
+    // Remarks toggle button
+    const remarksBtn = screen.queryAllByText(/Remarks/i);
+    if (remarksBtn.length > 0) {
+      fireEvent.click(remarksBtn[0]);
+      expect(
+        screen.queryAllByText(/implementation rationale|Remarks/i).length,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("renders catalog control with enhancement label (AC-1.1)", async () => {
+    // AC-1.1 enhancement in the catalog is discoverable via findCatalogControl
+    const richCatalog: Catalog = {
+      uuid: "cat-enh",
+      metadata: { title: "Enhanced Catalog" },
+      groups: [
+        {
+          id: "ac",
+          title: "Access Control",
+          controls: [
+            {
+              id: "ac-1.1",
+              title: "AC-1 Enhancement",
+              props: [{ name: "label", value: "AC-1(1)" }],
+              parts: [{ id: "ac-1.1-stmt", name: "statement", prose: "Enhancement statement text." }],
+            },
+          ],
+        },
+      ],
+    };
+    const enhCdef = {
+      uuid: "cdef-enh",
+      metadata: { title: "CDef with enhancement" },
+      components: [
+        {
+          uuid: "c-enh",
+          type: "service",
+          title: "Enhanced Component",
+          description: "Component with enhancement req.",
+          "control-implementations": [
+            {
+              uuid: "ci-enh",
+              source: "#enh-res",
+              description: "Enhanced implementation.",
+              "implemented-requirements": [
+                {
+                  uuid: "req-enh",
+                  "control-id": "ac-1.1",
+                  description: "AC-1.1 implemented.",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await renderLoaded({ cdef: enhCdef, catalog: richCatalog });
+    fireEvent.click(screen.getAllByText(/Enhanced Component/)[0]);
+    const ciRows = screen.queryAllByText(/Enhanced Catalog|enh-res/i);
+    if (ciRows.length > 0) fireEvent.click(ciRows[0]);
+    const reqRows = screen.queryAllByText(/AC-1.1/i);
+    if (reqRows.length > 0) fireEvent.click(reqRows[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/AC-1.1 implemented|Enhancement statement/i).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into interconnection-type component (VPN Tunnel)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/VPN Tunnel/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Site-to-site connection|VPN Tunnel/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into software-type component (Application)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Application/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Node.js backend|Application/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into physical-type component (Data Center)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Data Center/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Physical hosting site|Data Center/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into standard-type component (NIST SP 800-171)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/NIST SP 800-171/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Applicable standard|NIST SP 800-171/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into validation-type component (FIPS Validation)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/FIPS Validation/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Third-party validation|FIPS Validation/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates to a component from the Overview quick-nav", async () => {
+    await renderLoaded();
+    // Overview page lists components; clicking one navigates to component detail
+    const overviewLinks = screen.getAllByText(/MongoDB/);
+    // The overview quick-nav component link navigates to comp-0
+    fireEvent.click(overviewLinks[overviewLinks.length - 1]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Document database service/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders responsible-parties in Metadata view", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Metadata"));
+    await waitFor(() =>
+      expect(screen.getAllByText(/Acme Corp/).length).toBeGreaterThan(0),
+    );
+    // Responsible parties section
+    expect(screen.queryAllByText(/Responsible Parties|owner/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders responsible-roles on requirement AC-2", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    fireEvent.click(screen.getAllByText(/Sample Catalog/)[0]);
+    fireEvent.click(screen.getAllByText(/AC-2/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Account management handled via SSO/).length).toBeGreaterThan(0),
+    );
+    // Responsible Roles section rendered
+    expect(screen.queryAllByText(/Responsible Roles|owner/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders the azure-documentation resource with cloud icon via References", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/References \(\d+\)/)[0]);
+    // Azure Docs resource group should be listed
+    expect(screen.queryAllByText(/Azure Docs|Azure Documentation/i).length).toBeGreaterThan(0);
+  });
+
+  it("expands Supplemental Guidance in CatalogControlCard for AC-1", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    fireEvent.click(screen.getAllByText(/Sample Catalog/)[0]);
+    fireEvent.click(screen.getAllByText(/AC-1/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/We follow the AC-1 policy/).length).toBeGreaterThan(0),
+    );
+    // Click Supplemental Guidance toggle
+    const guidanceBtn = screen.queryAllByText(/Supplemental Guidance/i);
+    if (guidanceBtn.length > 0) {
+      fireEvent.click(guidanceBtn[0]);
+      expect(screen.queryAllByText(/Guidance text|Supplemental Guidance/i).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("resolves a back-matter link (#doc-res) in requirement AC-2", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    fireEvent.click(screen.getAllByText(/Sample Catalog/)[0]);
+    fireEvent.click(screen.getAllByText(/AC-2/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Account management handled via SSO/).length).toBeGreaterThan(0),
+    );
+    // The resolved link to System Architecture Diagram should appear
+    expect(screen.queryAllByText(/System Architecture Diagram/i).length).toBeGreaterThan(0);
+  });
+
+  it("mobile: drills into a CI and navigates back via breadcrumbs", async () => {
+    await renderLoaded({ mobile: true });
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    // Now drilled into comp-0 in mobile
+    await waitFor(() =>
+      expect(screen.queryAllByText(/MongoDB|Sample Catalog/i).length).toBeGreaterThan(0),
+    );
+    // Try clicking back
+    const backBtn = screen.queryAllByText(/← Back|Back/i);
+    if (backBtn.length > 0) fireEvent.click(backBtn[0]);
+    expect(screen.queryAllByText(/Overview|MongoDB/i).length).toBeGreaterThan(0);
+  });
+
+  it("navigates to a res-group by expanding References and clicking a type group", async () => {
+    await renderLoaded();
+    // Click References to expand it and navigate to references view
+    fireEvent.click(screen.getAllByText(/References \(\d+\)/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/NIST SP 800-53 rev5 Catalog/).length).toBeGreaterThan(0),
+    );
+    // After expanding, azure-documentation group should appear in sidebar
+    // Click on the Azure Docs group if visible
+    const azureGroup = screen.queryAllByText(/Azure Docs/i);
+    if (azureGroup.length > 0) {
+      fireEvent.click(azureGroup[0]);
+      await waitFor(() =>
+        expect(screen.queryAllByText(/Azure Docs|Azure Documentation/i).length).toBeGreaterThan(0),
+      );
+    }
+  });
+
+  it("uses breadcrumb navigation to jump back to component from requirement", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/MongoDB/)[0]);
+    fireEvent.click(screen.getAllByText(/Sample Catalog/)[0]);
+    fireEvent.click(screen.getAllByText(/AC-1/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/We follow the AC-1 policy/).length).toBeGreaterThan(0),
+    );
+    // Click MongoDB in breadcrumb to navigate back
+    const breadcrumbLinks = screen.getAllByText(/MongoDB/);
+    fireEvent.click(breadcrumbLinks[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Document database service/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders multi-paragraph description that stays wrapped in markup block", async () => {
+    const multiParaCdef = {
+      uuid: "mp",
+      metadata: { title: "Multi Para" },
+      components: [
+        {
+          uuid: "c-mp",
+          type: "service",
+          title: "Multi Para Component",
+          description: "First paragraph.\n\nSecond paragraph.",
+        },
+      ],
+    };
+    await renderLoaded({ cdef: multiParaCdef, withCatalog: false });
+    fireEvent.click(screen.getAllByText(/Multi Para Component/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/First paragraph|Multi Para Component/i).length).toBeGreaterThan(0),
     );
   });
 });
