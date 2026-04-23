@@ -112,6 +112,47 @@ const RICH_AR = {
             { name: "level", value: "moderate" },
           ],
           "related-observations": [{ "observation-uuid": "obs-1" }],
+          "mitigating-factors": [
+            {
+              uuid: "mf-1",
+              description: "Compensating controls limit blast radius.",
+            },
+          ],
+          remediations: [
+            {
+              uuid: "rem-1",
+              lifecycle: "planned",
+              title: "Strengthen password policy",
+              description: "Update policy to 12+ chars.",
+              remarks: "Scheduled for Q2.",
+              tasks: [
+                {
+                  uuid: "task-1",
+                  title: "Draft policy update",
+                  type: "action",
+                },
+              ],
+            },
+            {
+              uuid: "rem-2",
+              lifecycle: "completed",
+              title: "Enable MFA",
+              description: "Rolled out for all users.",
+            },
+            {
+              uuid: "rem-3",
+              lifecycle: "recommendation",
+              title: "Train staff",
+              description: "Awareness campaign.",
+            },
+          ],
+        },
+        {
+          uuid: "risk-2",
+          title: "Encryption Key Rotation Gap",
+          description: "Keys not rotated on schedule.",
+          status: "investigating",
+          props: [{ name: "level", value: "high" }],
         },
       ],
       findings: [
@@ -126,6 +167,17 @@ const RICH_AR = {
           },
           "related-observations": [{ "observation-uuid": "obs-1" }],
           "related-risks": [{ "risk-uuid": "risk-1" }],
+        },
+        {
+          uuid: "find-2",
+          title: "Encryption Controls Verified",
+          description: "SC-28 fully implemented.",
+          target: {
+            type: "objective-id",
+            "target-id": "sc-28",
+            status: { state: "satisfied" },
+          },
+          "related-observations": [{ "observation-uuid": "obs-2" }],
         },
       ],
       "assessment-log": {
@@ -521,6 +573,62 @@ describe("<AssessmentResultsPage /> loaded — desktop", () => {
     expect(
       screen.getAllByText(/Sample Assessment Results/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("renders risk detail with mitigating factors and remediations", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Risks \(\d+\)/i)[0]);
+    fireEvent.click(screen.getAllByText(/Weak Credential Policy Risk/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Compensating controls limit blast radius/).length,
+      ).toBeGreaterThan(0),
+    );
+    // Remediation lifecycle variants all render
+    expect(screen.getAllByText(/Strengthen password policy/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Enable MFA/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Train staff/).length).toBeGreaterThan(0);
+  });
+
+  it("renders a remediation task inside a remediation", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Risks \(\d+\)/i)[0]);
+    fireEvent.click(screen.getAllByText(/Weak Credential Policy Risk/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Draft policy update/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders a high-severity risk in the risks list", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Risks \(\d+\)/i)[0]);
+    expect(
+      screen.getAllByText(/Encryption Key Rotation Gap/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders a satisfied finding alongside a non-satisfied one", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Findings \(\d+\)/i)[0]);
+    expect(
+      screen.getAllByText(/Encryption Controls Verified/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/AC-1 Password Policy Non-Compliance/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("navigates to the satisfied finding's detail view", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Findings \(\d+\)/i)[0]);
+    fireEvent.click(screen.getAllByText(/Encryption Controls Verified/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/SC-28 fully implemented/).length,
+      ).toBeGreaterThan(0),
+    );
   });
 });
 
