@@ -791,6 +791,92 @@ describe("<PoamPage /> edge cases", () => {
       screen.getAllByText(/POAM-001/).length,
     ).toBeGreaterThan(0);
   });
+
+  it("expands the ControlDetailPanel in a finding detail view", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/AC-1 Policy Gap/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Control Details/).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/Control Details/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Statement|Guidance|Parameters|Policy and Procedures/i).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates from POA&M item detail to a related risk via cross-link", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Strengthen Password Policy/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Credential Stuffing Exposure/).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/Credential Stuffing Exposure/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Weak passwords enable credential-stuffing attacks/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates from POA&M item detail to a related finding via cross-link", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Strengthen Password Policy/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/AC-1 Policy Gap/).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/AC-1 Policy Gap/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Password policy does not meet AC-1 requirements/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates from POA&M item detail to a related observation via cross-link", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Strengthen Password Policy/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Weak Password Policy/).length).toBeGreaterThan(0),
+    );
+    // Click the observation row in the related observations section
+    const obsLinks = screen.queryAllByText(/Weak Password Policy/);
+    fireEvent.click(obsLinks[obsLinks.length - 1]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Minimum password length is 8/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates from Risk detail to a related observation via cross-link", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Credential Stuffing Exposure/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Related Observations/).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/Weak Password Policy/).slice(-1)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Minimum password length is 8/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates from Finding detail to a related observation via cross-link", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/AC-1 Policy Gap/)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Related Observations/).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/Weak Password Policy/).slice(-1)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Minimum password length is 8/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -813,6 +899,49 @@ describe("<PoamPage /> loaded — mobile", () => {
       expect(
         screen.queryAllByText(/Update policy to require 12/).length,
       ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates mobile Risks section and drills into a risk", async () => {
+    await renderLoaded({ mobile: true });
+    fireEvent.click(screen.getByText(/Risks \(\d+\)/));
+    fireEvent.click(screen.getAllByText(/Credential Stuffing Exposure/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Weak passwords enable credential-stuffing attacks/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates mobile Findings section and drills into a finding", async () => {
+    await renderLoaded({ mobile: true });
+    fireEvent.click(screen.getByText(/Findings \(\d+\)/));
+    fireEvent.click(screen.getAllByText(/AC-1 Policy Gap/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Password policy does not meet AC-1 requirements/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("navigates mobile Observations section and drills into an observation", async () => {
+    await renderLoaded({ mobile: true });
+    fireEvent.click(screen.getByText(/Observations \(\d+\)/));
+    fireEvent.click(screen.getAllByText(/Weak Password Policy/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Minimum password length is 8/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("mobile back button returns from section list to root menu", async () => {
+    await renderLoaded({ mobile: true });
+    fireEvent.click(screen.getByText(/Risks \(\d+\)/));
+    expect(screen.queryAllByText(/Credential Stuffing Exposure/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText(/← Back/));
+    await waitFor(() =>
+      expect(screen.queryAllByText(/POA&M Items/).length).toBeGreaterThan(0),
     );
   });
 });
