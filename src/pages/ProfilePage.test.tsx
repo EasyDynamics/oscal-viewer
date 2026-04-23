@@ -75,6 +75,12 @@ const CATALOG: Catalog = {
           id: "ia-5",
           title: "Authenticator Management",
           props: [{ name: "label", value: "IA-5" }],
+          params: [{ id: "ia-5_prm_1", label: "organization-defined frequency" }],
+          parts: [
+            { id: "ia-5-stmt", name: "statement", prose: "IA-5 statement." },
+            { id: "ia-5-gdn", name: "guidance", prose: "IA-5 original guidance." },
+            { id: "ia-5-ex", name: "example", prose: "IA-5 example prose." },
+          ],
         },
       ],
     },
@@ -127,6 +133,7 @@ const RICH_PROFILE: Profile = {
   modify: {
     "set-parameters": [
       { "param-id": "ac-1_prm_1", values: ["senior official"] },
+      { "param-id": "ia-5_prm_1", values: ["every 60 days"] },
     ],
     alters: [
       {
@@ -136,15 +143,31 @@ const RICH_PROFILE: Profile = {
             name: "statement",
             by: "after",
             position: "ending",
-            parts: [
-              {
-                name: "statement",
-                prose: "Added organization-specific guidance.",
-              },
-            ],
+            parts: [{ name: "statement", prose: "Added organization-specific guidance." }],
           },
         ],
         removes: [{ "name-ref": "guidance" }],
+      },
+      {
+        "control-id": "ac-1.1",
+        adds: [
+          {
+            by: "before",
+            position: "starting",
+            parts: [{ name: "statement", prose: "Enhancement prefix prose." }],
+          },
+        ],
+      },
+      {
+        "control-id": "ia-5",
+        adds: [
+          {
+            by: "id",
+            position: "before",
+            parts: [{ name: "guidance", prose: "IA-5 added guidance." }],
+          },
+        ],
+        removes: [{ "name-ref": "example" }, { "by-id": "doesnt-matter-id" }],
       },
     ],
   },
@@ -482,6 +505,52 @@ describe("<ProfilePage /> loaded — desktop", () => {
     expect(
       screen.getAllByText(/Access Control/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("drills into an enhancement control detail (ac-1.1)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Access Control/)[0]);
+    // Expand the parent control to reveal enhancements
+    fireEvent.click(screen.getAllByText("AC-1")[0]);
+    fireEvent.click(screen.getAllByText(/AC-1\(1\)/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Enhancement prefix prose/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("drills into an IA family control detail and shows modify alter prose", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Identification and Authentication/)[0]);
+    fireEvent.click(screen.getAllByText("IA-5")[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/IA-5 added guidance/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders modified parameter value from profile overrides (every 60 days)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Identification and Authentication/)[0]);
+    fireEvent.click(screen.getAllByText("IA-5")[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/every 60 days/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("expand/collapse persists sidebar state", async () => {
+    await renderLoaded();
+    const family = screen.getAllByText(/Access Control/)[0];
+    fireEvent.click(family);
+    const titleCountAfterClick = screen.getAllByText(/Access Control/).length;
+    fireEvent.click(family);
+    expect(
+      screen.getAllByText(/Access Control/).length,
+    ).toBe(titleCountAfterClick);
   });
 });
 
