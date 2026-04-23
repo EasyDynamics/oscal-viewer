@@ -91,7 +91,14 @@ Organised into three buckets:
 - **Sidebar trees default to collapsed.** CatalogPage and
   ProfilePage collapse all groups/families; ComponentDefinitionPage
   collapses every parent node (components, control-implementations).
-  Tests have to click chevrons to reveal children.
+  **PoamPage** has mixed defaults — `sec-poam-items` and `sec-risks`
+  open; `sec-observations` collapsed; `sec-findings` open only if
+  findings exist. Tests have to click chevrons to reveal children
+  in the collapsed sections.
+- **POA&M mobile uses section-branch drill-down**, not a flat list.
+  The root shows "POA&M Items (N)", "Risks (N)", "Findings (N)",
+  "Observations (N)" as branch rows; you click a section first,
+  then the item inside.
 - **`<Outlet />` tests need Route nesting.** Layout tests wrap in
   `<MemoryRouter><Routes><Route element={<Layout/>}><Route …/></Routes></MemoryRouter>`
   to get `Outlet` to mount a child page. Plain `<Layout/>` renders
