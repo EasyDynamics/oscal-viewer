@@ -86,11 +86,22 @@ tokens (the user, who doesn't usually care about cost, noted it).
 Retry on sonnet with pre-specified test code in the prompt (so the agent
 was mostly mechanical): 12 tool uses, 95 seconds, clean PR. Worked.
 
+Scaled up after the retry: 5 more sonnet agents with tight pre-specified
+prompts. **All 5 succeeded.** 7 / 7 total on sonnet. Wall-clock ranged
+from 1.5 min (a light task) to 49 min (one with real DOM debugging).
+Combined, they moved seven viewer pages from ~65-80 % lines coverage to
+~78-89 % in one overlapping window.
+
 **Takeaway:** when you spin up sub-agents for parallel work, give them
 executable tasks not open-ended analysis. Pre-specify the fixture edits
 and the test code. Use sonnet unless you need judgment. Start with 2-3,
 validate, then scale. The user gave explicit permission: "Sonnet is a
 very good model, feel free to use it."
+
+Full recipe (model, prompt structure, observed token/time costs,
+worktree quirks, silent-pass patterns to watch) is in `quirks.md`
+under "Parallel agent dispatch — what actually works". Read that
+before dispatching a fleet.
 
 ## The codebase
 

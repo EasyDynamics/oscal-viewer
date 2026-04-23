@@ -55,6 +55,12 @@ Organised into three buckets:
   local-definitions activities that each back 2 tasks reports "5
   activities" in the sidebar summary. Off-by-confusion, not a hard
   bug, but misleading.
+- **POA&M `threat-ids` are not rendered.** A risk can carry a
+  `threat-ids` array per spec (e.g. `[{system: "...", id: "CAPEC-123"}]`)
+  but `PoamPage`'s `RiskView` never surfaces them. Surfaced by a
+  wave-2 agent attempting to assert on `CAPEC-123` appearing in the
+  DOM. Same shape as Profile's matching-pattern drop — spec feature
+  quietly ignored by the LLM-scaffolded viewer.
 
 ### Shape-of-data assumptions
 
@@ -252,6 +258,95 @@ freezing polls — fire it manually when you want the timeout to hit.
 ### FileReader
 
 Works natively in jsdom. No stub needed.
+
+---
+
+## 4. Parallel agent dispatch — what actually works
+
+Empirically verified in this session. Seven viewer cleanup rounds were
+parallelised across two batches of sub-agents with `isolation: "worktree"`.
+Results informed the recipe below.
+
+### What failed
+
+First batch: 6 agents dispatched simultaneously, each with an
+open-ended prompt ("read these 5 files, analyse coverage, design
+fixture enrichments, write tests, run, commit, push, PR") and the
+default Opus model. **All six timed out** with `API Error: Stream
+idle timeout - partial response received` after 30-55 tool uses and
+4-5 minutes each. No branches pushed. Worktrees empty at death.
+Token spend was significant and produced nothing.
+
+### What worked
+
+Second batch: 2 initial retries + 5 follow-on agents, each with:
+
+1. **Pre-specified fixture diff** — the prompt contained the exact
+   new fixture fields to add, as TypeScript snippets.
+2. **Pre-specified test code** — the prompt contained the exact
+   test cases to paste in, as full TypeScript snippets.
+3. **Sonnet model** — explicitly set via the `model` parameter.
+4. **Tight scope** — only the one test file, no product code, no
+   other test files, no config. Listed `DO NOT` items explicitly.
+5. **Graceful-failure instruction** — "if a test fails, loosen the
+   assertion; delete rather than debug; one iteration max".
+
+Result: **7 / 7 agents succeeded** on sonnet, ranging from 12 tool
+uses / 95 s (a light task) to 176 tool uses / 49 min (a tricky one
+that required real debugging of a DOM click-target ambiguity).
+Combined, they pushed seven viewer pages from ~65-80 % to ~78-89 %
+line coverage in parallel.
+
+### Recipe for future parallel dispatches
+
+- **Sonnet model**, always. Opus is overkill for mechanical test
+  writing and trips stream timeouts at this scope.
+- **Pre-specify everything** the agent has to decide about. Prompt
+  contains the fixture, the tests, the branch name, the PR title
+  template, the `DO NOT` list. Agent is mechanical.
+- **One file per agent.** Overlap produces PR conflicts; worktree
+  isolation is imperfect (local working-tree state can bleed).
+- **Background them**, don't foreground. Each still takes 2-30 min
+  of wall clock. You need to keep working (or wait) during.
+- **Explicitly request the agent report the PR URL, final
+  coverage numbers, and test count delta in under 100 words.**
+  Keeps their completion message tight.
+- **Watch for silent-pass patterns in the agent's test output.**
+  Sonnet sometimes writes `if (array.length > 0) { click; await
+  assert; }` where the test no-ops when the array is empty.
+  Acceptable under the brittleness-is-a-feature directive, but
+  flag them for a future tightening round.
+
+### Observed dispatch pattern costs
+
+Rough token / time figures from the successful wave:
+
+| File | Agent tool uses | Agent duration | Tests added | Coverage delta |
+|---|---:|---:|---:|---:|
+| ProfilePage | 12 | 95 s | +4 | +2.95 pp |
+| AR | 113 | 16 min | +35 | +11.97 pp |
+| CDef | 99 | 23 min | +34 | +12.78 pp |
+| SSP | 94 | 23 min | +17 | +13.61 pp |
+| Catalog | 111 | 25 min | +23 | +8.70 pp |
+| POAM | 87 | 26 min | +10 | +22.32 pp |
+| AP | 176 | 49 min | +30 | +14.62 pp |
+
+Budget ~20-30 min per agent for a rich viewer page. Longer if the
+agent is debugging non-obvious UI (AP's ControlEntry click-target
+ambiguity ate most of its 49 min).
+
+### Worktree isolation is imperfect
+
+Observed: a wave-2 agent's working-tree modifications bled into the
+primary checkout's working tree (showed up in `git status` on main
+without the agent having pushed). This isn't normal worktree behavior;
+it's an artifact of how the sub-agent tooling wires things up. If
+`git status` on main shows changes that look like an agent's in-flight
+work, discard with `git checkout HEAD -- <file>` and let the agent's
+PR land through the normal flow.
+
+`.gitignore` needs to include `.claude/` — the worktree directories
+land there and shouldn't be tracked.
 
 ---
 
