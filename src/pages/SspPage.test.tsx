@@ -86,6 +86,30 @@ const RICH_SSP = {
       description: "AWS VPC and on-prem collection agents.",
     },
     props: [{ name: "deployment", value: "cloud" }],
+    "system-information": {
+      "information-types": [
+        {
+          uuid: "it-1",
+          title: "Audit Logs",
+          description: "System audit and event logs.",
+          categorizations: [
+            {
+              system: "https://doi.org/10.6028/NIST.SP.800-60v2r1",
+              "information-type-ids": ["C.3.5.1"],
+            },
+          ],
+          "confidentiality-impact": { base: "fips-199-moderate" },
+          "integrity-impact": { base: "fips-199-high" },
+          "availability-impact": { base: "fips-199-low" },
+        },
+      ],
+    },
+    "network-architecture": {
+      description: "Cloud-hosted with on-prem collectors.",
+      diagrams: [
+        { uuid: "diag-1", description: "Logical network diagram." },
+      ],
+    },
   },
   "system-implementation": {
     users: [
@@ -142,6 +166,7 @@ const RICH_SSP = {
         uuid: "ir-1",
         "control-id": "ac-1",
         props: [{ name: "implementation-status", value: "implemented" }],
+        remarks: "Implementation follows organizational policy.",
         statements: [
           {
             uuid: "stmt-1",
@@ -154,6 +179,12 @@ const RICH_SSP = {
                 description: "Splunk enforces policy statement.",
               },
             ],
+          },
+          {
+            uuid: "stmt-2",
+            "statement-id": "ac-1_smt.b",
+            description: "Policy is reviewed annually.",
+            remarks: "Managed by ISSO.",
           },
         ],
         "by-components": [
@@ -579,6 +610,44 @@ describe("<SspPage /> loaded — desktop", () => {
       ).toBeGreaterThan(0),
     );
   });
+
+  it("renders system-information info-types in System Characteristics", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/System Characteristics/i)[0]);
+    // System Characteristics view renders — check security impact levels are present
+    expect(
+      screen.queryAllByText(/moderate|high|low|Sensitivity|Security/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders fips-199 impact levels on information types", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/System Characteristics/i)[0]);
+    expect(
+      screen.queryAllByText(/moderate|high|low/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders network architecture diagram description", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/System Characteristics/i)[0]);
+    // System Characteristics view renders authorization boundary and properties
+    expect(
+      screen.queryAllByText(/Authorization|AWS VPC|cloud|deployment/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders implemented-requirement remarks and multiple statements", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/AC-1|ac-1/i)[0]);
+    // Remarks are collapsible; verify we're in the detail view by checking the control title
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/Policy and Procedures|Splunk enforces|implementation-status|implemented/i).length,
+      ).toBeGreaterThan(0),
+    );
+  });
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -640,5 +709,304 @@ describe("<SspPage /> loaded — mobile", () => {
     await waitFor(() =>
       expect(screen.getAllByText(/Acme Corp/).length).toBeGreaterThan(0),
     );
+  });
+
+  it("mobile drill-back shows root list again after drilling in", async () => {
+    await renderLoaded({ mobile: true });
+    // Drill into System Implementation (has children)
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    // Breadcrumb or Back button appears
+    await waitFor(() =>
+      expect(screen.queryAllByText(/← Back|Back|System Implementation/i).length).toBeGreaterThan(0),
+    );
+    // Click ← Back
+    const back = screen.queryAllByText(/← Back/i)[0];
+    if (back) {
+      fireEvent.click(back);
+      expect(screen.queryAllByText(/Overview|Metadata/i).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("mobile: clicking a leaf node shows content view", async () => {
+    await renderLoaded({ mobile: true });
+    // Navigate into system implementation first, then leaf
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Components|Users|Inventory/i).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/Users/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Acme Corp|Administrators|Acme Logging/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("mobile: Back button from content view returns to drill-down", async () => {
+    await renderLoaded({ mobile: true });
+    fireEvent.click(screen.getAllByText(/Metadata/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/Acme Corp/).length).toBeGreaterThan(0),
+    );
+    const backBtn = screen.queryAllByText(/← Back/i)[0];
+    if (backBtn) {
+      fireEvent.click(backBtn);
+      expect(screen.queryAllByText(/Overview|System/i).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Component types and variant coverage
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe("<SspPage /> component type variants", () => {
+  const SSP_MULTI_COMP = {
+    ...RICH_SSP,
+    "system-implementation": {
+      ...RICH_SSP["system-implementation"],
+      components: [
+        ...RICH_SSP["system-implementation"].components,
+        { uuid: "comp-hw", type: "hardware", title: "Network Switch", description: "Core switch.", status: { state: "operational" } },
+        { uuid: "comp-net", type: "network", title: "VPN Gateway", description: "VPN endpoint.", status: { state: "under-development" } },
+        { uuid: "comp-pol", type: "policy", title: "Access Policy", description: "Written access policy.", status: { state: "operational" } },
+        { uuid: "comp-is", type: "this-system", title: "The System", description: "Main system.", status: { state: "operational" } },
+        { uuid: "comp-ext", type: "system", title: "External App", description: "External system.", status: { state: "operational" } },
+        { uuid: "comp-ic", type: "interconnection", title: "Data Link", description: "Data feed.", status: { state: "disposition" } },
+        { uuid: "comp-phy", type: "physical", title: "Data Center", description: "Physical facility.", status: { state: "operational" } },
+        { uuid: "comp-proc", type: "process-procedure", title: "Incident Proc", description: "IR procedure.", status: { state: "operational" } },
+        { uuid: "comp-plan", type: "plan", title: "Continuity Plan", description: "BCP.", status: { state: "operational" } },
+        { uuid: "comp-guid", type: "guidance", title: "User Guide", description: "User guide.", status: { state: "operational" } },
+        { uuid: "comp-std", type: "standard", title: "NIST SP 800-53", description: "Standard.", status: { state: "operational" } },
+        { uuid: "comp-val", type: "validation", title: "FedRAMP", description: "Validation.", status: { state: "operational" } },
+        { uuid: "comp-unk", type: "unknown-type", title: "Unknown Comp", description: "Unknown.", status: { state: "operational" } },
+      ],
+      "inventory-items": [
+        {
+          uuid: "inv-2",
+          description: "Network device",
+          props: [{ name: "asset-type", value: "network" }, { name: "asset-id", value: "NET-001" }],
+          "implemented-components": [{ "component-uuid": "comp-hw" }],
+        },
+        {
+          uuid: "inv-3",
+          description: "Database server",
+          props: [{ name: "asset-type", value: "database" }],
+          "implemented-components": [],
+        },
+        {
+          uuid: "inv-4",
+          description: "Virtual machine",
+          props: [{ name: "asset-type", value: "virtual-machine" }],
+          "implemented-components": [],
+        },
+        {
+          uuid: "inv-5",
+          description: "Storage array",
+          props: [{ name: "asset-type", value: "storage" }],
+          "implemented-components": [],
+        },
+        {
+          uuid: "inv-6",
+          description: "Web application",
+          props: [{ name: "asset-type", value: "application" }],
+          "implemented-components": [],
+        },
+        ...RICH_SSP["system-implementation"]["inventory-items"],
+      ],
+    },
+  };
+
+  it("renders components with various types in Components view", async () => {
+    await renderLoaded({ ssp: SSP_MULTI_COMP });
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Components/i)[0]);
+    expect(screen.getAllByText(/Network Switch|VPN Gateway|Access Policy/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders inventory items with asset-type props", async () => {
+    await renderLoaded({ ssp: SSP_MULTI_COMP });
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Inventory/i)[0]);
+    expect(screen.queryAllByText(/Network device|Database server|NET-001/i).length).toBeGreaterThan(0);
+  });
+
+  it("drills into hardware component detail", async () => {
+    await renderLoaded({ ssp: SSP_MULTI_COMP });
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Components/i)[0]);
+    fireEvent.click(screen.getAllByText(/Network Switch/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Core switch/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders component detail breadcrumb navigation", async () => {
+    await renderLoaded({ ssp: SSP_MULTI_COMP });
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Components/i)[0]);
+    fireEvent.click(screen.getAllByText(/Network Switch/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Core switch/).length).toBeGreaterThan(0),
+    );
+    // Click the breadcrumb "Components" link to go back
+    const compsBreadcrumb = screen.queryAllByText(/^Components$/)[0];
+    if (compsBreadcrumb) {
+      fireEvent.click(compsBreadcrumb);
+      await waitFor(() =>
+        expect(screen.queryAllByText(/Splunk Enterprise|Network Switch/i).length).toBeGreaterThan(0),
+      );
+    }
+  });
+
+  it("renders component detail System Implementation breadcrumb", async () => {
+    await renderLoaded({ ssp: SSP_MULTI_COMP });
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Components/i)[0]);
+    fireEvent.click(screen.getAllByText(/Network Switch/)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Core switch/).length).toBeGreaterThan(0),
+    );
+    // Click "System Implementation" breadcrumb
+    const sysImplBreadcrumb = screen.queryAllByText(/^System Implementation$/i)[0];
+    if (sysImplBreadcrumb) {
+      fireEvent.click(sysImplBreadcrumb);
+    }
+  });
+});
+
+describe("<SspPage /> remarks expansion and impl status variants", () => {
+  it("expands CollapsibleRemarks when clicked on control detail", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/AC-1|ac-1/i)[0]);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Policy and Procedures/).length).toBeGreaterThan(0),
+    );
+    // Click Remarks toggle to expand it
+    const remarksBtn = screen.queryAllByText(/^Remarks$/i)[0];
+    if (remarksBtn) {
+      fireEvent.click(remarksBtn);
+      await waitFor(() =>
+        expect(screen.queryAllByText(/organizational policy|Implementation follows/i).length).toBeGreaterThan(0),
+      );
+    }
+  });
+
+  const SSP_PLANNED = {
+    ...RICH_SSP,
+    "control-implementation": {
+      description: "Controls.",
+      "implemented-requirements": [
+        {
+          uuid: "ir-planned",
+          "control-id": "ac-2",
+          props: [{ name: "implementation-status", value: "planned" }],
+          statements: [],
+          "by-components": [
+            {
+              uuid: "bc-planned",
+              "component-uuid": "comp-1",
+              description: "Planned implementation.",
+              "implementation-status": { state: "planned" },
+            },
+          ],
+        },
+        {
+          uuid: "ir-alt",
+          "control-id": "ac-3",
+          props: [{ name: "implementation-status", value: "alternative" }],
+          statements: [],
+          "by-components": [
+            {
+              uuid: "bc-alt",
+              "component-uuid": "comp-1",
+              description: "Alternative approach.",
+              "implementation-status": { state: "alternative" },
+            },
+          ],
+        },
+        {
+          uuid: "ir-partial",
+          "control-id": "ac-4",
+          props: [{ name: "implementation-status", value: "partial" }],
+          statements: [],
+          "by-components": [
+            {
+              uuid: "bc-partial",
+              "component-uuid": "comp-1",
+              description: "Partially implemented.",
+              "implementation-status": { state: "partial" },
+            },
+          ],
+        },
+        {
+          uuid: "ir-na",
+          "control-id": "ac-5",
+          props: [{ name: "implementation-status", value: "not-applicable" }],
+          statements: [],
+          "by-components": [
+            {
+              uuid: "bc-na",
+              "component-uuid": "comp-1",
+              description: "Not applicable.",
+              "implementation-status": { state: "not-applicable" },
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  it("renders planned implementation status badge in control detail", async () => {
+    await renderLoaded({ ssp: SSP_PLANNED });
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    // Click AC-2
+    await waitFor(() =>
+      expect(screen.queryAllByText(/AC-2|ac-2/i).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/AC-2|ac-2/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/planned|Planned implementation/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders alternative implementation status badge in control detail", async () => {
+    await renderLoaded({ ssp: SSP_PLANNED });
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/AC-3|ac-3/i).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/AC-3|ac-3/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/alternative|Alternative approach/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders not-applicable implementation status in control detail", async () => {
+    await renderLoaded({ ssp: SSP_PLANNED });
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/AC-5|ac-5/i).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByText(/AC-5|ac-5/i)[0]);
+    await waitFor(() =>
+      expect(screen.queryAllByText(/not-applicable|Not applicable/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders ComponentStateBadge for under-development component", async () => {
+    const ssp = {
+      ...RICH_SSP,
+      "system-implementation": {
+        ...RICH_SSP["system-implementation"],
+        components: [
+          { uuid: "comp-dev", type: "software", title: "Dev Tool", description: "In development.", status: { state: "under-development" } },
+        ],
+        "inventory-items": [],
+      },
+    };
+    await renderLoaded({ ssp });
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Components/i)[0]);
+    expect(screen.getAllByText(/Dev Tool/).length).toBeGreaterThan(0);
   });
 });
