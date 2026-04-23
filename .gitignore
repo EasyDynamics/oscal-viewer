@@ -13,6 +13,9 @@ dist-ssr
 coverage
 *.local
 
+# Claude Code agent worktrees (local parallel-run isolation dirs)
+.claude/
+
 # Environment overrides (keep .env and .env.example tracked)
 .env*.local
 
