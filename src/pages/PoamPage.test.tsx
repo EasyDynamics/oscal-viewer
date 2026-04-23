@@ -37,9 +37,48 @@ const CATALOG: Catalog = {
       controls: [
         {
           id: "ac-1",
+          class: "SP800-53",
           title: "Policy and Procedures",
           props: [{ name: "label", value: "AC-1" }],
-          parts: [{ id: "ac-1-stmt", name: "statement", prose: "AC-1 body." }],
+          params: [
+            {
+              id: "ac-1_prm_1",
+              label: "organization-defined policy",
+            },
+            {
+              id: "ac-1_prm_2",
+              select: { "how-many": "one-or-more", choice: ["annually", "quarterly"] },
+            },
+          ],
+          parts: [
+            {
+              id: "ac-1-stmt",
+              name: "statement",
+              prose: "AC-1 body uses {{ insert: param, ac-1_prm_1 }} and {{ insert: param, ac-1_prm_2 }}.",
+              parts: [
+                {
+                  id: "ac-1-stmt-a",
+                  name: "item",
+                  props: [{ name: "label", value: "a." }],
+                  prose: "Sub-statement a.",
+                  links: [
+                    { href: "https://ex.com/doc", text: "Doc", "resource-fragment": "frag-1" },
+                    { href: "#anchor", text: "Anchor" },
+                  ],
+                },
+              ],
+            },
+            { id: "ac-1-guide", name: "guidance", prose: "AC-1 guidance text." },
+            { id: "ac-1-ex", name: "example", prose: "Example text." },
+            { id: "ac-1-assess", name: "assessment-method", prose: "Assess via review." },
+          ],
+          controls: [
+            {
+              id: "ac-1.1",
+              title: "Automated Tooling",
+              props: [{ name: "label", value: "AC-1(1)" }],
+            },
+          ],
         },
       ],
     },
@@ -55,9 +94,31 @@ const RICH_POAM = {
     published: "2026-02-15T00:00:00Z",
     "oscal-version": "1.1.2",
     parties: [
-      { uuid: "party-1", type: "organization", name: "Acme Corp" },
+      { uuid: "party-1", type: "organization", name: "Acme Corp", "short-name": "ACME" },
+      { uuid: "party-2", type: "person", name: "Alice Adams" },
     ],
-    roles: [{ id: "owner", title: "System Owner" }],
+    roles: [
+      { id: "owner", title: "System Owner" },
+      { id: "assessor", title: "Assessor" },
+    ],
+    "responsible-parties": [
+      { "role-id": "owner", "party-uuids": ["party-1"] },
+    ],
+    props: [{ name: "marking", value: "CUI" }],
+    revisions: [
+      {
+        title: "Initial draft",
+        version: "0.9",
+        "last-modified": "2026-01-10T00:00:00Z",
+        "oscal-version": "1.1.2",
+        remarks: "Initial draft release.",
+      },
+      {
+        // no title → falls back to "Revision <version>"
+        version: "0.8",
+        "last-modified": "2025-12-15T00:00:00Z",
+      },
+    ],
   },
   "import-ssp": { href: "#ssp-res" },
   "system-id": {
@@ -70,16 +131,29 @@ const RICH_POAM = {
       title: "Weak Password Policy",
       description: "Minimum password length is 8, should be 12.",
       methods: ["EXAMINE"],
+      types: ["finding"],
       collected: "2026-02-01T00:00:00Z",
+      expires: "2027-02-01T00:00:00Z",
+      remarks: "Observed during a manual configuration review.",
+      origins: [
+        { actors: [{ type: "party", "actor-uuid": "party-1" }] },
+      ],
+      subjects: [
+        { type: "component", "subject-uuid": "sub-1" },
+        { type: "component", "subject-uuid": "sub-2" },
+      ],
+      props: [{ name: "severity", value: "high" }],
+      links: [{ href: "https://ex.com/obs", text: "Obs link" }],
       "relevant-evidence": [
         { href: "https://ex.com/evidence", description: "Scan report" },
+        { href: "https://ex.com/evidence2" },
       ],
     },
     {
       uuid: "obs-2",
       title: "Unencrypted Backup",
       description: "Daily backups lack encryption at rest.",
-      methods: ["TEST"],
+      methods: ["TEST", "INTERVIEW"],
       collected: "2026-02-05T00:00:00Z",
     },
   ],
@@ -88,7 +162,58 @@ const RICH_POAM = {
       uuid: "risk-1",
       title: "Credential Stuffing Exposure",
       description: "Weak passwords enable credential-stuffing attacks.",
+      statement: "An attacker can brute-force accounts given weak password rules.",
       status: "open",
+      deadline: "2025-01-01T00:00:00Z", // deliberately in the past → overdue
+      "threat-ids": [
+        { system: "http://fedramp.gov/ns/oscal", id: "T-001" },
+      ],
+      characterizations: [
+        {
+          origin: { actors: [{ type: "party", "actor-uuid": "party-1" }] },
+          facets: [
+            { name: "likelihood", system: "oscal", value: "high" },
+            { name: "impact", system: "oscal", value: "moderate" },
+          ],
+        },
+      ],
+      "mitigating-factors": [
+        { uuid: "mf-1", description: "Account lockouts reduce exploitability." },
+      ],
+      remediations: [
+        {
+          uuid: "rem-1",
+          lifecycle: "planned",
+          title: "Password Policy Overhaul",
+          description: "Rewrite the password policy and roll out to all systems.",
+          props: [
+            { name: "type", value: "mitigation" },
+          ],
+          "responsible-roles": [{ "role-id": "owner" }],
+          tasks: [
+            {
+              uuid: "task-1",
+              type: "milestone",
+              title: "Draft new policy",
+              description: "Write the new password policy document.",
+              timing: {
+                "within-date-range": { start: "2026-03-01T00:00:00Z", end: "2026-04-01T00:00:00Z" },
+              },
+              "responsible-roles": [{ "role-id": "owner" }],
+              dependencies: [{ "task-uuid": "task-dep" }],
+            },
+            {
+              uuid: "task-2",
+              type: "action",
+              title: "Publish policy",
+              description: "Communicate new rules to end users.",
+              timing: {
+                "on-date": { date: "2026-04-15T00:00:00Z" },
+              },
+            },
+          ],
+        },
+      ],
       "related-observations": [{ "observation-uuid": "obs-1" }],
       "risk-log": {
         entries: [
@@ -97,15 +222,27 @@ const RICH_POAM = {
             title: "Risk identified",
             "start": "2026-02-10T00:00:00Z",
             description: "Initial logging.",
+            "logged-by": [{ "party-uuid": "party-1" }],
+            "related-responses": [{ "response-uuid": "rem-1" }],
           },
         ],
       },
+      props: [{ name: "severity", value: "high" }],
+      links: [{ href: "https://ex.com/risk", text: "Risk link" }],
     },
     {
       uuid: "risk-2",
       title: "Data at Rest Exposure",
       description: "Unencrypted backups risk data disclosure.",
+      statement: "Theft of backup tapes could expose customer records.",
       status: "investigating",
+    },
+    {
+      uuid: "risk-3",
+      title: "Closed Legacy Risk",
+      description: "Previously remediated concern.",
+      statement: "Closed; retained for audit trail.",
+      status: "closed",
     },
   ],
   findings: [
@@ -116,10 +253,30 @@ const RICH_POAM = {
       target: {
         type: "objective-id",
         "target-id": "ac-1",
-        status: { state: "not-satisfied" },
+        status: {
+          state: "not-satisfied",
+          reason: "insufficient",
+          remarks: "Gap identified during review.",
+        },
       },
+      "implementation-statement-uuid": "impl-1",
+      origins: [
+        { actors: [{ type: "party", "actor-uuid": "party-1" }] },
+      ],
       "related-observations": [{ "observation-uuid": "obs-1" }],
       "related-risks": [{ "risk-uuid": "risk-1" }],
+      props: [{ name: "severity", value: "high" }],
+      links: [{ href: "https://ex.com/finding", text: "Finding link" }],
+    },
+    {
+      uuid: "find-2",
+      title: "Backup Control Satisfied",
+      description: "Backup control meets policy.",
+      target: {
+        type: "statement-id",
+        "target-id": "cp-9",
+        status: { state: "satisfied" },
+      },
     },
   ],
   "poam-items": [
@@ -127,9 +284,31 @@ const RICH_POAM = {
       uuid: "pi-1",
       title: "Strengthen Password Policy",
       description: "Update policy to require 12+ character passwords.",
+      props: [{ name: "poam-id", value: "POAM-100" }],
+      "responsible-roles": [{ "role-id": "owner" }],
+      "required-assets": [
+        {
+          uuid: "ra-1",
+          title: "Updated policy doc",
+          description: "New password policy document.",
+        },
+      ],
+      "remediation-tasks": [
+        {
+          uuid: "rt-1",
+          type: "milestone",
+          title: "Draft policy",
+          "responsible-roles": [{ "role-id": "owner" }],
+          dependencies: [{ "task-uuid": "task-dep" }],
+        },
+      ],
+      origins: [
+        { actors: [{ type: "party", "actor-uuid": "party-1" }] },
+      ],
       "related-findings": [{ "finding-uuid": "find-1" }],
       "related-observations": [{ "observation-uuid": "obs-1" }],
       "related-risks": [{ "risk-uuid": "risk-1" }],
+      links: [{ href: "https://ex.com/item", text: "Item link" }],
     },
     {
       uuid: "pi-2",
@@ -144,6 +323,7 @@ const RICH_POAM = {
       {
         uuid: "ssp-res",
         title: "Source SSP",
+        remarks: "Imported SSP reference.",
         rlinks: [
           { href: "https://example.com/ssp.json", "media-type": "application/json" },
         ],
