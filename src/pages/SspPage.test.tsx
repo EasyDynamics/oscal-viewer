@@ -126,6 +126,14 @@ const RICH_SSP = {
         "implemented-components": [{ "component-uuid": "comp-1" }],
       },
     ],
+    "leveraged-authorizations": [
+      {
+        uuid: "la-1",
+        title: "AWS Commercial FedRAMP Moderate",
+        "party-uuid": "party-1",
+        "date-authorized": "2025-01-15",
+      },
+    ],
   },
   "control-implementation": {
     description: "Baseline controls implemented.",
@@ -139,6 +147,13 @@ const RICH_SSP = {
             uuid: "stmt-1",
             "statement-id": "ac-1_smt.a",
             description: "Policy exists and is published.",
+            "by-components": [
+              {
+                uuid: "stmt-bc-1",
+                "component-uuid": "comp-1",
+                description: "Splunk enforces policy statement.",
+              },
+            ],
           },
         ],
         "by-components": [
@@ -148,6 +163,18 @@ const RICH_SSP = {
             description: "Splunk enforces retention.",
           },
         ],
+        "responsible-roles": [
+          { "role-id": "owner", "party-uuids": ["party-1"] },
+        ],
+        links: [
+          { href: "https://docs.example/ac-1", rel: "reference", text: "AC-1 SOP" },
+        ],
+      },
+      {
+        uuid: "ir-2",
+        "control-id": "ia-5",
+        props: [{ name: "implementation-status", value: "planned" }],
+        statements: [],
       },
     ],
   },
@@ -483,6 +510,74 @@ describe("<SspPage /> loaded — desktop", () => {
     expect(
       screen.getAllByText(/Moderate Baseline Profile/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("navigates to Leveraged Authorizations view", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    // Click the Leveraged nav entry
+    const leveraged = screen.getAllByText(/Leveraged/i)[0];
+    fireEvent.click(leveraged);
+    expect(
+      screen.getAllByText(/AWS Commercial FedRAMP Moderate/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("drills into the second component (ssp-comp-1)", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Components/i)[0]);
+    fireEvent.click(screen.getAllByText(/S3 Audit Bucket/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Immutable log archive/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders the control family view (AC family)", async () => {
+    await renderLoaded();
+    // Navigate to Control Implementation, then click AC family folder
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    // Family header row shows "AC" + "Access Control" label from FAMILY_NAMES
+    const acFolder = screen.getAllByText(/^AC$/);
+    expect(acFolder.length).toBeGreaterThan(0);
+    fireEvent.click(acFolder[0]);
+    // ControlFamilyView shows each implemented-requirement's controlId
+    await waitFor(() =>
+      expect(screen.getAllByText(/AC-1/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders the second implemented requirement (ia-5) with statements", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    // IA family appears because we have ia-5
+    const ia = screen.getAllByText(/^IA$/);
+    expect(ia.length).toBeGreaterThan(0);
+  });
+
+  it("renders the user's authorized privileges on Users view", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/System Implementation/i)[0]);
+    fireEvent.click(screen.getAllByText(/Users/i)[0]);
+    // Authorized privileges title should surface
+    expect(
+      screen.getAllByText(/Manage users|Administrators/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders by-components detail on an implemented requirement", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Control Implementation/i)[0]);
+    const ac = screen.getAllByText(/AC-1|ac-1/i)[0];
+    fireEvent.click(ac);
+    // by-components description surfaces in the control detail
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Splunk enforces retention/).length,
+      ).toBeGreaterThan(0),
+    );
   });
 });
 

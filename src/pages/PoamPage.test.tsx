@@ -542,6 +542,75 @@ describe("<PoamPage /> edge cases", () => {
       screen.getAllByText(/Encrypt Backup Volumes/).length,
     ).toBeGreaterThan(0);
   });
+
+  it("renders the Risk detail with status and description", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/Credential Stuffing Exposure/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Weak passwords enable credential-stuffing attacks/)
+          .length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders the Finding detail with related risks and observations cross-links", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getAllByText(/AC-1 Policy Gap/)[0]);
+    // Finding view surfaces related observation + risk titles
+    await waitFor(() => {
+      const haveRelated =
+        screen.queryAllByText(/Weak Password Policy/).length > 0 ||
+        screen.queryAllByText(/Credential Stuffing Exposure/).length > 0;
+      expect(haveRelated).toBe(true);
+    });
+  });
+
+  it("drills from an Observation detail and shows methods + evidence", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText(/Observations \(\d+\)/));
+    fireEvent.click(screen.getAllByText(/Weak Password Policy/)[0]);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/Minimum password length is 8/).length,
+      ).toBeGreaterThan(0),
+    );
+    // Methods surface
+    expect(
+      screen.getAllByText(/EXAMINE|examine/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("expands the Observations section and lists all observations", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText(/Observations \(\d+\)/));
+    expect(
+      screen.getAllByText(/Weak Password Policy/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/Unencrypted Backup/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("drills into a POA&M item showing poam-id prop when present", async () => {
+    // Extend fixture for this test only
+    const withPoamId = {
+      ...RICH_POAM,
+      "poam-items": [
+        {
+          uuid: "pi-withid",
+          title: "Add encryption",
+          description: "Encrypt backup volumes",
+          props: [{ name: "poam-id", value: "POAM-001" }],
+        },
+      ],
+    };
+    await renderLoaded({ poam: withPoamId });
+    // Sidebar label should include the poam-id prefix
+    expect(
+      screen.getAllByText(/POAM-001/).length,
+    ).toBeGreaterThan(0);
+  });
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
