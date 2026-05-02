@@ -134,7 +134,7 @@ export function authFetch(
   opts: { signal?: AbortSignal } = {},
 ): Promise<Response> {
   if (!token) {
-    return fetch(url, { credentials: "include", signal: opts.signal });
+    return fetch(url, { signal: opts.signal });
   }
 
   // In dev, route through the server-side proxy to avoid CORS
