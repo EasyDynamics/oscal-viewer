@@ -118,6 +118,19 @@ export function authHeaders(token: string | null): Record<string, string> {
 }
 
 /**
+ * Returns true when the URL targets the OSCAL API backend where
+ * cookie-based and token-based authentication are accepted.
+ * Public registries / third-party hosts don't need credentials.
+ */
+function isOscalApiOrigin(url: string): boolean {
+  try {
+    return new URL(url).hostname === "api.oscal.io";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fetch a URL with optional auth.
  *
  * - **Development**: routes through the Vite dev-server `/__proxy` endpoint
@@ -126,15 +139,34 @@ export function authHeaders(token: string | null): Record<string, string> {
  * - **Production**: makes a direct request with the Authorization header.
  *   The registry's CORS policy already allows `viewer.oscal.io`.
  *
- * Without a token, it does a normal `fetch()` in both environments.
+ * Credentials (`credentials: "include"`) are only sent to the API origin
+ * (`api.oscal.io`). Sending credentials to third-party hosts (e.g.
+ * registry.oscal.io, GitHub) would break CORS because those servers
+ * respond with `Access-Control-Allow-Origin: *` which is incompatible
+ * with credentialed requests.
+ *
+ * Without a token, it does a normal `fetch()` (with credentials for
+ * the API origin to support cookie-based auth).
  */
 export function authFetch(
   url: string,
   token: string | null,
   opts: { signal?: AbortSignal } = {},
 ): Promise<Response> {
+  const needsCredentials = isOscalApiOrigin(url);
+
   if (!token) {
-    return fetch(url, { credentials: "include", signal: opts.signal });
+    return fetch(url, {
+      ...(needsCredentials && { credentials: "include" as const }),
+      signal: opts.signal,
+    });
+  }
+
+  // Only send the Authorization header to the API backend.
+  // Third-party hosts (registry catalogs, GitHub, etc.) don't need it
+  // and adding it triggers CORS preflight that those servers may not handle.
+  if (!needsCredentials) {
+    return fetch(url, { signal: opts.signal });
   }
 
   // In dev, route through the server-side proxy to avoid CORS
@@ -152,7 +184,7 @@ export function authFetch(
     });
   }
 
-  // In production, call the registry directly — its CORS policy
+  // In production, call the API directly — its CORS policy
   // allows the deployed viewer origin.
   return fetch(url, {
     credentials: "include",
