@@ -66,6 +66,7 @@ interface SspComponent {
   description: string;
   status: string;
   props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
 }
 
 interface InventoryItem {
@@ -235,6 +236,9 @@ function parseSsp(raw: any): SspParsed {
     description: txt(c.description),
     status: c.status?.state || "",
     props: c.props || [],
+    links: (c.links || []).map((l: any) => ({
+      href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
+    })),
   }));
   const inventoryItems: InventoryItem[] = (si["inventory-items"] || []).map((ii: any) => ({
     uuid: ii.uuid,
@@ -1220,6 +1224,79 @@ interface NavItem {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   SERVICE COMPONENT HIERARCHY
+   Service components may reference other components via `provided-by` or
+   `used-by` links. Those referenced components are displayed as children
+   beneath the service in the tree. If a single component is referenced by
+   both a `provided-by` (on one service) AND a `used-by` (on another), the
+   `provided-by` relationship wins (component nests under the provider).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const REL_PROVIDED_BY = "provided-by";
+const REL_USED_BY = "used-by";
+
+/** Extract the UUID portion from a link href like "#uuid" or "uuid". */
+function hrefToUuid(href: string): string {
+  if (!href) return "";
+  return href.startsWith("#") ? href.slice(1) : href;
+}
+
+interface ComponentHierarchy {
+  /** Top-level component indices, in original array order. */
+  rootIndices: number[];
+  /** Per-component children: child indices in original array order. */
+  childrenByIndex: Map<number, number[]>;
+}
+
+function buildComponentHierarchy(components: SspComponent[]): ComponentHierarchy {
+  const indexByUuid = new Map<string, number>();
+  components.forEach((c, i) => indexByUuid.set(c.uuid, i));
+
+  /* Pass 1 — claim by `provided-by` on service components. */
+  const providedByOwner = new Map<number, number>(); // child idx -> parent idx
+  components.forEach((c, parentIdx) => {
+    if (c.type !== "service") return;
+    c.links.forEach((l) => {
+      if (l.rel !== REL_PROVIDED_BY) return;
+      const childIdx = indexByUuid.get(hrefToUuid(l.href));
+      if (childIdx === undefined || childIdx === parentIdx) return;
+      if (!providedByOwner.has(childIdx)) providedByOwner.set(childIdx, parentIdx);
+    });
+  });
+
+  /* Pass 2 — claim by `used-by`, skipping any child already provided-by claimed. */
+  const usedByOwner = new Map<number, number>();
+  components.forEach((c, parentIdx) => {
+    if (c.type !== "service") return;
+    c.links.forEach((l) => {
+      if (l.rel !== REL_USED_BY) return;
+      const childIdx = indexByUuid.get(hrefToUuid(l.href));
+      if (childIdx === undefined || childIdx === parentIdx) return;
+      if (providedByOwner.has(childIdx)) return; // conflict — provided-by wins
+      if (!usedByOwner.has(childIdx)) usedByOwner.set(childIdx, parentIdx);
+    });
+  });
+
+  const childrenByIndex = new Map<number, number[]>();
+  const childOf = new Map<number, number>();
+  providedByOwner.forEach((p, c) => childOf.set(c, p));
+  usedByOwner.forEach((p, c) => { if (!childOf.has(c)) childOf.set(c, p); });
+
+  childOf.forEach((parentIdx, childIdx) => {
+    const arr = childrenByIndex.get(parentIdx) ?? [];
+    arr.push(childIdx);
+    childrenByIndex.set(parentIdx, arr);
+  });
+  // Sort children by original order
+  childrenByIndex.forEach((arr) => arr.sort((a, b) => a - b));
+
+  const rootIndices: number[] = [];
+  components.forEach((_, i) => { if (!childOf.has(i)) rootIndices.push(i); });
+
+  return { rootIndices, childrenByIndex };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    PLACEHOLDER VIEWS
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1996,6 +2073,69 @@ function BackMatterView({ ssp }: { ssp: SspParsed }) {
    SSP COMPONENT DETAIL VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/** Renders component link relationships (depends-on, uses-service, uses-network)
+ *  as click-through chips that navigate to the referenced component's detail. */
+function ComponentRelationships({
+  comp, ssp, navigate,
+}: {
+  comp: SspComponent; ssp: SspParsed; navigate: (id: string) => void;
+}) {
+  const components = ssp.systemImplementation.components;
+  const indexByUuid = useMemo(() => {
+    const m = new Map<string, number>();
+    components.forEach((c, i) => m.set(c.uuid, i));
+    return m;
+  }, [components]);
+
+  const groups: { rel: string; label: string; description: string; targets: { idx: number; comp: SspComponent }[] }[] = [
+    { rel: "depends-on", label: "Depends On", description: "Components this component has a dependency on." },
+    { rel: "uses-service", label: "Uses Service", description: "Service components this component uses." },
+    { rel: "uses-network", label: "Uses Network", description: "Network components this component uses." },
+  ].map((g) => {
+    const targets = comp.links
+      .filter((l) => l.rel === g.rel)
+      .map((l) => indexByUuid.get(hrefToUuid(l.href)))
+      .filter((idx): idx is number => idx !== undefined)
+      .map((idx) => ({ idx, comp: components[idx] }));
+    return { ...g, targets };
+  }).filter((g) => g.targets.length > 0);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <Card>
+      <SectionLabel>Relationships</SectionLabel>
+      {groups.map((g) => (
+        <div key={g.rel} style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: colors.navy, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
+            {g.label}
+          </div>
+          <div style={{ fontSize: 11, color: colors.gray, marginBottom: 6 }}>{g.description}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {g.targets.map(({ idx, comp: target }) => (
+              <span
+                key={target.uuid}
+                onClick={() => navigate(`ssp-comp-${idx}`)}
+                style={{
+                  fontSize: 11, padding: "4px 10px", borderRadius: radii.pill,
+                  background: alpha(componentTypeColor(target.type), 0.12),
+                  color: componentTypeColor(target.type),
+                  border: `1px solid ${alpha(componentTypeColor(target.type), 0.35)}`,
+                  fontWeight: 600, cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {navIcon(componentTypeNavKey(target.type), componentTypeColor(target.type), 11)}
+                {target.title || target.uuid.slice(0, 8)}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function SspComponentDetailView({
   comp, ssp, navigate,
 }: {
@@ -2074,6 +2214,9 @@ function SspComponentDetailView({
           </div>
         </Card>
       )}
+
+      {/* Relationships — depends-on, uses-service, uses-network */}
+      <ComponentRelationships comp={comp} ssp={ssp} navigate={navigate} />
 
       {/* Inventory Items */}
       {relatedInventory.length > 0 && (
@@ -2376,16 +2519,25 @@ export default function SspPage() {
     /* System Implementation */
     items.push({ id: "sys-impl", label: "System Implementation", icon: "cube", color: colors.cobalt, depth: 0 });
     items.push({ id: "sys-impl-components", label: "Components", icon: "cube", color: colors.cobalt, depth: 1, parent: "sys-impl", childCount: si.components.length });
-    si.components.forEach((c, i) => {
+
+    /* Build service-component hierarchy and emit nav items in tree order. */
+    const hierarchy = buildComponentHierarchy(si.components);
+    const emitComponent = (compIdx: number, depth: number, parentId: string): void => {
+      const c = si.components[compIdx];
+      const navId = `ssp-comp-${compIdx}`;
+      const children = hierarchy.childrenByIndex.get(compIdx);
       items.push({
-        id: `ssp-comp-${i}`,
+        id: navId,
         label: trunc(c.title || c.uuid.slice(0, 12), 32),
         icon: componentTypeNavKey(c.type),
         color: componentTypeColor(c.type),
-        depth: 2,
-        parent: "sys-impl-components",
+        depth,
+        parent: parentId,
+        childCount: children?.length,
       });
-    });
+      children?.forEach((childIdx) => emitComponent(childIdx, depth + 1, navId));
+    };
+    hierarchy.rootIndices.forEach((idx) => emitComponent(idx, 2, "sys-impl-components"));
     items.push({ id: "sys-impl-users", label: "Users", icon: "users", color: colors.brightBlue, depth: 1, parent: "sys-impl", childCount: si.users.length });
     items.push({ id: "sys-impl-inventory", label: "Inventory Items", icon: "box", color: colors.darkGreen, depth: 1, parent: "sys-impl", childCount: si.inventoryItems.length });
     if (si.leveragedAuthorizations.length > 0) {
