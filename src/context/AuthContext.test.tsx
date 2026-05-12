@@ -216,6 +216,12 @@ describe("authFetch()", () => {
     expect(calledOpts).not.toHaveProperty("headers");
   });
 
+  it("omits credentials on the no-token branch (avoids breaking unauthenticated CORS reads)", async () => {
+    await authFetch("https://example.com/x.json", null);
+    const [, calledOpts] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(calledOpts).not.toHaveProperty("credentials");
+  });
+
   it("passes through the AbortSignal when no token is supplied", async () => {
     const ctrl = new AbortController();
     await authFetch("https://example.com/x.json", null, { signal: ctrl.signal });
@@ -236,6 +242,13 @@ describe("authFetch()", () => {
     });
   });
 
+  it("in dev, sends credentials so the proxy can attach session cookies", async () => {
+    vi.stubEnv("DEV", true);
+    await authFetch("https://example.com/x.json", VALID_JWS);
+    const [, opts] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(opts.credentials).toBe("include");
+  });
+
   it("in prod, calls the URL directly with an Authorization header", async () => {
     vi.stubEnv("DEV", false);
     await authFetch("https://example.com/x.json", VALID_JWS);
@@ -243,5 +256,12 @@ describe("authFetch()", () => {
     expect(url).toBe("https://example.com/x.json");
     expect(opts.headers).toEqual({ Authorization: `Bearer ${VALID_JWS}` });
     expect(opts.method).toBeUndefined();
+  });
+
+  it("in prod, sends credentials so the registry receives session cookies", async () => {
+    vi.stubEnv("DEV", false);
+    await authFetch("https://example.com/x.json", VALID_JWS);
+    const [, opts] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(opts.credentials).toBe("include");
   });
 });

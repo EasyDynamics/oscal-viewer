@@ -141,6 +141,7 @@ export function authFetch(
   // (localhost isn't in the registry's allowed origins)
   if (import.meta.env.DEV) {
     return fetch("/__proxy", {
+      credentials: "include",
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: opts.signal,
@@ -154,6 +155,7 @@ export function authFetch(
   // In production, call the registry directly — its CORS policy
   // allows the deployed viewer origin.
   return fetch(url, {
+    credentials: "include",
     signal: opts.signal,
     headers: { Authorization: `Bearer ${token}` },
   });
