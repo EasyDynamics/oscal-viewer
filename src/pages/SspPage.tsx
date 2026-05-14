@@ -1463,19 +1463,25 @@ function OverviewView({ ssp }: {
             <StatChip value={sc.informationTypes.length} label="Info Types" color={colors.brightBlue} />
           )}
           {(() => {
-            let exports = 0, responsibilities = 0;
+            let exports = 0, responsibilities = 0, inherited = 0, satisfied = 0;
             ci.implementedRequirements.forEach((ir) => {
               ir.byComponents.forEach((bc) => {
                 if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
+                inherited += bc.inherited.length;
+                satisfied += bc.satisfied.length;
               });
               ir.statements.forEach((st) => st.byComponents.forEach((bc) => {
                 if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
+                inherited += bc.inherited.length;
+                satisfied += bc.satisfied.length;
               }));
             });
             return (
               <>
                 {exports > 0 && <StatChip value={exports} label="Provided" color={colors.cobalt} />}
                 {responsibilities > 0 && <StatChip value={responsibilities} label="Cust. Resp." color={colors.red} />}
+                {inherited > 0 && <StatChip value={inherited} label="Inherited" color={colors.darkGreen} />}
+                {satisfied > 0 && <StatChip value={satisfied} label="Satisfied" color={colors.purple} />}
               </>
             );
           })()}
@@ -1946,6 +1952,291 @@ function ControlFamilyView({ familyId, ssp, navigate }: { familyId: string; ssp:
   );
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   ByComponentTabs — disclosure for the optional Export / Inherited / Satisfied
+   buckets on a by-component entry. Always shows the main "Implementation"
+   body (description / remarks / set-parameters / responsible-roles). Only
+   renders the tab strip when at least one optional bucket exists; otherwise
+   falls through to the implementation body so simple by-components look the
+   same as before.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+type ByCompTabKey = "impl" | "exports" | "inherited" | "satisfied";
+
+function ByComponentTabs({ bc, size }: { bc: ByComponent; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+
+  const exportCount = bc.export
+    ? bc.export.provided.length + bc.export.responsibilities.length
+    : 0;
+  const hasExport =
+    !!bc.export &&
+    (exportCount > 0 || !!bc.export.description || !!bc.export.remarks);
+  const hasInherited = bc.inherited.length > 0;
+  const hasSatisfied = bc.satisfied.length > 0;
+
+  const tabs: { key: ByCompTabKey; label: string; count?: number; color: string }[] = [
+    { key: "impl", label: "Implementation", color: colors.cobalt },
+  ];
+  if (hasExport) tabs.push({ key: "exports", label: "Exports", count: exportCount, color: colors.brightBlue });
+  if (hasInherited) tabs.push({ key: "inherited", label: "Inherited", count: bc.inherited.length, color: colors.darkGreen });
+  if (hasSatisfied) tabs.push({ key: "satisfied", label: "Satisfied", count: bc.satisfied.length, color: colors.purple });
+
+  const [active, setActive] = useState<ByCompTabKey>("impl");
+  const activeTab = tabs.find((t) => t.key === active) ?? tabs[0];
+
+  // No optional buckets — render implementation body inline, no tab strip.
+  if (tabs.length === 1) {
+    return <ByCompImplementation bc={bc} size={size} />;
+  }
+
+  const tabPad = isReq ? "6px 14px" : "4px 10px";
+  const tabFs = isReq ? 12 : 11;
+
+  return (
+    <div>
+      <div style={{
+        display: "flex", gap: 0, flexWrap: "wrap",
+        borderBottom: `2px solid ${colors.paleGray}`,
+        marginBottom: isReq ? 12 : 8,
+      }}>
+        {tabs.map((t) => {
+          const isActive = t.key === active;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setActive(t.key)}
+              style={{
+                padding: tabPad, fontSize: tabFs,
+                fontWeight: isActive ? 700 : 500,
+                color: isActive ? t.color : colors.gray,
+                background: isActive ? alpha(t.color, 4) : "transparent",
+                border: "none",
+                borderBottom: isActive ? `2px solid ${t.color}` : "2px solid transparent",
+                cursor: "pointer",
+                transition: "all .12s",
+                marginBottom: -2,
+                fontFamily: fonts.sans,
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <span>{t.label}</span>
+              {typeof t.count === "number" && (
+                <span style={{
+                  fontSize: tabFs - 1, fontWeight: 700,
+                  padding: "0 6px", borderRadius: radii.pill,
+                  background: isActive ? t.color : alpha(colors.gray, 15),
+                  color: isActive ? colors.white : colors.gray,
+                  minWidth: 16, textAlign: "center",
+                }}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab.key === "impl" && <ByCompImplementation bc={bc} size={size} />}
+      {activeTab.key === "exports" && bc.export && <ByCompExports exp={bc.export} size={size} />}
+      {activeTab.key === "inherited" && <ByCompInherited entries={bc.inherited} size={size} />}
+      {activeTab.key === "satisfied" && <ByCompSatisfied entries={bc.satisfied} size={size} />}
+    </div>
+  );
+}
+
+function ByCompImplementation({ bc, size }: { bc: ByComponent; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const descFs = isReq ? 13 : 12.5;
+
+  const hasAny =
+    bc.description || bc.remarks ||
+    (isReq && bc.setParameters.length > 0) ||
+    (isReq && bc.responsibleRoles.length > 0);
+
+  if (!hasAny) {
+    return (
+      <p style={{ fontSize: 12, color: colors.gray, fontStyle: "italic", margin: 0 }}>
+        No implementation description provided.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      {bc.description && <MarkupBlock value={bc.description} style={{ fontSize: descFs }} />}
+      {bc.remarks && <CollapsibleRemarks value={bc.remarks} compact />}
+
+      {isReq && bc.setParameters.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 6 }}>
+            Parameters ({bc.setParameters.length})
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {bc.setParameters.map((sp, i) => (
+              <div key={i} style={{ display: "inline-flex", alignItems: "baseline", gap: 6, padding: "4px 10px", backgroundColor: alpha(colors.orange, 6), borderRadius: radii.sm, border: `1px solid ${alpha(colors.orange, 15)}` }}>
+                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: fonts.mono, color: colors.orange }}>{sp.paramId}</span>
+                {sp.values.map((v, j) => (
+                  <span key={j} style={{ fontSize: 11, fontFamily: fonts.mono, color: colors.black }}>{v}</span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isReq && bc.responsibleRoles.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.navy, letterSpacing: 0.5, marginBottom: 6 }}>
+            Responsible Roles
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {bc.responsibleRoles.map((rr, i) => (
+              <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
+                {rr.roleId}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ByCompExports({ exp, size }: { exp: ExportBlock; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const itemPad = isReq ? "8px 12px" : "6px 10px";
+  const descFs = isReq ? 12.5 : 11.5;
+  const headFs = isReq ? 10 : 9;
+  const labelMb = isReq ? 4 : 3;
+  const sectionMb = isReq ? 10 : 6;
+
+  return (
+    <div>
+      {exp.description && (
+        <MarkupBlock value={exp.description} style={{ fontSize: descFs, marginBottom: 8 }} />
+      )}
+
+      {exp.provided.length > 0 && (
+        <div style={{ marginBottom: sectionMb }}>
+          <div style={{ fontSize: headFs, fontWeight: 700, textTransform: "uppercase" as const, color: colors.brightBlue, letterSpacing: 0.5, marginBottom: labelMb }}>
+            Provided ({exp.provided.length})
+          </div>
+          {exp.provided.map((p, i) => (
+            <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.brightBlue, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.brightBlue}` }}>
+              <MarkupBlock value={p.description} style={{ fontSize: descFs }} />
+              {p.responsibleRoles.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {p.responsibleRoles.map((rr, ri) => (
+                    <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
+                      {rr.roleId}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {p.uuid && (
+                <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+                  uuid: {p.uuid}
+                </div>
+              )}
+              {p.remarks && <CollapsibleRemarks value={p.remarks} compact />}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {exp.responsibilities.length > 0 && (
+        <div style={{ marginBottom: sectionMb }}>
+          <div style={{ fontSize: headFs, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: labelMb }}>
+            Customer Responsibilities ({exp.responsibilities.length})
+          </div>
+          {exp.responsibilities.map((r, i) => (
+            <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
+              <MarkupBlock value={r.description} style={{ fontSize: descFs }} />
+              {r.responsibleRoles.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {r.responsibleRoles.map((rr, ri) => (
+                    <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
+                      {rr.roleId}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {r.providedUuid && (
+                <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+                  provided-uuid: {r.providedUuid}
+                </div>
+              )}
+              {r.remarks && <CollapsibleRemarks value={r.remarks} compact />}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {exp.remarks && <CollapsibleRemarks value={exp.remarks} compact />}
+    </div>
+  );
+}
+
+function ByCompInherited({ entries, size }: { entries: InheritedEntry[]; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const itemPad = isReq ? "8px 12px" : "6px 10px";
+  const descFs = isReq ? 12.5 : 11.5;
+  return (
+    <div>
+      {entries.map((ih, i) => (
+        <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
+          <MarkupBlock value={ih.description} style={{ fontSize: descFs }} />
+          {ih.responsibleRoles.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+              {ih.responsibleRoles.map((rr, ri) => (
+                <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
+                  {rr.roleId}
+                </span>
+              ))}
+            </div>
+          )}
+          {ih.providedUuid && (
+            <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+              provided-uuid: {ih.providedUuid}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ByCompSatisfied({ entries, size }: { entries: SatisfiedEntry[]; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const itemPad = isReq ? "8px 12px" : "6px 10px";
+  const descFs = isReq ? 12.5 : 11.5;
+  return (
+    <div>
+      {entries.map((sat, i) => (
+        <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.purple, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.purple}` }}>
+          <MarkupBlock value={sat.description} style={{ fontSize: descFs }} />
+          {sat.responsibleRoles.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+              {sat.responsibleRoles.map((rr, ri) => (
+                <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.purple, color: colors.white, fontWeight: 500 }}>
+                  {rr.roleId}
+                </span>
+              ))}
+            </div>
+          )}
+          {sat.responsibilityUuid && (
+            <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+              responsibility-uuid: {sat.responsibilityUuid}
+            </div>
+          )}
+          {sat.remarks && <CollapsibleRemarks value={sat.remarks} compact />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; ssp: SspParsed; catalog: OscalCatalog | null }) {
   const compMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -2113,135 +2404,13 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                   </div>
                 )}
 
-                {/* Requirement-level description for this component */}
-                {reqBc?.description && (
+                {/* Requirement-level by-component (Implementation + tabbed disclosure) */}
+                {reqBc && (
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.cobalt, letterSpacing: 0.5, marginBottom: 6 }}>
                       Component Implementation
                     </div>
-                    <MarkupBlock value={reqBc.description} style={{ fontSize: 13 }} />
-                    {reqBc.remarks && <CollapsibleRemarks value={reqBc.remarks} compact />}
-                  </div>
-                )}
-
-                {/* By-component set-parameters */}
-                {reqBc && reqBc.setParameters.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 6 }}>
-                      Parameters ({reqBc.setParameters.length})
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {reqBc.setParameters.map((sp, i) => (
-                        <div key={i} style={{ display: "inline-flex", alignItems: "baseline", gap: 6, padding: "4px 10px", backgroundColor: alpha(colors.orange, 6), borderRadius: radii.sm, border: `1px solid ${alpha(colors.orange, 15)}` }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, fontFamily: fonts.mono, color: colors.orange }}>{sp.paramId}</span>
-                          {sp.values.map((v, j) => (
-                            <span key={j} style={{ fontSize: 11, fontFamily: fonts.mono, color: colors.black }}>{v}</span>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Export block */}
-                {reqBc?.export && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.cobalt, letterSpacing: 0.5, marginBottom: 6 }}>
-                      Exports
-                    </div>
-                    {reqBc.export.description && (
-                      <MarkupBlock value={reqBc.export.description} style={{ fontSize: 12.5, marginBottom: 8 }} />
-                    )}
-                    {reqBc.export.provided.length > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, color: colors.brightBlue, letterSpacing: 0.5, marginBottom: 4 }}>
-                          Provided ({reqBc.export.provided.length})
-                        </div>
-                        {reqBc.export.provided.map((p, i) => (
-                          <div key={i} style={{ padding: "8px 12px", marginBottom: 6, backgroundColor: alpha(colors.brightBlue, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.brightBlue}` }}>
-                            <MarkupBlock value={p.description} style={{ fontSize: 12.5 }} />
-                            {p.responsibleRoles.length > 0 && (
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                                {p.responsibleRoles.map((rr, ri) => (
-                                  <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
-                                    {rr.roleId}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            {p.remarks && <CollapsibleRemarks value={p.remarks} compact />}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {reqBc.export.responsibilities.length > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 4 }}>
-                          Customer Responsibilities ({reqBc.export.responsibilities.length})
-                        </div>
-                        {reqBc.export.responsibilities.map((r, i) => (
-                          <div key={i} style={{ padding: "8px 12px", marginBottom: 6, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
-                            <MarkupBlock value={r.description} style={{ fontSize: 12.5 }} />
-                            {r.responsibleRoles.length > 0 && (
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                                {r.responsibleRoles.map((rr, ri) => (
-                                  <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
-                                    {rr.roleId}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            {r.remarks && <CollapsibleRemarks value={r.remarks} compact />}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {reqBc.export.remarks && <CollapsibleRemarks value={reqBc.export.remarks} compact />}
-                  </div>
-                )}
-
-                {/* Inherited entries */}
-                {reqBc && reqBc.inherited.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.darkGreen, letterSpacing: 0.5, marginBottom: 6 }}>
-                      Inherited ({reqBc.inherited.length})
-                    </div>
-                    {reqBc.inherited.map((ih, i) => (
-                      <div key={i} style={{ padding: "6px 12px", marginBottom: 4, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
-                        <MarkupBlock value={ih.description} style={{ fontSize: 12.5 }} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Satisfied entries */}
-                {reqBc && reqBc.satisfied.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.purple, letterSpacing: 0.5, marginBottom: 6 }}>
-                      Satisfied ({reqBc.satisfied.length})
-                    </div>
-                    {reqBc.satisfied.map((sat, i) => (
-                      <div key={i} style={{ padding: "6px 12px", marginBottom: 4, backgroundColor: alpha(colors.purple, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.purple}` }}>
-                        <MarkupBlock value={sat.description} style={{ fontSize: 12.5 }} />
-                        {sat.remarks && <CollapsibleRemarks value={sat.remarks} compact />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* By-component responsible roles */}
-                {reqBc && reqBc.responsibleRoles.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.navy, letterSpacing: 0.5, marginBottom: 6 }}>
-                      Responsible Roles
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {reqBc.responsibleRoles.map((rr, i) => (
-                        <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
-                          {rr.roleId}
-                        </span>
-                      ))}
-                    </div>
+                    <ByComponentTabs key={reqBc.uuid} bc={reqBc} size="req" />
                   </div>
                 )}
 
@@ -2283,45 +2452,15 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                               <ImplStatusBadge status={bc.implementationStatus} />
                             </div>
                           )}
-                          {/* Component's implementation for this statement */}
-                          {bc.description && <MarkupBlock value={bc.description} />}
-                          {bc.remarks && <CollapsibleRemarks value={bc.remarks} compact />}
-                          {/* Statement-level export block */}
-                          {bc.export && (
-                            <div style={{ marginTop: 8 }}>
-                              {bc.export.provided.length > 0 && (
-                                <div style={{ marginBottom: 6 }}>
-                                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, color: colors.brightBlue, letterSpacing: 0.5, marginBottom: 3 }}>
-                                    Provided ({bc.export.provided.length})
-                                  </div>
-                                  {bc.export.provided.map((p, pi) => (
-                                    <div key={pi} style={{ padding: "4px 8px", marginBottom: 3, backgroundColor: alpha(colors.brightBlue, 5), borderRadius: radii.sm, borderLeft: `2px solid ${colors.brightBlue}` }}>
-                                      <MarkupBlock value={p.description} style={{ fontSize: 11.5 }} />
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {bc.export.responsibilities.length > 0 && (
-                                <div>
-                                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 3 }}>
-                                    Customer Responsibilities ({bc.export.responsibilities.length})
-                                  </div>
-                                  {bc.export.responsibilities.map((r, ri) => (
-                                    <div key={ri} style={{ padding: "4px 8px", marginBottom: 3, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `2px solid ${colors.orange}` }}>
-                                      <MarkupBlock value={r.description} style={{ fontSize: 11.5 }} />
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          {/* Component's implementation for this statement (tabbed disclosure) */}
+                          <ByComponentTabs key={bc.uuid} bc={bc} size="stmt" />
                         </div>
                       );
                     })}
                   </div>
                 )}
 
-                {!reqBc?.description && stmtEntries.length === 0 && (
+                {!reqBc && stmtEntries.length === 0 && (
                   <p style={{ fontSize: 13, color: colors.gray, fontStyle: "italic" }}>No implementation details for this component.</p>
                 )}
               </div>
