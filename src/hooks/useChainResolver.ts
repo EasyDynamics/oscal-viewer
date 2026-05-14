@@ -323,19 +323,46 @@ export function useChainResolver(
           }
 
           const obj = parsed as Record<string, unknown>;
-          const inner = (obj[link.modelKey] ?? obj) as Record<string, unknown>;
+          let matchedStep = i;
+          let matchedLink = link;
+          let inner = (obj[link.modelKey] ?? obj) as Record<string, unknown>;
+
           if (!inner.metadata && !inner.uuid) {
-            throw new Error(
-              `Fetched document does not appear to be a valid OSCAL ${link.modelKey}.`,
-            );
+            /* The fetched document doesn't match the expected model.
+               Check if it matches a later step in the chain (e.g. import-profile
+               points directly to a catalog instead of a profile). */
+            let found = false;
+            for (let j = i + 1; j < chain.length; j++) {
+              const candidate = (obj[chain[j].modelKey] ?? undefined) as Record<string, unknown> | undefined;
+              if (candidate && (candidate.metadata || candidate.uuid)) {
+                matchedStep = j;
+                matchedLink = chain[j];
+                inner = candidate;
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              throw new Error(
+                `Fetched document does not appear to be a valid OSCAL ${link.modelKey}.`,
+              );
+            }
+            /* Mark skipped steps */
+            setSteps((prev) => {
+              const n = [...prev];
+              for (let s = i; s < matchedStep; s++) {
+                n[s] = { ...n[s], status: "success", error: null, json: null, resolvedLabel: "Skipped", resolvedUrl: null };
+              }
+              return n;
+            });
           }
 
           const resolvedLabel = resTitle ?? fileNameFromUrl(fetchUrl);
 
           setSteps((prev) => {
             const n = [...prev];
-            n[i] = {
-              ...n[i],
+            n[matchedStep] = {
+              ...n[matchedStep],
               status: "success",
               json: parsed,
               resolvedLabel,
@@ -345,12 +372,16 @@ export function useChainResolver(
           });
 
           /* 6. Extract next step info */
-          if (link.extractNext && i < chain.length - 1) {
-            const next = link.extractNext(parsed);
+          if (matchedLink.extractNext && matchedStep < chain.length - 1) {
+            const next = matchedLink.extractNext(parsed);
             if (!next.href) return; // no next reference → stop chain
             href = next.href;
             bm = next.backMatter;
             currentBase = fetchUrl; // use fetched URL as base for next step
+            i = matchedStep; // advance loop index to the matched step
+          } else {
+            // We matched the last step or the matched step has no extractNext — chain complete
+            return;
           }
         } catch (err) {
           if (cancelled) return;
@@ -385,9 +416,11 @@ export function useChainResolver(
 
   /* Build items for ResolverModal.
      Populate whenever any step is non-idle so the modal shows
-     both successful and failed resolutions. */
+     both successful and failed resolutions.
+     Steps that were skipped (e.g. import-profile pointed directly
+     to a catalog) are excluded from the modal display. */
   const items: ResolverItem[] = steps
-    .filter((s) => s.status !== "idle")
+    .filter((s) => s.status !== "idle" && s.resolvedLabel !== "Skipped")
     .map((s) => ({
       label: s.label,
       status: s.status,

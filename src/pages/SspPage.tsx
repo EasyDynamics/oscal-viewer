@@ -66,6 +66,7 @@ interface SspComponent {
   description: string;
   status: string;
   props: OscalProp[];
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
 }
 
 interface InventoryItem {
@@ -82,12 +83,76 @@ interface LeveragedAuth {
   dateAuthorized: string;
 }
 
+interface ProvidedEntry {
+  uuid: string;
+  description: string;
+  remarks: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+  props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
+}
+
+interface ResponsibilityEntry {
+  uuid: string;
+  description: string;
+  remarks: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+  props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
+  providedUuid?: string;
+}
+
+interface InheritedEntry {
+  uuid: string;
+  description: string;
+  providedUuid?: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+}
+
+interface SatisfiedEntry {
+  uuid: string;
+  description: string;
+  responsibilityUuid?: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+  remarks: string;
+}
+
+interface ExportBlock {
+  description: string;
+  remarks: string;
+  provided: ProvidedEntry[];
+  responsibilities: ResponsibilityEntry[];
+}
+
+interface SetParameter {
+  paramId: string;
+  values: string[];
+  remarks: string;
+}
+
+interface InformationType {
+  uuid?: string;
+  title: string;
+  description: string;
+  categorizations: { system: string; informationTypeIds: string[] }[];
+  confidentialityImpact: { base: string; selected?: string };
+  integrityImpact: { base: string; selected?: string };
+  availabilityImpact: { base: string; selected?: string };
+}
+
 interface ByComponent {
   componentUuid: string;
   uuid: string;
   description: string;
   remarks: string;
   implementationStatus: string;
+  export?: ExportBlock;
+  inherited: InheritedEntry[];
+  satisfied: SatisfiedEntry[];
+  setParameters: SetParameter[];
+  props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
 }
 
 interface SspStatement {
@@ -104,6 +169,7 @@ interface ImplementedRequirement {
   description: string;
   remarks: string;
   props: OscalProp[];
+  setParameters: SetParameter[];
   statements: SspStatement[];
   byComponents: ByComponent[];
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
@@ -119,6 +185,7 @@ interface SystemCharacteristics {
   securityImpactLevel: { objectiveConfidentiality: string; objectiveIntegrity: string; objectiveAvailability: string };
   status: { state: string; remarks?: string };
   authorizationBoundary: { description: string };
+  informationTypes: InformationType[];
   props: OscalProp[];
 }
 
@@ -173,6 +240,66 @@ function trunc(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "\u2026" : s;
 }
 
+function parseRoles(arr: any[]): { roleId: string; partyUuids: string[] }[] {
+  return (arr || []).map((rr: any) => ({
+    roleId: rr["role-id"] || "", partyUuids: rr["party-uuids"] || [],
+  }));
+}
+
+function parseLinks(arr: any[]): { href: string; rel?: string; text?: string }[] {
+  return (arr || []).map((l: any) => ({
+    href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
+  }));
+}
+
+function parseSetParams(arr: any[]): SetParameter[] {
+  return (arr || []).map((sp: any) => ({
+    paramId: sp["param-id"] || "",
+    values: sp.values || [],
+    remarks: txt(sp.remarks),
+  }));
+}
+
+function parseByComp(bc: any): ByComponent {
+  const exp = bc.export;
+  return {
+    componentUuid: bc["component-uuid"], uuid: bc.uuid,
+    description: txt(bc.description),
+    remarks: txt(bc.remarks),
+    implementationStatus: bc["implementation-status"]?.state || "",
+    export: exp ? {
+      description: txt(exp.description),
+      remarks: txt(exp.remarks),
+      provided: (exp.provided || []).map((p: any) => ({
+        uuid: p.uuid, description: txt(p.description), remarks: txt(p.remarks),
+        responsibleRoles: parseRoles(p["responsible-roles"]),
+        props: p.props || [], links: parseLinks(p.links),
+      })),
+      responsibilities: (exp.responsibilities || []).map((r: any) => ({
+        uuid: r.uuid, description: txt(r.description), remarks: txt(r.remarks),
+        responsibleRoles: parseRoles(r["responsible-roles"]),
+        props: r.props || [], links: parseLinks(r.links),
+        providedUuid: r["provided-uuid"],
+      })),
+    } : undefined,
+    inherited: (bc.inherited || []).map((ih: any) => ({
+      uuid: ih.uuid, description: txt(ih.description),
+      providedUuid: ih["provided-uuid"],
+      responsibleRoles: parseRoles(ih["responsible-roles"]),
+    })),
+    satisfied: (bc.satisfied || []).map((sat: any) => ({
+      uuid: sat.uuid, description: txt(sat.description),
+      responsibilityUuid: sat["responsibility-uuid"],
+      responsibleRoles: parseRoles(sat["responsible-roles"]),
+      remarks: txt(sat.remarks),
+    })),
+    setParameters: parseSetParams(bc["set-parameters"]),
+    props: bc.props || [],
+    links: parseLinks(bc.links),
+    responsibleRoles: parseRoles(bc["responsible-roles"]),
+  };
+}
+
 function parseSsp(raw: any): SspParsed {
   const ssp = raw["system-security-plan"] ?? raw;
   if (!ssp.metadata) throw new Error("Not a valid OSCAL SSP — missing metadata.");
@@ -213,6 +340,17 @@ function parseSsp(raw: any): SspParsed {
     },
     status: { state: sc.status?.state || "", remarks: txt(sc.status?.remarks) },
     authorizationBoundary: { description: txt(sc["authorization-boundary"]?.description) },
+    informationTypes: ((sc["system-information"]?.["information-types"]) || []).map((it: any) => ({
+      uuid: it.uuid,
+      title: it.title || "",
+      description: txt(it.description),
+      categorizations: (it.categorizations || []).map((cat: any) => ({
+        system: cat.system || "", informationTypeIds: cat["information-type-ids"] || [],
+      })),
+      confidentialityImpact: { base: it["confidentiality-impact"]?.base || "", selected: it["confidentiality-impact"]?.selected },
+      integrityImpact: { base: it["integrity-impact"]?.base || "", selected: it["integrity-impact"]?.selected },
+      availabilityImpact: { base: it["availability-impact"]?.base || "", selected: it["availability-impact"]?.selected },
+    })),
     props: sc.props || [],
   };
 
@@ -235,6 +373,7 @@ function parseSsp(raw: any): SspParsed {
     description: txt(c.description),
     status: c.status?.state || "",
     props: c.props || [],
+    responsibleRoles: parseRoles(c["responsible-roles"]),
   }));
   const inventoryItems: InventoryItem[] = (si["inventory-items"] || []).map((ii: any) => ({
     uuid: ii.uuid,
@@ -268,23 +407,12 @@ function parseSsp(raw: any): SspParsed {
       uuid: st.uuid,
       description: txt(st.description),
       remarks: txt(st.remarks),
-      byComponents: (st["by-components"] || []).map((bc: any) => ({
-        componentUuid: bc["component-uuid"], uuid: bc.uuid, description: txt(bc.description),
-        remarks: txt(bc.remarks),
-        implementationStatus: bc["implementation-status"]?.state || "",
-      })),
+      byComponents: (st["by-components"] || []).map(parseByComp),
     })),
-    byComponents: (ir["by-components"] || []).map((bc: any) => ({
-      componentUuid: bc["component-uuid"], uuid: bc.uuid, description: txt(bc.description),
-      remarks: txt(bc.remarks),
-      implementationStatus: bc["implementation-status"]?.state || "",
-    })),
-    responsibleRoles: (ir["responsible-roles"] || []).map((rr: any) => ({
-      roleId: rr["role-id"] || "", partyUuids: rr["party-uuids"] || [],
-    })),
-    links: (ir.links || []).map((l: any) => ({
-      href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
-    })),
+    setParameters: parseSetParams(ir["set-parameters"]),
+    byComponents: (ir["by-components"] || []).map(parseByComp),
+    responsibleRoles: parseRoles(ir["responsible-roles"]),
+    links: parseLinks(ir.links),
   }));
 
   const controlImplementation: ControlImplementation = {
@@ -1256,6 +1384,26 @@ function OverviewView({ ssp }: {
           {si.leveragedAuthorizations.length > 0 && (
             <StatChip value={si.leveragedAuthorizations.length} label="Leveraged" color={colors.purple} />
           )}
+          {sc.informationTypes.length > 0 && (
+            <StatChip value={sc.informationTypes.length} label="Info Types" color={colors.brightBlue} />
+          )}
+          {(() => {
+            let exports = 0, responsibilities = 0;
+            ci.implementedRequirements.forEach((ir) => {
+              ir.byComponents.forEach((bc) => {
+                if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
+              });
+              ir.statements.forEach((st) => st.byComponents.forEach((bc) => {
+                if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
+              }));
+            });
+            return (
+              <>
+                {exports > 0 && <StatChip value={exports} label="Provided" color={colors.cobalt} />}
+                {responsibilities > 0 && <StatChip value={responsibilities} label="Cust. Resp." color={colors.red} />}
+              </>
+            );
+          })()}
         </div>
       </Card>
 
@@ -1377,6 +1525,35 @@ function SystemCharacteristicsView({ ssp }: { ssp: SspParsed }) {
         <Card>
           <SectionLabel>Authorization Boundary</SectionLabel>
           <MarkupBlock value={sc.authorizationBoundary.description} />
+        </Card>
+      )}
+
+      {sc.informationTypes.length > 0 && (
+        <Card>
+          <SectionLabel>Information Types ({sc.informationTypes.length})</SectionLabel>
+          {sc.informationTypes.map((it, i) => (
+            <div key={i} style={{ padding: "10px 14px", marginBottom: 8, backgroundColor: colors.bg, borderRadius: radii.sm }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 4 }}>{it.title}</div>
+              {it.description && <MarkupBlock value={it.description} style={{ fontSize: 12, marginBottom: 8 }} />}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {[
+                  { label: "Confidentiality", impact: it.confidentialityImpact },
+                  { label: "Integrity", impact: it.integrityImpact },
+                  { label: "Availability", impact: it.availabilityImpact },
+                ].filter((x) => x.impact.base || x.impact.selected).map((x) => {
+                  const level = (x.impact.selected || x.impact.base).toLowerCase();
+                  const bg = level.includes("high") ? alpha(colors.red, 10) : level.includes("moderate") ? alpha(colors.orange, 10) : alpha(colors.darkGreen, 10);
+                  const fg = level.includes("high") ? colors.red : level.includes("moderate") ? colors.orange : colors.darkGreen;
+                  return (
+                    <div key={x.label} style={{ textAlign: "center", padding: "6px 14px", borderRadius: radii.sm, backgroundColor: bg }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: fg, textTransform: "uppercase" }}>{x.impact.selected || x.impact.base}</div>
+                      <div style={{ fontSize: 9, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.06em" }}>{x.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </Card>
       )}
 
@@ -1783,6 +1960,31 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
         </Card>
       )}
 
+      {/* Set Parameters (IR-level) */}
+      {ir.setParameters.length > 0 && (
+        <Card>
+          <SectionLabel>Set Parameters ({ir.setParameters.length})</SectionLabel>
+          <div style={{ display: "grid", gap: 8 }}>
+            {ir.setParameters.map((sp, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 10px", backgroundColor: colors.surfaceSubtle, borderRadius: radii.sm }}>
+                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: fonts.mono, color: colors.orange, whiteSpace: "nowrap" }}>{sp.paramId}</span>
+                <span style={{ fontSize: 12, color: colors.black }}>=</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {sp.values.map((v, j) => (
+                    <span key={j} style={{
+                      fontSize: 12, fontFamily: fonts.mono, padding: "2px 8px", borderRadius: radii.sm,
+                      backgroundColor: alpha(colors.orange, 8), color: colors.orange, border: `1px solid ${alpha(colors.orange, 20)}`,
+                    }}>
+                      {v}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Component-level implementations */}
       {allComponents.length > 0 && (
         <Card>
@@ -1847,6 +2049,127 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                   </div>
                 )}
 
+                {/* By-component set-parameters */}
+                {reqBc && reqBc.setParameters.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 6 }}>
+                      Parameters ({reqBc.setParameters.length})
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {reqBc.setParameters.map((sp, i) => (
+                        <div key={i} style={{ display: "inline-flex", alignItems: "baseline", gap: 6, padding: "4px 10px", backgroundColor: alpha(colors.orange, 6), borderRadius: radii.sm, border: `1px solid ${alpha(colors.orange, 15)}` }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, fontFamily: fonts.mono, color: colors.orange }}>{sp.paramId}</span>
+                          {sp.values.map((v, j) => (
+                            <span key={j} style={{ fontSize: 11, fontFamily: fonts.mono, color: colors.black }}>{v}</span>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Export block */}
+                {reqBc?.export && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.cobalt, letterSpacing: 0.5, marginBottom: 6 }}>
+                      Exports
+                    </div>
+                    {reqBc.export.description && (
+                      <MarkupBlock value={reqBc.export.description} style={{ fontSize: 12.5, marginBottom: 8 }} />
+                    )}
+                    {reqBc.export.provided.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, color: colors.brightBlue, letterSpacing: 0.5, marginBottom: 4 }}>
+                          Provided ({reqBc.export.provided.length})
+                        </div>
+                        {reqBc.export.provided.map((p, i) => (
+                          <div key={i} style={{ padding: "8px 12px", marginBottom: 6, backgroundColor: alpha(colors.brightBlue, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.brightBlue}` }}>
+                            <MarkupBlock value={p.description} style={{ fontSize: 12.5 }} />
+                            {p.responsibleRoles.length > 0 && (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                                {p.responsibleRoles.map((rr, ri) => (
+                                  <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
+                                    {rr.roleId}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {p.remarks && <CollapsibleRemarks value={p.remarks} compact />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {reqBc.export.responsibilities.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 4 }}>
+                          Customer Responsibilities ({reqBc.export.responsibilities.length})
+                        </div>
+                        {reqBc.export.responsibilities.map((r, i) => (
+                          <div key={i} style={{ padding: "8px 12px", marginBottom: 6, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
+                            <MarkupBlock value={r.description} style={{ fontSize: 12.5 }} />
+                            {r.responsibleRoles.length > 0 && (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                                {r.responsibleRoles.map((rr, ri) => (
+                                  <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
+                                    {rr.roleId}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {r.remarks && <CollapsibleRemarks value={r.remarks} compact />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {reqBc.export.remarks && <CollapsibleRemarks value={reqBc.export.remarks} compact />}
+                  </div>
+                )}
+
+                {/* Inherited entries */}
+                {reqBc && reqBc.inherited.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.darkGreen, letterSpacing: 0.5, marginBottom: 6 }}>
+                      Inherited ({reqBc.inherited.length})
+                    </div>
+                    {reqBc.inherited.map((ih, i) => (
+                      <div key={i} style={{ padding: "6px 12px", marginBottom: 4, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
+                        <MarkupBlock value={ih.description} style={{ fontSize: 12.5 }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Satisfied entries */}
+                {reqBc && reqBc.satisfied.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.purple, letterSpacing: 0.5, marginBottom: 6 }}>
+                      Satisfied ({reqBc.satisfied.length})
+                    </div>
+                    {reqBc.satisfied.map((sat, i) => (
+                      <div key={i} style={{ padding: "6px 12px", marginBottom: 4, backgroundColor: alpha(colors.purple, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.purple}` }}>
+                        <MarkupBlock value={sat.description} style={{ fontSize: 12.5 }} />
+                        {sat.remarks && <CollapsibleRemarks value={sat.remarks} compact />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* By-component responsible roles */}
+                {reqBc && reqBc.responsibleRoles.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.navy, letterSpacing: 0.5, marginBottom: 6 }}>
+                      Responsible Roles
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {reqBc.responsibleRoles.map((rr, i) => (
+                        <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
+                          {rr.roleId}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Statements for this component */}
                 {stmtEntries.length > 0 && (
                   <div>
@@ -1888,6 +2211,35 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                           {/* Component's implementation for this statement */}
                           {bc.description && <MarkupBlock value={bc.description} />}
                           {bc.remarks && <CollapsibleRemarks value={bc.remarks} compact />}
+                          {/* Statement-level export block */}
+                          {bc.export && (
+                            <div style={{ marginTop: 8 }}>
+                              {bc.export.provided.length > 0 && (
+                                <div style={{ marginBottom: 6 }}>
+                                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, color: colors.brightBlue, letterSpacing: 0.5, marginBottom: 3 }}>
+                                    Provided ({bc.export.provided.length})
+                                  </div>
+                                  {bc.export.provided.map((p, pi) => (
+                                    <div key={pi} style={{ padding: "4px 8px", marginBottom: 3, backgroundColor: alpha(colors.brightBlue, 5), borderRadius: radii.sm, borderLeft: `2px solid ${colors.brightBlue}` }}>
+                                      <MarkupBlock value={p.description} style={{ fontSize: 11.5 }} />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {bc.export.responsibilities.length > 0 && (
+                                <div>
+                                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 3 }}>
+                                    Customer Responsibilities ({bc.export.responsibilities.length})
+                                  </div>
+                                  {bc.export.responsibilities.map((r, ri) => (
+                                    <div key={ri} style={{ padding: "4px 8px", marginBottom: 3, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `2px solid ${colors.orange}` }}>
+                                      <MarkupBlock value={r.description} style={{ fontSize: 11.5 }} />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
