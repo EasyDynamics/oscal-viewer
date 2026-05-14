@@ -67,6 +67,7 @@ interface SspComponent {
   status: string;
   props: OscalProp[];
   links: { href: string; rel?: string; text?: string }[];
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
 }
 
 interface InventoryItem {
@@ -83,12 +84,76 @@ interface LeveragedAuth {
   dateAuthorized: string;
 }
 
+interface ProvidedEntry {
+  uuid: string;
+  description: string;
+  remarks: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+  props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
+}
+
+interface ResponsibilityEntry {
+  uuid: string;
+  description: string;
+  remarks: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+  props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
+  providedUuid?: string;
+}
+
+interface InheritedEntry {
+  uuid: string;
+  description: string;
+  providedUuid?: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+}
+
+interface SatisfiedEntry {
+  uuid: string;
+  description: string;
+  responsibilityUuid?: string;
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
+  remarks: string;
+}
+
+interface ExportBlock {
+  description: string;
+  remarks: string;
+  provided: ProvidedEntry[];
+  responsibilities: ResponsibilityEntry[];
+}
+
+interface SetParameter {
+  paramId: string;
+  values: string[];
+  remarks: string;
+}
+
+interface InformationType {
+  uuid?: string;
+  title: string;
+  description: string;
+  categorizations: { system: string; informationTypeIds: string[] }[];
+  confidentialityImpact: { base: string; selected?: string };
+  integrityImpact: { base: string; selected?: string };
+  availabilityImpact: { base: string; selected?: string };
+}
+
 interface ByComponent {
   componentUuid: string;
   uuid: string;
   description: string;
   remarks: string;
   implementationStatus: string;
+  export?: ExportBlock;
+  inherited: InheritedEntry[];
+  satisfied: SatisfiedEntry[];
+  setParameters: SetParameter[];
+  props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
+  responsibleRoles: { roleId: string; partyUuids: string[] }[];
 }
 
 interface SspStatement {
@@ -105,6 +170,7 @@ interface ImplementedRequirement {
   description: string;
   remarks: string;
   props: OscalProp[];
+  setParameters: SetParameter[];
   statements: SspStatement[];
   byComponents: ByComponent[];
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
@@ -120,6 +186,7 @@ interface SystemCharacteristics {
   securityImpactLevel: { objectiveConfidentiality: string; objectiveIntegrity: string; objectiveAvailability: string };
   status: { state: string; remarks?: string };
   authorizationBoundary: { description: string };
+  informationTypes: InformationType[];
   props: OscalProp[];
 }
 
@@ -174,6 +241,66 @@ function trunc(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "\u2026" : s;
 }
 
+function parseRoles(arr: any[]): { roleId: string; partyUuids: string[] }[] {
+  return (arr || []).map((rr: any) => ({
+    roleId: rr["role-id"] || "", partyUuids: rr["party-uuids"] || [],
+  }));
+}
+
+function parseLinks(arr: any[]): { href: string; rel?: string; text?: string }[] {
+  return (arr || []).map((l: any) => ({
+    href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
+  }));
+}
+
+function parseSetParams(arr: any[]): SetParameter[] {
+  return (arr || []).map((sp: any) => ({
+    paramId: sp["param-id"] || "",
+    values: sp.values || [],
+    remarks: txt(sp.remarks),
+  }));
+}
+
+function parseByComp(bc: any): ByComponent {
+  const exp = bc.export;
+  return {
+    componentUuid: bc["component-uuid"], uuid: bc.uuid,
+    description: txt(bc.description),
+    remarks: txt(bc.remarks),
+    implementationStatus: bc["implementation-status"]?.state || "",
+    export: exp ? {
+      description: txt(exp.description),
+      remarks: txt(exp.remarks),
+      provided: (exp.provided || []).map((p: any) => ({
+        uuid: p.uuid, description: txt(p.description), remarks: txt(p.remarks),
+        responsibleRoles: parseRoles(p["responsible-roles"]),
+        props: p.props || [], links: parseLinks(p.links),
+      })),
+      responsibilities: (exp.responsibilities || []).map((r: any) => ({
+        uuid: r.uuid, description: txt(r.description), remarks: txt(r.remarks),
+        responsibleRoles: parseRoles(r["responsible-roles"]),
+        props: r.props || [], links: parseLinks(r.links),
+        providedUuid: r["provided-uuid"],
+      })),
+    } : undefined,
+    inherited: (bc.inherited || []).map((ih: any) => ({
+      uuid: ih.uuid, description: txt(ih.description),
+      providedUuid: ih["provided-uuid"],
+      responsibleRoles: parseRoles(ih["responsible-roles"]),
+    })),
+    satisfied: (bc.satisfied || []).map((sat: any) => ({
+      uuid: sat.uuid, description: txt(sat.description),
+      responsibilityUuid: sat["responsibility-uuid"],
+      responsibleRoles: parseRoles(sat["responsible-roles"]),
+      remarks: txt(sat.remarks),
+    })),
+    setParameters: parseSetParams(bc["set-parameters"]),
+    props: bc.props || [],
+    links: parseLinks(bc.links),
+    responsibleRoles: parseRoles(bc["responsible-roles"]),
+  };
+}
+
 function parseSsp(raw: any): SspParsed {
   const ssp = raw["system-security-plan"] ?? raw;
   if (!ssp.metadata) throw new Error("Not a valid OSCAL SSP — missing metadata.");
@@ -214,6 +341,17 @@ function parseSsp(raw: any): SspParsed {
     },
     status: { state: sc.status?.state || "", remarks: txt(sc.status?.remarks) },
     authorizationBoundary: { description: txt(sc["authorization-boundary"]?.description) },
+    informationTypes: ((sc["system-information"]?.["information-types"]) || []).map((it: any) => ({
+      uuid: it.uuid,
+      title: it.title || "",
+      description: txt(it.description),
+      categorizations: (it.categorizations || []).map((cat: any) => ({
+        system: cat.system || "", informationTypeIds: cat["information-type-ids"] || [],
+      })),
+      confidentialityImpact: { base: it["confidentiality-impact"]?.base || "", selected: it["confidentiality-impact"]?.selected },
+      integrityImpact: { base: it["integrity-impact"]?.base || "", selected: it["integrity-impact"]?.selected },
+      availabilityImpact: { base: it["availability-impact"]?.base || "", selected: it["availability-impact"]?.selected },
+    })),
     props: sc.props || [],
   };
 
@@ -236,9 +374,8 @@ function parseSsp(raw: any): SspParsed {
     description: txt(c.description),
     status: c.status?.state || "",
     props: c.props || [],
-    links: (c.links || []).map((l: any) => ({
-      href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
-    })),
+    links: parseLinks(c.links),
+    responsibleRoles: parseRoles(c["responsible-roles"]),
   }));
   const inventoryItems: InventoryItem[] = (si["inventory-items"] || []).map((ii: any) => ({
     uuid: ii.uuid,
@@ -272,23 +409,12 @@ function parseSsp(raw: any): SspParsed {
       uuid: st.uuid,
       description: txt(st.description),
       remarks: txt(st.remarks),
-      byComponents: (st["by-components"] || []).map((bc: any) => ({
-        componentUuid: bc["component-uuid"], uuid: bc.uuid, description: txt(bc.description),
-        remarks: txt(bc.remarks),
-        implementationStatus: bc["implementation-status"]?.state || "",
-      })),
+      byComponents: (st["by-components"] || []).map(parseByComp),
     })),
-    byComponents: (ir["by-components"] || []).map((bc: any) => ({
-      componentUuid: bc["component-uuid"], uuid: bc.uuid, description: txt(bc.description),
-      remarks: txt(bc.remarks),
-      implementationStatus: bc["implementation-status"]?.state || "",
-    })),
-    responsibleRoles: (ir["responsible-roles"] || []).map((rr: any) => ({
-      roleId: rr["role-id"] || "", partyUuids: rr["party-uuids"] || [],
-    })),
-    links: (ir.links || []).map((l: any) => ({
-      href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
-    })),
+    setParameters: parseSetParams(ir["set-parameters"]),
+    byComponents: (ir["by-components"] || []).map(parseByComp),
+    responsibleRoles: parseRoles(ir["responsible-roles"]),
+    links: parseLinks(ir.links),
   }));
 
   const controlImplementation: ControlImplementation = {
@@ -1333,6 +1459,32 @@ function OverviewView({ ssp }: {
           {si.leveragedAuthorizations.length > 0 && (
             <StatChip value={si.leveragedAuthorizations.length} label="Leveraged" color={colors.purple} />
           )}
+          {sc.informationTypes.length > 0 && (
+            <StatChip value={sc.informationTypes.length} label="Info Types" color={colors.brightBlue} />
+          )}
+          {(() => {
+            let exports = 0, responsibilities = 0, inherited = 0, satisfied = 0;
+            ci.implementedRequirements.forEach((ir) => {
+              ir.byComponents.forEach((bc) => {
+                if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
+                inherited += bc.inherited.length;
+                satisfied += bc.satisfied.length;
+              });
+              ir.statements.forEach((st) => st.byComponents.forEach((bc) => {
+                if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
+                inherited += bc.inherited.length;
+                satisfied += bc.satisfied.length;
+              }));
+            });
+            return (
+              <>
+                {exports > 0 && <StatChip value={exports} label="Provided" color={colors.cobalt} />}
+                {responsibilities > 0 && <StatChip value={responsibilities} label="Cust. Resp." color={colors.red} />}
+                {inherited > 0 && <StatChip value={inherited} label="Inherited" color={colors.darkGreen} />}
+                {satisfied > 0 && <StatChip value={satisfied} label="Satisfied" color={colors.purple} />}
+              </>
+            );
+          })()}
         </div>
       </Card>
 
@@ -1454,6 +1606,35 @@ function SystemCharacteristicsView({ ssp }: { ssp: SspParsed }) {
         <Card>
           <SectionLabel>Authorization Boundary</SectionLabel>
           <MarkupBlock value={sc.authorizationBoundary.description} />
+        </Card>
+      )}
+
+      {sc.informationTypes.length > 0 && (
+        <Card>
+          <SectionLabel>Information Types ({sc.informationTypes.length})</SectionLabel>
+          {sc.informationTypes.map((it, i) => (
+            <div key={i} style={{ padding: "10px 14px", marginBottom: 8, backgroundColor: colors.bg, borderRadius: radii.sm }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 4 }}>{it.title}</div>
+              {it.description && <MarkupBlock value={it.description} style={{ fontSize: 12, marginBottom: 8 }} />}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {[
+                  { label: "Confidentiality", impact: it.confidentialityImpact },
+                  { label: "Integrity", impact: it.integrityImpact },
+                  { label: "Availability", impact: it.availabilityImpact },
+                ].filter((x) => x.impact.base || x.impact.selected).map((x) => {
+                  const level = (x.impact.selected || x.impact.base).toLowerCase();
+                  const bg = level.includes("high") ? alpha(colors.red, 10) : level.includes("moderate") ? alpha(colors.orange, 10) : alpha(colors.darkGreen, 10);
+                  const fg = level.includes("high") ? colors.red : level.includes("moderate") ? colors.orange : colors.darkGreen;
+                  return (
+                    <div key={x.label} style={{ textAlign: "center", padding: "6px 14px", borderRadius: radii.sm, backgroundColor: bg }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: fg, textTransform: "uppercase" }}>{x.impact.selected || x.impact.base}</div>
+                      <div style={{ fontSize: 9, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.06em" }}>{x.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </Card>
       )}
 
@@ -1771,6 +1952,291 @@ function ControlFamilyView({ familyId, ssp, navigate }: { familyId: string; ssp:
   );
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   ByComponentTabs — disclosure for the optional Export / Inherited / Satisfied
+   buckets on a by-component entry. Always shows the main "Implementation"
+   body (description / remarks / set-parameters / responsible-roles). Only
+   renders the tab strip when at least one optional bucket exists; otherwise
+   falls through to the implementation body so simple by-components look the
+   same as before.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+type ByCompTabKey = "impl" | "exports" | "inherited" | "satisfied";
+
+function ByComponentTabs({ bc, size }: { bc: ByComponent; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+
+  const exportCount = bc.export
+    ? bc.export.provided.length + bc.export.responsibilities.length
+    : 0;
+  const hasExport =
+    !!bc.export &&
+    (exportCount > 0 || !!bc.export.description || !!bc.export.remarks);
+  const hasInherited = bc.inherited.length > 0;
+  const hasSatisfied = bc.satisfied.length > 0;
+
+  const tabs: { key: ByCompTabKey; label: string; count?: number; color: string }[] = [
+    { key: "impl", label: "Implementation", color: colors.cobalt },
+  ];
+  if (hasExport) tabs.push({ key: "exports", label: "Exports", count: exportCount, color: colors.brightBlue });
+  if (hasInherited) tabs.push({ key: "inherited", label: "Inherited", count: bc.inherited.length, color: colors.darkGreen });
+  if (hasSatisfied) tabs.push({ key: "satisfied", label: "Satisfied", count: bc.satisfied.length, color: colors.purple });
+
+  const [active, setActive] = useState<ByCompTabKey>("impl");
+  const activeTab = tabs.find((t) => t.key === active) ?? tabs[0];
+
+  // No optional buckets — render implementation body inline, no tab strip.
+  if (tabs.length === 1) {
+    return <ByCompImplementation bc={bc} size={size} />;
+  }
+
+  const tabPad = isReq ? "6px 14px" : "4px 10px";
+  const tabFs = isReq ? 12 : 11;
+
+  return (
+    <div>
+      <div style={{
+        display: "flex", gap: 0, flexWrap: "wrap",
+        borderBottom: `2px solid ${colors.paleGray}`,
+        marginBottom: isReq ? 12 : 8,
+      }}>
+        {tabs.map((t) => {
+          const isActive = t.key === active;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setActive(t.key)}
+              style={{
+                padding: tabPad, fontSize: tabFs,
+                fontWeight: isActive ? 700 : 500,
+                color: isActive ? t.color : colors.gray,
+                background: isActive ? alpha(t.color, 4) : "transparent",
+                border: "none",
+                borderBottom: isActive ? `2px solid ${t.color}` : "2px solid transparent",
+                cursor: "pointer",
+                transition: "all .12s",
+                marginBottom: -2,
+                fontFamily: fonts.sans,
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <span>{t.label}</span>
+              {typeof t.count === "number" && (
+                <span style={{
+                  fontSize: tabFs - 1, fontWeight: 700,
+                  padding: "0 6px", borderRadius: radii.pill,
+                  background: isActive ? t.color : alpha(colors.gray, 15),
+                  color: isActive ? colors.white : colors.gray,
+                  minWidth: 16, textAlign: "center",
+                }}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab.key === "impl" && <ByCompImplementation bc={bc} size={size} />}
+      {activeTab.key === "exports" && bc.export && <ByCompExports exp={bc.export} size={size} />}
+      {activeTab.key === "inherited" && <ByCompInherited entries={bc.inherited} size={size} />}
+      {activeTab.key === "satisfied" && <ByCompSatisfied entries={bc.satisfied} size={size} />}
+    </div>
+  );
+}
+
+function ByCompImplementation({ bc, size }: { bc: ByComponent; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const descFs = isReq ? 13 : 12.5;
+
+  const hasAny =
+    bc.description || bc.remarks ||
+    (isReq && bc.setParameters.length > 0) ||
+    (isReq && bc.responsibleRoles.length > 0);
+
+  if (!hasAny) {
+    return (
+      <p style={{ fontSize: 12, color: colors.gray, fontStyle: "italic", margin: 0 }}>
+        No implementation description provided.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      {bc.description && <MarkupBlock value={bc.description} style={{ fontSize: descFs }} />}
+      {bc.remarks && <CollapsibleRemarks value={bc.remarks} compact />}
+
+      {isReq && bc.setParameters.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: 6 }}>
+            Parameters ({bc.setParameters.length})
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {bc.setParameters.map((sp, i) => (
+              <div key={i} style={{ display: "inline-flex", alignItems: "baseline", gap: 6, padding: "4px 10px", backgroundColor: alpha(colors.orange, 6), borderRadius: radii.sm, border: `1px solid ${alpha(colors.orange, 15)}` }}>
+                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: fonts.mono, color: colors.orange }}>{sp.paramId}</span>
+                {sp.values.map((v, j) => (
+                  <span key={j} style={{ fontSize: 11, fontFamily: fonts.mono, color: colors.black }}>{v}</span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isReq && bc.responsibleRoles.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.navy, letterSpacing: 0.5, marginBottom: 6 }}>
+            Responsible Roles
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {bc.responsibleRoles.map((rr, i) => (
+              <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
+                {rr.roleId}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ByCompExports({ exp, size }: { exp: ExportBlock; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const itemPad = isReq ? "8px 12px" : "6px 10px";
+  const descFs = isReq ? 12.5 : 11.5;
+  const headFs = isReq ? 10 : 9;
+  const labelMb = isReq ? 4 : 3;
+  const sectionMb = isReq ? 10 : 6;
+
+  return (
+    <div>
+      {exp.description && (
+        <MarkupBlock value={exp.description} style={{ fontSize: descFs, marginBottom: 8 }} />
+      )}
+
+      {exp.provided.length > 0 && (
+        <div style={{ marginBottom: sectionMb }}>
+          <div style={{ fontSize: headFs, fontWeight: 700, textTransform: "uppercase" as const, color: colors.brightBlue, letterSpacing: 0.5, marginBottom: labelMb }}>
+            Provided ({exp.provided.length})
+          </div>
+          {exp.provided.map((p, i) => (
+            <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.brightBlue, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.brightBlue}` }}>
+              <MarkupBlock value={p.description} style={{ fontSize: descFs }} />
+              {p.responsibleRoles.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {p.responsibleRoles.map((rr, ri) => (
+                    <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
+                      {rr.roleId}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {p.uuid && (
+                <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+                  uuid: {p.uuid}
+                </div>
+              )}
+              {p.remarks && <CollapsibleRemarks value={p.remarks} compact />}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {exp.responsibilities.length > 0 && (
+        <div style={{ marginBottom: sectionMb }}>
+          <div style={{ fontSize: headFs, fontWeight: 700, textTransform: "uppercase" as const, color: colors.orange, letterSpacing: 0.5, marginBottom: labelMb }}>
+            Customer Responsibilities ({exp.responsibilities.length})
+          </div>
+          {exp.responsibilities.map((r, i) => (
+            <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
+              <MarkupBlock value={r.description} style={{ fontSize: descFs }} />
+              {r.responsibleRoles.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {r.responsibleRoles.map((rr, ri) => (
+                    <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
+                      {rr.roleId}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {r.providedUuid && (
+                <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+                  provided-uuid: {r.providedUuid}
+                </div>
+              )}
+              {r.remarks && <CollapsibleRemarks value={r.remarks} compact />}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {exp.remarks && <CollapsibleRemarks value={exp.remarks} compact />}
+    </div>
+  );
+}
+
+function ByCompInherited({ entries, size }: { entries: InheritedEntry[]; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const itemPad = isReq ? "8px 12px" : "6px 10px";
+  const descFs = isReq ? 12.5 : 11.5;
+  return (
+    <div>
+      {entries.map((ih, i) => (
+        <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
+          <MarkupBlock value={ih.description} style={{ fontSize: descFs }} />
+          {ih.responsibleRoles.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+              {ih.responsibleRoles.map((rr, ri) => (
+                <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
+                  {rr.roleId}
+                </span>
+              ))}
+            </div>
+          )}
+          {ih.providedUuid && (
+            <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+              provided-uuid: {ih.providedUuid}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ByCompSatisfied({ entries, size }: { entries: SatisfiedEntry[]; size: "req" | "stmt" }) {
+  const isReq = size === "req";
+  const itemPad = isReq ? "8px 12px" : "6px 10px";
+  const descFs = isReq ? 12.5 : 11.5;
+  return (
+    <div>
+      {entries.map((sat, i) => (
+        <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.purple, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.purple}` }}>
+          <MarkupBlock value={sat.description} style={{ fontSize: descFs }} />
+          {sat.responsibleRoles.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+              {sat.responsibleRoles.map((rr, ri) => (
+                <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.purple, color: colors.white, fontWeight: 500 }}>
+                  {rr.roleId}
+                </span>
+              ))}
+            </div>
+          )}
+          {sat.responsibilityUuid && (
+            <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+              responsibility-uuid: {sat.responsibilityUuid}
+            </div>
+          )}
+          {sat.remarks && <CollapsibleRemarks value={sat.remarks} compact />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; ssp: SspParsed; catalog: OscalCatalog | null }) {
   const compMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -1860,6 +2326,31 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
         </Card>
       )}
 
+      {/* Set Parameters (IR-level) */}
+      {ir.setParameters.length > 0 && (
+        <Card>
+          <SectionLabel>Set Parameters ({ir.setParameters.length})</SectionLabel>
+          <div style={{ display: "grid", gap: 8 }}>
+            {ir.setParameters.map((sp, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 10px", backgroundColor: colors.surfaceSubtle, borderRadius: radii.sm }}>
+                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: fonts.mono, color: colors.orange, whiteSpace: "nowrap" }}>{sp.paramId}</span>
+                <span style={{ fontSize: 12, color: colors.black }}>=</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {sp.values.map((v, j) => (
+                    <span key={j} style={{
+                      fontSize: 12, fontFamily: fonts.mono, padding: "2px 8px", borderRadius: radii.sm,
+                      backgroundColor: alpha(colors.orange, 8), color: colors.orange, border: `1px solid ${alpha(colors.orange, 20)}`,
+                    }}>
+                      {v}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Component-level implementations */}
       {allComponents.length > 0 && (
         <Card>
@@ -1913,14 +2404,13 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                   </div>
                 )}
 
-                {/* Requirement-level description for this component */}
-                {reqBc?.description && (
+                {/* Requirement-level by-component (Implementation + tabbed disclosure) */}
+                {reqBc && (
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.cobalt, letterSpacing: 0.5, marginBottom: 6 }}>
                       Component Implementation
                     </div>
-                    <MarkupBlock value={reqBc.description} style={{ fontSize: 13 }} />
-                    {reqBc.remarks && <CollapsibleRemarks value={reqBc.remarks} compact />}
+                    <ByComponentTabs key={reqBc.uuid} bc={reqBc} size="req" />
                   </div>
                 )}
 
@@ -1962,16 +2452,15 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                               <ImplStatusBadge status={bc.implementationStatus} />
                             </div>
                           )}
-                          {/* Component's implementation for this statement */}
-                          {bc.description && <MarkupBlock value={bc.description} />}
-                          {bc.remarks && <CollapsibleRemarks value={bc.remarks} compact />}
+                          {/* Component's implementation for this statement (tabbed disclosure) */}
+                          <ByComponentTabs key={bc.uuid} bc={bc} size="stmt" />
                         </div>
                       );
                     })}
                   </div>
                 )}
 
-                {!reqBc?.description && stmtEntries.length === 0 && (
+                {!reqBc && stmtEntries.length === 0 && (
                   <p style={{ fontSize: 13, color: colors.gray, fontStyle: "italic" }}>No implementation details for this component.</p>
                 )}
               </div>
