@@ -66,6 +66,7 @@ interface SspComponent {
   description: string;
   status: string;
   props: OscalProp[];
+  links: { href: string; rel?: string; text?: string }[];
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
 }
 
@@ -373,6 +374,7 @@ function parseSsp(raw: any): SspParsed {
     description: txt(c.description),
     status: c.status?.state || "",
     props: c.props || [],
+    links: parseLinks(c.links),
     responsibleRoles: parseRoles(c["responsible-roles"]),
   }));
   const inventoryItems: InventoryItem[] = (si["inventory-items"] || []).map((ii: any) => ({
