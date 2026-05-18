@@ -159,6 +159,12 @@ export interface OscalContextValue {
   setPoam: (data: unknown, fileName: string) => void;
   clearPoam: () => void;
 
+  /** Leveraged SSPs — provider SSPs loaded for cross-SSP inheritance resolution */
+  leveragedSsps: UploadEntry<unknown>[];
+  addLeveragedSsp: (data: unknown, fileName: string) => void;
+  removeLeveragedSsp: (fileName: string) => void;
+  clearLeveragedSsps: () => void;
+
   /** Quick lookup — returns true if a given model key has data loaded */
   isLoaded: (modelKey: string) => boolean;
 }
@@ -175,6 +181,7 @@ export function OscalProvider({ children }: { children: ReactNode }) {
   const [assessmentPlan, _setAssessmentPlan] = useState<UploadEntry<unknown> | null>(null);
   const [assessmentResults, _setAssessmentResults] = useState<UploadEntry<unknown> | null>(null);
   const [poam, _setPoam] = useState<UploadEntry<unknown> | null>(null);
+  const [leveragedSsps, _setLeveragedSsps] = useState<UploadEntry<unknown>[]>([]);
 
   const setCatalog = useCallback((data: Catalog, fileName: string) => _setCatalog({ data, fileName }), []);
   const clearCatalog = useCallback(() => _setCatalog(null), []);
@@ -196,6 +203,17 @@ export function OscalProvider({ children }: { children: ReactNode }) {
 
   const setPoam = useCallback((data: unknown, fileName: string) => _setPoam({ data, fileName }), []);
   const clearPoam = useCallback(() => _setPoam(null), []);
+
+  const addLeveragedSsp = useCallback((data: unknown, fileName: string) => {
+    _setLeveragedSsps((prev) => {
+      if (prev.some((e) => e.fileName === fileName)) return prev;
+      return [...prev, { data, fileName }];
+    });
+  }, []);
+  const removeLeveragedSsp = useCallback((fileName: string) => {
+    _setLeveragedSsps((prev) => prev.filter((e) => e.fileName !== fileName));
+  }, []);
+  const clearLeveragedSsps = useCallback(() => _setLeveragedSsps([]), []);
 
   const isLoaded = useCallback(
     (modelKey: string): boolean => {
@@ -223,6 +241,7 @@ export function OscalProvider({ children }: { children: ReactNode }) {
         assessmentPlan, setAssessmentPlan, clearAssessmentPlan,
         assessmentResults, setAssessmentResults, clearAssessmentResults,
         poam, setPoam, clearPoam,
+        leveragedSsps, addLeveragedSsp, removeLeveragedSsp, clearLeveragedSsps,
         isLoaded,
       }}
     >

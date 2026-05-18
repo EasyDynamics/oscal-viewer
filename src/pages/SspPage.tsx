@@ -24,6 +24,7 @@ import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
+import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -1426,8 +1427,9 @@ function buildComponentHierarchy(components: SspComponent[]): ComponentHierarchy
    PLACEHOLDER VIEWS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ ssp }: {
+function OverviewView({ ssp, leveragedIndex }: {
   ssp: SspParsed;
+  leveragedIndex: LeveragedIndex;
 }) {
   const { metadata: md, systemCharacteristics: sc, systemImplementation: si, controlImplementation: ci, backMatter: bm } = ssp;
   return (
@@ -1464,24 +1466,30 @@ function OverviewView({ ssp }: {
           )}
           {(() => {
             let exports = 0, responsibilities = 0, inherited = 0, satisfied = 0;
+            let inheritedResolved = 0, satisfiedResolved = 0;
             ci.implementedRequirements.forEach((ir) => {
               ir.byComponents.forEach((bc) => {
                 if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
                 inherited += bc.inherited.length;
                 satisfied += bc.satisfied.length;
+                bc.inherited.forEach((ih) => { if (ih.providedUuid && leveragedIndex.provided.has(ih.providedUuid)) inheritedResolved++; });
+                bc.satisfied.forEach((sat) => { if (sat.responsibilityUuid && leveragedIndex.responsibilities.has(sat.responsibilityUuid)) satisfiedResolved++; });
               });
               ir.statements.forEach((st) => st.byComponents.forEach((bc) => {
                 if (bc.export) { exports += bc.export.provided.length; responsibilities += bc.export.responsibilities.length; }
                 inherited += bc.inherited.length;
                 satisfied += bc.satisfied.length;
+                bc.inherited.forEach((ih) => { if (ih.providedUuid && leveragedIndex.provided.has(ih.providedUuid)) inheritedResolved++; });
+                bc.satisfied.forEach((sat) => { if (sat.responsibilityUuid && leveragedIndex.responsibilities.has(sat.responsibilityUuid)) satisfiedResolved++; });
               }));
             });
+            const hasResolutions = inheritedResolved > 0 || satisfiedResolved > 0;
             return (
               <>
                 {exports > 0 && <StatChip value={exports} label="Provided" color={colors.cobalt} />}
                 {responsibilities > 0 && <StatChip value={responsibilities} label="Cust. Resp." color={colors.red} />}
-                {inherited > 0 && <StatChip value={inherited} label="Inherited" color={colors.darkGreen} />}
-                {satisfied > 0 && <StatChip value={satisfied} label="Satisfied" color={colors.purple} />}
+                {inherited > 0 && <StatChip value={inherited} label={hasResolutions ? `Inherited (${inheritedResolved} resolved)` : "Inherited"} color={colors.darkGreen} />}
+                {satisfied > 0 && <StatChip value={satisfied} label={hasResolutions ? `Satisfied (${satisfiedResolved} resolved)` : "Satisfied"} color={colors.purple} />}
               </>
             );
           })()}
@@ -1823,30 +1831,289 @@ function InventoryView({ ssp }: { ssp: SspParsed }) {
   );
 }
 
-function LeveragedView({ ssp }: { ssp: SspParsed }) {
+function LeveragedView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: string) => void }) {
   const items = ssp.systemImplementation.leveragedAuthorizations;
+  const oscal = useOscal();
+  const leveragedIndex = useLeveragedIndex(oscal.leveragedSsps);
+  const [dragOver, setDragOver] = useState(false);
   const partyMap = useMemo(() => {
     const m: Record<string, string> = {};
     ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
     return m;
   }, [ssp]);
+
+  const loadLeveragedFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        const inner = json["system-security-plan"] ?? json;
+        if (!inner.metadata) return;
+        oscal.addLeveragedSsp(json, file.name);
+      } catch { /* ignore invalid files */ }
+    };
+    reader.readAsText(file);
+  }, [oscal]);
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) loadLeveragedFile(file);
+  }, [loadLeveragedFile]);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) loadLeveragedFile(file);
+    e.target.value = "";
+  }, [loadLeveragedFile]);
+
   return (
     <>
       <Card>
         <SectionLabel>Leveraged Authorizations ({items.length})</SectionLabel>
         <p style={{ fontSize: 13, color: colors.gray, margin: 0 }}>
-          External systems whose authorizations are leveraged.
+          External systems whose authorizations are leveraged. Click an authorization to explore the controls it offers.
         </p>
       </Card>
-      {items.map((la) => (
-        <Card key={la.uuid}>
-          <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: "0 0 4px" }}>{la.title}</h4>
+      {items.map((la, i) => (
+        <Card key={la.uuid} style={{ cursor: "pointer" }}>
+          <div onClick={() => navigate(`leveraged-auth-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <IcoLayers size={15} style={{ color: colors.purple }} />
+            <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, flex: 1 }}>{la.title}</h4>
+            <span style={{ fontSize: 11, color: colors.cobalt, fontWeight: 600 }}>View &rarr;</span>
+          </div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
             {la.dateAuthorized && <MField label="Authorized" value={fmtDate(la.dateAuthorized)} />}
           </div>
         </Card>
       ))}
+
+      {/* Provider SSP upload section */}
+      <Card>
+        <SectionLabel>Load Provider SSPs</SectionLabel>
+        <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 10px" }}>
+          Upload the provider system&apos;s SSP to resolve <em>inherited</em> and <em>satisfied</em> UUID references across controls.
+        </p>
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { handleDrop(e); setDragOver(false); }}
+          style={{
+            border: `2px dashed ${dragOver ? colors.cobalt : colors.paleGray}`,
+            borderRadius: radii.md, padding: "16px 20px",
+            textAlign: "center", cursor: "pointer",
+            backgroundColor: dragOver ? alpha(colors.cobalt, 10) : alpha(colors.cobalt, 3),
+            transition: "border-color 0.15s, background-color 0.15s",
+            transform: dragOver ? "scale(1.01)" : "scale(1)",
+          }}
+          onClick={() => document.getElementById("leveraged-ssp-input")?.click()}
+        >
+          <IcoUpload size={20} style={{ color: colors.cobalt, marginBottom: 4 }} />
+          <div style={{ fontSize: 12, color: colors.gray }}>Drop a provider SSP JSON file here, or click to browse</div>
+          <input id="leveraged-ssp-input" type="file" accept=".json" style={{ display: "none" }} onChange={handleFileInput} />
+        </div>
+
+        {/* Loaded provider SSPs */}
+        {oscal.leveragedSsps.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.cobalt, marginBottom: 6 }}>
+              Loaded Provider SSPs ({oscal.leveragedSsps.length})
+            </div>
+            {oscal.leveragedSsps.map((entry) => (
+              <div key={entry.fileName} style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", marginBottom: 4,
+                backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}`,
+              }}>
+                <span style={{ fontSize: 12, color: colors.darkGreen, fontWeight: 600 }}>✓</span>
+                <span style={{ fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.fileName}</span>
+                <button
+                  onClick={() => oscal.removeLeveragedSsp(entry.fileName)}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: colors.gray, padding: "0 4px" }}
+                  title="Remove"
+                >×</button>
+              </div>
+            ))}
+            {leveragedIndex.provided.size > 0 && (
+              <div style={{ fontSize: 11, color: colors.gray, marginTop: 6 }}>
+                Resolved: <strong style={{ color: colors.darkGreen }}>{leveragedIndex.provided.size}</strong> provided
+                {leveragedIndex.responsibilities.size > 0 && (
+                  <>, <strong style={{ color: colors.purple }}>{leveragedIndex.responsibilities.size}</strong> responsibilities</>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: { ssp: SspParsed; authIndex: number; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
+  const la = ssp.systemImplementation.leveragedAuthorizations[authIndex];
+  const partyMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
+    return m;
+  }, [ssp]);
+
+  /* Match this leveraged authorization to provider exports by title similarity */
+  const offeredControls = useMemo(() => {
+    const result: { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[] = [];
+    const titleLower = la.title.toLowerCase();
+    for (const [controlId, entries] of leveragedIndex.byControl.entries()) {
+      const matching = entries.filter((e) => e.providerSspTitle.toLowerCase().includes(titleLower) || titleLower.includes(e.providerSspTitle.toLowerCase()));
+      if (matching.length > 0) result.push({ controlId, entries: matching });
+    }
+    /* If no title match, show all provider exports (single provider scenario) */
+    if (result.length === 0 && leveragedIndex.providerCount === 1) {
+      for (const [controlId, entries] of leveragedIndex.byControl.entries()) {
+        result.push({ controlId, entries });
+      }
+    }
+    result.sort((a, b) => a.controlId.localeCompare(b.controlId));
+    return result;
+  }, [la, leveragedIndex]);
+
+  /* Group offered controls by family */
+  const familyGroups = useMemo(() => {
+    const map: Record<string, { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[]> = {};
+    offeredControls.forEach((ctrl) => {
+      const fam = getFamily(ctrl.controlId);
+      (map[fam] ??= []).push(ctrl);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [offeredControls]);
+
+  const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
+  const [expandedControls, setExpandedControls] = useState<Record<string, boolean>>({});
+
+  const toggleFamily = (fam: string) => setExpandedFamilies((prev) => ({ ...prev, [fam]: !prev[fam] }));
+  const toggleControl = (id: string) => setExpandedControls((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  return (
+    <>
+      <Card>
+        <SectionLabel>Leveraged Authorization</SectionLabel>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: "0 0 12px" }}>{la.title}</h3>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
+          {la.dateAuthorized && <MField label="Date Authorized" value={fmtDate(la.dateAuthorized)} />}
+          <MField label="UUID" value={la.uuid} mono />
+        </div>
+      </Card>
+
+      {/* Controls offered tree */}
+      <Card>
+        <SectionLabel>Controls Offered ({offeredControls.length})</SectionLabel>
+        <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 12px" }}>
+          Controls provided by this leveraged system, grouped by family. Click a control to view its full implementation detail.
+        </p>
+
+        {offeredControls.length === 0 ? (
+          <div style={{ padding: "16px 0", textAlign: "center", color: colors.gray, fontSize: 12, fontStyle: "italic" }}>
+            No provider SSP loaded for this authorization. Upload the provider SSP in the Leveraged Auth section to see controls offered.
+          </div>
+        ) : (
+          <div style={{ border: `1px solid ${colors.paleGray}`, borderRadius: radii.md, overflow: "hidden" }}>
+            {familyGroups.map(([fam, controls]) => {
+              const famExpanded = expandedFamilies[fam] === true;
+              return (
+                <div key={fam}>
+                  {/* Family row */}
+                  <div
+                    onClick={() => toggleFamily(fam)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                      backgroundColor: colors.surfaceSubtle, cursor: "pointer",
+                      borderBottom: `1px solid ${colors.paleGray}`,
+                      userSelect: "none",
+                    }}
+                  >
+                    <IcoChev open={famExpanded} style={{ color: colors.cobalt }} />
+                    <IcoFolder size={13} style={{ color: colors.cobalt }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy }}>{fam.toUpperCase()}</span>
+                    <span style={{ fontSize: 11, color: colors.gray }}>{FAMILY_NAMES[fam] || fam}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, padding: "1px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.purple, 10), color: colors.purple }}>
+                      {controls.length}
+                    </span>
+                  </div>
+
+                  {/* Controls within this family */}
+                  {famExpanded && controls.map(({ controlId, entries }) => {
+                    const ctrlExpanded = expandedControls[controlId] ?? false;
+                    return (
+                      <div key={controlId} style={{ borderBottom: `1px solid ${colors.bg}` }}>
+                        {/* Control row */}
+                        <div
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8, padding: "6px 12px 6px 28px",
+                            cursor: "pointer", transition: "background .1s",
+                          }}
+                          onClick={() => toggleControl(controlId)}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = alpha(colors.cobalt, 5); }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent"; }}
+                        >
+                          <IcoChev open={ctrlExpanded} style={{ color: colors.orange }} />
+                          <IcoShield size={12} style={{ color: colors.orange }} />
+                          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: fonts.mono, color: colors.navy }}>{controlId.toUpperCase()}</span>
+                          <span style={{ fontSize: 10, color: colors.gray }}>{entries.length} component{entries.length > 1 ? "s" : ""}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); navigate(`ctrl-${controlId}`); }}
+                            style={{
+                              marginLeft: "auto", background: "none", border: `1px solid ${colors.cobalt}`, borderRadius: radii.sm,
+                              padding: "2px 8px", fontSize: 10, color: colors.cobalt, cursor: "pointer", fontWeight: 600,
+                            }}
+                          >
+                            View Detail
+                          </button>
+                        </div>
+
+                        {/* Expanded control detail inline */}
+                        {ctrlExpanded && (
+                          <div style={{ padding: "8px 12px 12px 48px", backgroundColor: alpha(colors.purple, 3) }}>
+                            {entries.map((entry, ei) => (
+                              <div key={ei} style={{ marginBottom: ei < entries.length - 1 ? 10 : 0 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: colors.purple, marginBottom: 4 }}>
+                                  {entry.providerComponentTitle}
+                                </div>
+                                {entry.description && (
+                                  <div style={{ fontSize: 12, color: colors.black, marginBottom: 6 }}>{entry.description}</div>
+                                )}
+                                {entry.provided.length > 0 && (
+                                  <div style={{ marginBottom: 4 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 2 }}>Provided</div>
+                                    {entry.provided.map((p) => (
+                                      <div key={p.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.darkGreen}`, marginBottom: 3 }}>
+                                        {p.description}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {entry.responsibilities.length > 0 && (
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.orange, marginBottom: 2 }}>Responsibilities</div>
+                                    {entry.responsibilities.map((r) => (
+                                      <div key={r.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.orange}`, marginBottom: 3 }}>
+                                        {r.description}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
     </>
   );
 }
@@ -1963,7 +2230,7 @@ function ControlFamilyView({ familyId, ssp, navigate }: { familyId: string; ssp:
 
 type ByCompTabKey = "impl" | "exports" | "inherited" | "satisfied";
 
-function ByComponentTabs({ bc, size }: { bc: ByComponent; size: "req" | "stmt" }) {
+function ByComponentTabs({ bc, size, leveragedIndex }: { bc: ByComponent; size: "req" | "stmt"; leveragedIndex: LeveragedIndex }) {
   const isReq = size === "req";
 
   const exportCount = bc.export
@@ -2039,8 +2306,8 @@ function ByComponentTabs({ bc, size }: { bc: ByComponent; size: "req" | "stmt" }
 
       {activeTab.key === "impl" && <ByCompImplementation bc={bc} size={size} />}
       {activeTab.key === "exports" && bc.export && <ByCompExports exp={bc.export} size={size} />}
-      {activeTab.key === "inherited" && <ByCompInherited entries={bc.inherited} size={size} />}
-      {activeTab.key === "satisfied" && <ByCompSatisfied entries={bc.satisfied} size={size} />}
+      {activeTab.key === "inherited" && <ByCompInherited entries={bc.inherited} size={size} leveragedIndex={leveragedIndex} />}
+      {activeTab.key === "satisfied" && <ByCompSatisfied entries={bc.satisfied} size={size} leveragedIndex={leveragedIndex} />}
     </div>
   );
 }
@@ -2097,6 +2364,42 @@ function ByCompImplementation({ bc, size }: { bc: ByComponent; size: "req" | "st
               </span>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Inline card showing resolved provider attribution for an inherited/satisfied entry */
+function ProviderAttribution({ label, resolution, accentColor }: {
+  label: string;
+  resolution: { providerSspTitle: string; providerComponentTitle: string; controlId: string; responsibleRoles: { roleId: string }[] };
+  accentColor: string;
+}) {
+  return (
+    <div style={{
+      marginTop: 6, padding: "6px 10px",
+      backgroundColor: alpha(accentColor, 6),
+      border: `1px solid ${alpha(accentColor, 18)}`,
+      borderRadius: radii.sm,
+    }}>
+      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: accentColor, marginBottom: 3 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 11, color: colors.black, fontWeight: 600 }}>
+        {resolution.providerSspTitle}
+      </div>
+      <div style={{ fontSize: 10, color: colors.gray, marginTop: 1 }}>
+        Component: {resolution.providerComponentTitle}
+        {resolution.controlId && <> &middot; Control: {resolution.controlId.toUpperCase()}</>}
+      </div>
+      {resolution.responsibleRoles.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
+          {resolution.responsibleRoles.map((rr, i) => (
+            <span key={i} style={{ fontSize: 8, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: accentColor, color: colors.white, fontWeight: 500 }}>
+              {rr.roleId}
+            </span>
+          ))}
         </div>
       )}
     </div>
@@ -2178,66 +2481,76 @@ function ByCompExports({ exp, size }: { exp: ExportBlock; size: "req" | "stmt" }
   );
 }
 
-function ByCompInherited({ entries, size }: { entries: InheritedEntry[]; size: "req" | "stmt" }) {
+function ByCompInherited({ entries, size, leveragedIndex }: { entries: InheritedEntry[]; size: "req" | "stmt"; leveragedIndex: LeveragedIndex }) {
   const isReq = size === "req";
   const itemPad = isReq ? "8px 12px" : "6px 10px";
   const descFs = isReq ? 12.5 : 11.5;
   return (
     <div>
-      {entries.map((ih, i) => (
-        <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
-          <MarkupBlock value={ih.description} style={{ fontSize: descFs }} />
-          {ih.responsibleRoles.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-              {ih.responsibleRoles.map((rr, ri) => (
-                <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
-                  {rr.roleId}
-                </span>
-              ))}
-            </div>
-          )}
-          {ih.providedUuid && (
-            <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
-              provided-uuid: {ih.providedUuid}
-            </div>
-          )}
-        </div>
-      ))}
+      {entries.map((ih, i) => {
+        const resolved = ih.providedUuid ? leveragedIndex.provided.get(ih.providedUuid) : undefined;
+        return (
+          <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
+            <MarkupBlock value={ih.description} style={{ fontSize: descFs }} />
+            {ih.responsibleRoles.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                {ih.responsibleRoles.map((rr, ri) => (
+                  <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
+                    {rr.roleId}
+                  </span>
+                ))}
+              </div>
+            )}
+            {resolved ? (
+              <ProviderAttribution label="Provided by" resolution={resolved} accentColor={colors.darkGreen} />
+            ) : ih.providedUuid ? (
+              <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+                provided-uuid: {ih.providedUuid}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function ByCompSatisfied({ entries, size }: { entries: SatisfiedEntry[]; size: "req" | "stmt" }) {
+function ByCompSatisfied({ entries, size, leveragedIndex }: { entries: SatisfiedEntry[]; size: "req" | "stmt"; leveragedIndex: LeveragedIndex }) {
   const isReq = size === "req";
   const itemPad = isReq ? "8px 12px" : "6px 10px";
   const descFs = isReq ? 12.5 : 11.5;
   return (
     <div>
-      {entries.map((sat, i) => (
-        <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.purple, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.purple}` }}>
-          <MarkupBlock value={sat.description} style={{ fontSize: descFs }} />
-          {sat.responsibleRoles.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-              {sat.responsibleRoles.map((rr, ri) => (
-                <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.purple, color: colors.white, fontWeight: 500 }}>
-                  {rr.roleId}
-                </span>
-              ))}
-            </div>
-          )}
-          {sat.responsibilityUuid && (
-            <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
-              responsibility-uuid: {sat.responsibilityUuid}
-            </div>
-          )}
-          {sat.remarks && <CollapsibleRemarks value={sat.remarks} compact />}
-        </div>
-      ))}
+      {entries.map((sat, i) => {
+        const resolved = sat.responsibilityUuid ? leveragedIndex.responsibilities.get(sat.responsibilityUuid) : undefined;
+        return (
+          <div key={i} style={{ padding: itemPad, marginBottom: 4, backgroundColor: alpha(colors.purple, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.purple}` }}>
+            <MarkupBlock value={sat.description} style={{ fontSize: descFs }} />
+            {sat.responsibleRoles.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                {sat.responsibleRoles.map((rr, ri) => (
+                  <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.purple, color: colors.white, fontWeight: 500 }}>
+                    {rr.roleId}
+                  </span>
+                ))}
+              </div>
+            )}
+            {resolved ? (
+              <ProviderAttribution label="Satisfies responsibility from" resolution={resolved} accentColor={colors.purple} />
+            ) : sat.responsibilityUuid ? (
+              <div style={{ fontSize: 9, fontFamily: fonts.mono, color: colors.gray, marginTop: 4 }}>
+                responsibility-uuid: {sat.responsibilityUuid}
+              </div>
+            ) : null}
+            {sat.remarks && <CollapsibleRemarks value={sat.remarks} compact />}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; ssp: SspParsed; catalog: OscalCatalog | null }) {
+function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: ImplementedRequirement; ssp: SspParsed; catalog: OscalCatalog | null; leveragedIndex: LeveragedIndex }) {
   const compMap = useMemo(() => {
     const m: Record<string, string> = {};
     ssp.systemImplementation.components.forEach((c) => { m[c.uuid] = c.title || c.uuid.slice(0, 8); });
@@ -2410,7 +2723,7 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.cobalt, letterSpacing: 0.5, marginBottom: 6 }}>
                       Component Implementation
                     </div>
-                    <ByComponentTabs key={reqBc.uuid} bc={reqBc} size="req" />
+                    <ByComponentTabs key={reqBc.uuid} bc={reqBc} size="req" leveragedIndex={leveragedIndex} />
                   </div>
                 )}
 
@@ -2453,7 +2766,7 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
                             </div>
                           )}
                           {/* Component's implementation for this statement (tabbed disclosure) */}
-                          <ByComponentTabs key={bc.uuid} bc={bc} size="stmt" />
+                          <ByComponentTabs key={bc.uuid} bc={bc} size="stmt" leveragedIndex={leveragedIndex} />
                         </div>
                       );
                     })}
@@ -2466,6 +2779,73 @@ function ControlDetailView({ ir, ssp, catalog }: { ir: ImplementedRequirement; s
               </div>
             );
           })()}
+        </Card>
+      )}
+
+      {/* Provider Exports for this control (from leveraged SSPs) */}
+      {leveragedIndex.byControl.has(ir.controlId) && (
+        <Card>
+          <SectionLabel>
+            Provider Exports for {ir.controlId.toUpperCase()}
+          </SectionLabel>
+          <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 10px" }}>
+            What leveraged provider systems export for this control:
+          </p>
+          {leveragedIndex.byControl.get(ir.controlId)!.map((entry, ei) => (
+            <div key={ei} style={{ marginBottom: 12, padding: "10px 14px", backgroundColor: alpha(colors.brightBlue, 4), borderRadius: radii.sm, border: `1px solid ${alpha(colors.brightBlue, 12)}` }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: colors.navy, marginBottom: 2 }}>
+                {entry.providerSspTitle}
+              </div>
+              <div style={{ fontSize: 10, color: colors.gray, marginBottom: 6 }}>
+                Component: {entry.providerComponentTitle}
+              </div>
+              {entry.description && (
+                <MarkupBlock value={entry.description} style={{ fontSize: 12, marginBottom: 8 }} />
+              )}
+              {entry.provided.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 4 }}>
+                    Provided ({entry.provided.length})
+                  </div>
+                  {entry.provided.map((p, pi) => (
+                    <div key={pi} style={{ padding: "6px 10px", marginBottom: 3, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
+                      <MarkupBlock value={p.description} style={{ fontSize: 11.5 }} />
+                      {p.responsibleRoles.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
+                          {p.responsibleRoles.map((rr, ri) => (
+                            <span key={ri} style={{ fontSize: 8, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
+                              {rr.roleId}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {entry.responsibilities.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.orange, marginBottom: 4 }}>
+                    Customer Responsibilities ({entry.responsibilities.length})
+                  </div>
+                  {entry.responsibilities.map((r, ri) => (
+                    <div key={ri} style={{ padding: "6px 10px", marginBottom: 3, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
+                      <MarkupBlock value={r.description} style={{ fontSize: 11.5 }} />
+                      {r.responsibleRoles.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
+                          {r.responsibleRoles.map((rr, rri) => (
+                            <span key={rri} style={{ fontSize: 8, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
+                              {rr.roleId}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </Card>
       )}
 
@@ -2823,24 +3203,116 @@ function NotFoundView({ view }: { view: string }) {
    VIEW ROUTER
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── Provider-only control view (control exists only in a leveraged SSP) ── */
+function ProviderOnlyControlView({ controlId, entries }: { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }) {
+  const familyLabel = FAMILY_NAMES[getFamily(controlId)] || "";
+  return (
+    <>
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <IcoTag size={20} style={{ color: colors.purple }} />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: colors.navy, margin: 0 }}>
+            {controlId.toUpperCase()}{familyLabel ? ` ${familyLabel}` : ""}
+          </h1>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+          <span style={{
+            fontSize: 10, padding: "2px 8px", borderRadius: radii.pill,
+            backgroundColor: colors.purple, color: colors.white, fontWeight: 600,
+          }}>
+            PROVIDER ONLY
+          </span>
+          <span style={{ fontSize: 12, color: colors.gray }}>
+            This control is not implemented locally — it is available from a leveraged provider SSP.
+          </span>
+        </div>
+      </Card>
+      {entries.map((entry, ei) => (
+        <Card key={ei}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 2 }}>
+            {entry.providerSspTitle}
+          </div>
+          <div style={{ fontSize: 11, color: colors.gray, marginBottom: 8 }}>
+            Component: {entry.providerComponentTitle}
+          </div>
+          {entry.description && (
+            <MarkupBlock value={entry.description} style={{ fontSize: 12, marginBottom: 10 }} />
+          )}
+          {entry.provided.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 4 }}>
+                Provided ({entry.provided.length})
+              </div>
+              {entry.provided.map((p, pi) => (
+                <div key={pi} style={{ padding: "8px 12px", marginBottom: 4, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
+                  <MarkupBlock value={p.description} style={{ fontSize: 12 }} />
+                  {p.responsibleRoles.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                      {p.responsibleRoles.map((rr, ri) => (
+                        <span key={ri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
+                          {rr.roleId}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {entry.responsibilities.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.orange, marginBottom: 4 }}>
+                Customer Responsibilities ({entry.responsibilities.length})
+              </div>
+              {entry.responsibilities.map((r, ri) => (
+                <div key={ri} style={{ padding: "8px 12px", marginBottom: 4, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
+                  <MarkupBlock value={r.description} style={{ fontSize: 12 }} />
+                  {r.responsibleRoles.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                      {r.responsibleRoles.map((rr, rri) => (
+                        <span key={rri} style={{ fontSize: 9, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
+                          {rr.roleId}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
+    </>
+  );
+}
+
 interface ViewRouterProps {
   view: string;
   ssp: SspParsed;
   navigate: (id: string) => void;
   catalog: OscalCatalog | null;
+  leveragedIndex: LeveragedIndex;
 }
 
-function ViewRouter({ view, ssp, navigate, catalog }: ViewRouterProps) {
-  if (view === "overview") return <OverviewView ssp={ssp} />;
+function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex }: ViewRouterProps) {
+  if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} />;
   if (view === "metadata") return <MetadataView ssp={ssp} />;
   if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} />;
   if (view === "sys-impl") return <SystemImplementationView ssp={ssp} navigate={navigate} />;
   if (view === "sys-impl-components") return <ComponentsView ssp={ssp} navigate={navigate} />;
   if (view === "sys-impl-users") return <UsersView ssp={ssp} />;
   if (view === "sys-impl-inventory") return <InventoryView ssp={ssp} />;
-  if (view === "sys-impl-leveraged") return <LeveragedView ssp={ssp} />;
+  if (view === "sys-impl-leveraged") return <LeveragedView ssp={ssp} navigate={navigate} />;
   if (view === "ctrl-impl") return <ControlImplementationView ssp={ssp} navigate={navigate} />;
   if (view === "back-matter") return <BackMatterView ssp={ssp} />;
+
+  /* leveraged-auth-<index> — individual leveraged authorization detail */
+  const leveragedMatch = view.match(/^leveraged-auth-(\d+)$/);
+  if (leveragedMatch) {
+    const idx = parseInt(leveragedMatch[1], 10);
+    const la = ssp.systemImplementation.leveragedAuthorizations[idx];
+    if (la) return <LeveragedAuthDetailView ssp={ssp} authIndex={idx} navigate={navigate} leveragedIndex={leveragedIndex} />;
+  }
 
   /* ssp-comp-<index> — component detail */
   const compMatch = view.match(/^ssp-comp-(\d+)$/);
@@ -2863,7 +3335,10 @@ function ViewRouter({ view, ssp, navigate, catalog }: ViewRouterProps) {
     const ir = ssp.controlImplementation.implementedRequirements.find(
       (r) => r.controlId === controlId,
     );
-    if (ir) return <ControlDetailView ir={ir} ssp={ssp} catalog={catalog} />;
+    if (ir) return <ControlDetailView ir={ir} ssp={ssp} catalog={catalog} leveragedIndex={leveragedIndex} />;
+    /* Provider-only control — no local implementation but exists in leveraged index */
+    const providerEntries = leveragedIndex.byControl.get(controlId);
+    if (providerEntries) return <ProviderOnlyControlView controlId={controlId} entries={providerEntries} />;
   }
 
   return <NotFoundView view={view} />;
@@ -2886,6 +3361,9 @@ export default function SspPage() {
   const isMobile = useIsMobile();
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
+
+  /* ── Leveraged SSP index ── */
+  const leveragedIndex = useLeveragedIndex(oscal.leveragedSsps);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -3030,33 +3508,51 @@ export default function SspPage() {
     items.push({ id: "sys-impl-users", label: "Users", icon: "users", color: colors.brightBlue, depth: 1, parent: "sys-impl", childCount: si.users.length });
     items.push({ id: "sys-impl-inventory", label: "Inventory Items", icon: "box", color: colors.darkGreen, depth: 1, parent: "sys-impl", childCount: si.inventoryItems.length });
     if (si.leveragedAuthorizations.length > 0) {
-      items.push({ id: "sys-impl-leveraged", label: "Leveraged Auth.", icon: "link", color: colors.purple, depth: 1, parent: "sys-impl", childCount: si.leveragedAuthorizations.length });
+      items.push({ id: "sys-impl-leveraged", label: "Leveraged Authorizations", icon: "link", color: colors.purple, depth: 1, parent: "sys-impl", childCount: si.leveragedAuthorizations.length });
+      si.leveragedAuthorizations.forEach((la, i) => {
+        items.push({ id: `leveraged-auth-${i}`, label: trunc(la.title || la.uuid.slice(0, 12), 28), icon: "layers", color: colors.purple, depth: 2, parent: "sys-impl-leveraged" });
+      });
     }
 
     /* Control Implementation — group by family */
     items.push({ id: "ctrl-impl", label: "Control Implementation", icon: "shield", color: colors.orange, depth: 0 });
 
-    const familyMap: Record<string, ImplementedRequirement[]> = {};
+    /* Merge primary SSP controls with provider-only controls */
+    const localControlIds = new Set(ci.implementedRequirements.map((ir) => ir.controlId));
+    const providerOnlyControlIds: string[] = [];
+    for (const controlId of leveragedIndex.byControl.keys()) {
+      if (!localControlIds.has(controlId)) {
+        providerOnlyControlIds.push(controlId);
+      }
+    }
+
+    /* Build combined family map */
+    const familyMap: Record<string, { controlId: string; isProvider: boolean }[]> = {};
     ci.implementedRequirements.forEach((ir) => {
       const fam = getFamily(ir.controlId);
-      (familyMap[fam] ??= []).push(ir);
+      (familyMap[fam] ??= []).push({ controlId: ir.controlId, isProvider: false });
     });
+    providerOnlyControlIds.forEach((controlId) => {
+      const fam = getFamily(controlId);
+      (familyMap[fam] ??= []).push({ controlId, isProvider: true });
+    });
+
     const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => a.localeCompare(b));
 
-    sortedFamilies.forEach(([fam, reqs]) => {
+    sortedFamilies.forEach(([fam, entries]) => {
       const famId = `ctrl-family-${fam}`;
 
       /* Separate base controls from enhancements */
-      const baseControls: ImplementedRequirement[] = [];
-      const enhancementMap: Record<string, ImplementedRequirement[]> = {};
-      const controlIdSet = new Set(reqs.map((r) => r.controlId));
+      const controlIdSet = new Set(entries.map((e) => e.controlId));
+      const baseEntries: { controlId: string; isProvider: boolean }[] = [];
+      const enhancementMap: Record<string, { controlId: string; isProvider: boolean }[]> = {};
 
-      reqs.forEach((ir) => {
-        const parentId = getParentControlId(ir.controlId);
+      entries.forEach((entry) => {
+        const parentId = getParentControlId(entry.controlId);
         if (parentId && controlIdSet.has(parentId)) {
-          (enhancementMap[parentId] ??= []).push(ir);
+          (enhancementMap[parentId] ??= []).push(entry);
         } else {
-          baseControls.push(ir);
+          baseEntries.push(entry);
         }
       });
 
@@ -3067,17 +3563,17 @@ export default function SspPage() {
         color: colors.cobalt,
         depth: 1,
         parent: "ctrl-impl",
-        childCount: baseControls.length,
+        childCount: baseEntries.length,
       });
 
-      baseControls.forEach((ir) => {
-        const ctrlId = `ctrl-${ir.controlId}`;
-        const enhancements = enhancementMap[ir.controlId] ?? [];
+      baseEntries.forEach((entry) => {
+        const ctrlId = `ctrl-${entry.controlId}`;
+        const enhancements = enhancementMap[entry.controlId] ?? [];
         items.push({
           id: ctrlId,
-          label: ir.controlId.toUpperCase(),
-          icon: "shield",
-          color: colors.orange,
+          label: entry.controlId.toUpperCase() + (entry.isProvider ? " ⬡" : ""),
+          icon: entry.isProvider ? "layers" : "shield",
+          color: entry.isProvider ? colors.purple : colors.orange,
           depth: 2,
           parent: famId,
           childCount: enhancements.length || undefined,
@@ -3085,9 +3581,9 @@ export default function SspPage() {
         enhancements.forEach((enh) => {
           items.push({
             id: `ctrl-${enh.controlId}`,
-            label: enh.controlId.toUpperCase(),
-            icon: "tag",
-            color: colors.orange,
+            label: enh.controlId.toUpperCase() + (enh.isProvider ? " ⬡" : ""),
+            icon: enh.isProvider ? "layers" : "tag",
+            color: enh.isProvider ? colors.purple : colors.orange,
             depth: 3,
             parent: ctrlId,
           });
@@ -3099,7 +3595,7 @@ export default function SspPage() {
     items.push({ id: "back-matter", label: "Back Matter", icon: "book", color: colors.gray, depth: 0, childCount: ssp.backMatter.length || undefined });
 
     return items;
-  }, [ssp]);
+  }, [ssp, leveragedIndex]);
 
   /* ── Child counts ── */
   const childCounts = useMemo(() => {
@@ -3173,7 +3669,7 @@ export default function SspPage() {
             <button style={S.topBtn} onClick={handleNewFile}>New</button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <ViewRouter view={view} ssp={ssp} navigate={mobileNavigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} />
+            <ViewRouter view={view} ssp={ssp} navigate={mobileNavigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} leveragedIndex={leveragedIndex} />
           </div>
         </div>
       );
@@ -3269,6 +3765,11 @@ export default function SspPage() {
             const isActive = view === item.id;
             const isCollapsed = !!mergedCollapsed[item.id];
 
+            /* Determine if sibling items at this depth (same parent) have children
+               — if so, leaf items need a spacer to align with the chevron */
+            const siblingsHaveChildren = item.depth >= 2 && !hasChildren &&
+              visibleNav.some((n) => n.parent === item.parent && !!childCounts[n.id]);
+
             return (
               <div
                 key={item.id}
@@ -3286,6 +3787,7 @@ export default function SspPage() {
                 }}
               >
                 {hasChildren && <IcoChev open={!isCollapsed} style={{ marginRight: 4 }} />}
+                {siblingsHaveChildren && <span style={{ width: 16, flexShrink: 0 }} />}
                 {navIcon(item.icon, isActive ? colors.orange : item.color)}
                 <span style={{
                   flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -3300,7 +3802,7 @@ export default function SspPage() {
 
         {/* CONTENT */}
         <div ref={contentRef} style={S.content}>
-          <ViewRouter view={view} ssp={ssp} navigate={navigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} />
+          <ViewRouter view={view} ssp={ssp} navigate={navigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} leveragedIndex={leveragedIndex} />
         </div>
       </div>
     </div>
