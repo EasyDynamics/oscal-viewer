@@ -1326,7 +1326,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
     input.click();
   };
   return (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <IcoShield size={48} style={{ color: colors.darkGreen }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>OSCAL System Security Plan Viewer</h2>
