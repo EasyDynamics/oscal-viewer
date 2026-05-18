@@ -17,7 +17,8 @@ import CookieBanner from "./CookieBanner";
 
 export default function Layout() {
   const location = useLocation();
-  const { isLoaded } = useOscal();
+  const oscal = useOscal();
+  const { isLoaded } = oscal;
   const { resolvedMode, toggleMode } = useTheme();
   const { token, setToken, clearToken, isAuthenticated } = useAuth();
   const isMobile = useIsMobile();
@@ -27,6 +28,10 @@ export default function Layout() {
   const menuRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const jwtRef = useRef<HTMLDivElement>(null);
+  const sspCount = (oscal.ssp ? 1 : 0) + oscal.leveragedSsps.length;
+  const sspCountTitle = sspCount > 1
+    ? [oscal.ssp?.fileName ? `Current: ${oscal.ssp.fileName}` : "Current SSP", ...oscal.leveragedSsps.map((entry) => `Leveraged: ${entry.fileName}`)].join("\n")
+    : undefined;
 
   /* Close the menu when the route changes */
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
@@ -206,10 +211,12 @@ export default function Layout() {
               <NavLink
                 key={m.key}
                 to={m.path}
+                title={m.key === "ssp" ? sspCountTitle : undefined}
                 style={() => tabStyle(location.pathname.startsWith(m.path))}
               >
                 <StatusDot color={loaded ? m.color : colors.gray} loaded={loaded} />
                 {m.label}
+                {m.key === "ssp" && sspCount > 1 && <SspCountBadge count={sspCount} />}
               </NavLink>
             );
           })}
@@ -251,7 +258,7 @@ export default function Layout() {
                 <MobileMenuItem
                   key={m.key}
                   to={m.path}
-                  label={m.label}
+                  label={m.key === "ssp" && sspCount > 1 ? `${m.label} (${sspCount})` : m.label}
                   isActive={location.pathname.startsWith(m.path)}
                   dot={{ color: loaded ? m.color : colors.gray, loaded }}
                   onTap={() => setMenuOpen(false)}
@@ -448,6 +455,24 @@ function StatusDot({ color, loaded }: { color: string; loaded: boolean }) {
         boxShadow: loaded ? `0 0 4px ${alpha(colors.loadedDot, 55)}` : "none",
       }}
     />
+  );
+}
+
+function SspCountBadge({ count }: { count: number }) {
+  return (
+    <span style={{
+      marginLeft: 6,
+      padding: "1px 7px",
+      borderRadius: radii.pill,
+      backgroundColor: alpha(colors.darkGreen, 12),
+      color: colors.darkGreen,
+      border: `1px solid ${alpha(colors.darkGreen, 28)}`,
+      fontSize: 10,
+      fontWeight: 800,
+      lineHeight: "16px",
+    }}>
+      {count} SSPs
+    </span>
   );
 }
 
