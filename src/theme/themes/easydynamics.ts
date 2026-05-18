@@ -22,7 +22,7 @@ const easydynamics: ThemeDefinition = {
     navy: "#002868",
     orange: "#FF6600",
     yellow: "#FEB300",
-    gray: "#9B9DAA",
+    gray: "#6B6E7B",
 
     /* ── Tier 2: Secondary ── */
     darkNavy: "#0A1352",
@@ -36,7 +36,7 @@ const easydynamics: ThemeDefinition = {
     darkGreen: "#216570",
     brightCyan: "#00B0F0",
     purple: "#3A00A1",
-    blueGray: "#6D8CA4",
+    blueGray: "#4F7490",
     paleOrange: "#FF8E0F",
     neonYellow: "#FFF33E",
 
@@ -84,8 +84,8 @@ const easydynamics: ThemeDefinition = {
 
     /* ── Text ── */
     textPrimary: "#1C2327",
-    textSecondary: "#555555",
-    textMuted: "#9B9DAA",
+    textSecondary: "#4A4A4A",
+    textMuted: "#6B6E7B",
     textOnAccent: "#FFFFFF",
 
     /* ── Borders ── */

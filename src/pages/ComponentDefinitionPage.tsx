@@ -24,6 +24,7 @@ import { useImportResolver } from "../hooks/useImportResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
+import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import type {
@@ -688,6 +689,7 @@ export default function ComponentDefinitionPage() {
   const isMobile = useIsMobile();
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  const catalogSort = useCatalogSortIndex();
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -836,7 +838,8 @@ export default function ComponentDefinitionPage() {
           childCount: reqCount,
         });
 
-        impl["implemented-requirements"].forEach((req) => {
+        const sortedReqs = [...impl["implemented-requirements"]].sort((a, b) => catalogSort.compare(a["control-id"], b["control-id"]));
+        sortedReqs.forEach((req) => {
           items.push({
             id: `req-${req.uuid}`,
             label: req["control-id"].toUpperCase(),
@@ -892,7 +895,7 @@ export default function ComponentDefinitionPage() {
     }
 
     return items;
-  }, [cdef, bmRes, resolvedTitleForSource]);
+  }, [cdef, bmRes, resolvedTitleForSource, catalogSort]);
 
   /* ── Child counts for groups ── */
   const childCounts = useMemo(() => {
@@ -1580,6 +1583,7 @@ function OverviewView({
   cdef: ComponentDefinition;
   navigate: (id: string) => void;
 }) {
+  const catalogSort = useCatalogSortIndex();
   const comps = cdef.components ?? [];
   const allReqs = comps.flatMap((c) =>
     (c["control-implementations"] ?? []).flatMap(
@@ -1674,7 +1678,7 @@ function OverviewView({
         <SectionLabel>Control Families Covered</SectionLabel>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {Array.from(familySet)
-            .sort()
+            .sort((a, b) => catalogSort.compare(a, b))
             .map((fam) => (
               <span
                 key={fam}
@@ -1878,6 +1882,7 @@ function ComponentView({
   navigate: (id: string) => void;
   resolvedTitleForSource: (source: string) => string | null;
 }) {
+  const catalogSort = useCatalogSortIndex();
   const impls = comp["control-implementations"] ?? [];
   const allReqs = impls.flatMap((ci) => ci["implemented-requirements"]);
   const familySet = new Set(allReqs.map((r) => familyOf(r["control-id"])));
@@ -1952,7 +1957,7 @@ function ComponentView({
         <SectionLabel>Control Families ({familySet.size})</SectionLabel>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {Array.from(familySet)
-            .sort()
+            .sort((a, b) => catalogSort.compare(a, b))
             .map((fam) => (
               <span
                 key={fam}
@@ -2043,6 +2048,7 @@ function ControlImplView({
   resMap: Record<string, Resource>;
   resolvedTitleForSource: (source: string) => string | null;
 }) {
+  const catalogSort = useCatalogSortIndex();
   const reqs = impl["implemented-requirements"];
   const familySet = new Set(reqs.map((r) => familyOf(r["control-id"])));
 
@@ -2111,7 +2117,7 @@ function ControlImplView({
           }}
         >
           {Array.from(familySet)
-            .sort()
+            .sort((a, b) => catalogSort.compare(a, b))
             .map((fam) => (
               <span
                 key={fam}

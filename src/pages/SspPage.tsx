@@ -25,6 +25,7 @@ import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
+import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -1951,6 +1952,7 @@ function LeveragedView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: strin
 }
 
 function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: { ssp: SspParsed; authIndex: number; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
+  const catalogSort = useCatalogSortIndex();
   const la = ssp.systemImplementation.leveragedAuthorizations[authIndex];
   const partyMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -1972,9 +1974,9 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
         result.push({ controlId, entries });
       }
     }
-    result.sort((a, b) => a.controlId.localeCompare(b.controlId));
+    result.sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
     return result;
-  }, [la, leveragedIndex]);
+  }, [la, leveragedIndex, catalogSort]);
 
   /* Group offered controls by family */
   const familyGroups = useMemo(() => {
@@ -1983,8 +1985,8 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
       const fam = getFamily(ctrl.controlId);
       (map[fam] ??= []).push(ctrl);
     });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [offeredControls]);
+    return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
+  }, [offeredControls, catalogSort]);
 
   const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
   const [expandedControls, setExpandedControls] = useState<Record<string, boolean>>({});
@@ -2120,6 +2122,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
 
 function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: string) => void }) {
   const ci = ssp.controlImplementation;
+  const catalogSort = useCatalogSortIndex();
   /* Group by family */
   const families = useMemo(() => {
     const map: Record<string, ImplementedRequirement[]> = {};
@@ -2127,8 +2130,8 @@ function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate
       const fam = getFamily(ir.controlId);
       (map[fam] ??= []).push(ir);
     });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [ci]);
+    return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
+  }, [ci, catalogSort]);
   return (
     <>
       <Card>
@@ -2150,7 +2153,7 @@ function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate
             <span style={S.badge}>{reqs.length}</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {reqs.map((ir) => (
+            {[...reqs].sort((a, b) => catalogSort.compare(a.controlId, b.controlId)).map((ir) => (
               <button key={ir.uuid}
                 onClick={() => navigate(`ctrl-${ir.controlId}`)}
                 style={{
@@ -2170,11 +2173,12 @@ function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate
 }
 
 function ControlFamilyView({ familyId, ssp, navigate }: { familyId: string; ssp: SspParsed; navigate: (id: string) => void }) {
+  const catalogSort = useCatalogSortIndex();
   const familyControls = useMemo(() => {
     return ssp.controlImplementation.implementedRequirements.filter(
       (ir) => getFamily(ir.controlId) === familyId,
-    );
-  }, [ssp, familyId]);
+    ).sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
+  }, [ssp, familyId, catalogSort]);
   const familyLabel = FAMILY_NAMES[familyId] || familyId.toUpperCase();
 
   return (
@@ -3364,6 +3368,7 @@ export default function SspPage() {
 
   /* ── Leveraged SSP index ── */
   const leveragedIndex = useLeveragedIndex(oscal.leveragedSsps);
+  const catalogSort = useCatalogSortIndex();
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -3537,7 +3542,7 @@ export default function SspPage() {
       (familyMap[fam] ??= []).push({ controlId, isProvider: true });
     });
 
-    const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => a.localeCompare(b));
+    const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => catalogSort.compare(a, b));
 
     sortedFamilies.forEach(([fam, entries]) => {
       const famId = `ctrl-family-${fam}`;
@@ -3555,6 +3560,10 @@ export default function SspPage() {
           baseEntries.push(entry);
         }
       });
+
+      /* Sort base controls and enhancements by catalog sort-id */
+      baseEntries.sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
+      Object.values(enhancementMap).forEach((arr) => arr.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
 
       items.push({
         id: famId,
@@ -3595,7 +3604,7 @@ export default function SspPage() {
     items.push({ id: "back-matter", label: "Back Matter", icon: "book", color: colors.gray, depth: 0, childCount: ssp.backMatter.length || undefined });
 
     return items;
-  }, [ssp, leveragedIndex]);
+  }, [ssp, leveragedIndex, catalogSort]);
 
   /* ── Child counts ── */
   const childCounts = useMemo(() => {
