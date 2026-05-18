@@ -1656,12 +1656,16 @@ export default function AssessmentPlanPage() {
     const imp = rawApObj["import-ssp"] as Record<string, unknown> | undefined;
     return (imp?.href as string) ?? null;
   }, [rawApObj]);
+  const resolverChain = useMemo(
+    () => oscal.catalog ? AP_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : AP_CHAIN,
+    [oscal.catalog],
+  );
   const chain = useChainResolver(
     importSspHref,
     apBackMatter,
     urlDoc.sourceUrl,
     authToken,
-    AP_CHAIN,
+    resolverChain,
     !!oscal.ssp,
   );
   const chainStored = useRef(new Set<string>());

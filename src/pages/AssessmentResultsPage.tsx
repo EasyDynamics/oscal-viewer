@@ -536,12 +536,16 @@ export default function AssessmentResultsPage() {
     return (ar["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
   }, [ar]);
   const importApHref = ar?.["import-ap"]?.href ?? null;
+  const resolverChain = useMemo(
+    () => oscal.catalog ? AR_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : AR_CHAIN,
+    [oscal.catalog],
+  );
   const chain = useChainResolver(
     importApHref,
     arBackMatter,
     urlDoc.sourceUrl,
     authToken,
-    AR_CHAIN,
+    resolverChain,
     !!oscal.assessmentPlan,
   );
   const chainStored = useRef(new Set<string>());

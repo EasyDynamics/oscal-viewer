@@ -3958,14 +3958,14 @@ export default function SspPage() {
     const bm = rawSspObj["back-matter"] as Record<string, unknown> | undefined;
     return (bm?.resources as BackMatterResource[] | undefined) ?? [];
   }, [rawSspObj]);
-  const importProfileHref = ssp?.importProfileHref || null;
+  const importProfileHref = oscal.catalog ? null : (ssp?.importProfileHref || null);
   const chain = useChainResolver(
     importProfileHref,
     sspBackMatter,
     urlDoc.sourceUrl,
     authToken,
     SSP_CHAIN,
-    !!oscal.profile,
+    !!oscal.profile || !!oscal.catalog,
   );
   const leveragedResolver = useLeveragedSspResolver(
     raw,
@@ -4084,14 +4084,25 @@ export default function SspPage() {
     /* Control Implementation — group by family */
     items.push({ id: "ctrl-impl", label: "Control Implementation", icon: "shield", color: colors.orange, depth: 0 });
 
-    /* Build the current SSP family map. Provider controls are selectable in
-       the Control Implementation page and Leveraged Authorization views, but
-       are intentionally not mixed into the primary SSP navigation tree. */
+    /* Build the control family map. Current SSP controls remain primary;
+       provider-only controls from loaded leveraged SSPs are added so the
+       sidebar tree grows as authorizations are resolved one by one. */
     const familyMap: Record<string, { controlId: string; isProvider: boolean }[]> = {};
+    const currentControlIds = new Set<string>();
     ci.implementedRequirements.forEach((ir) => {
       const fam = getFamily(ir.controlId);
+      currentControlIds.add(ir.controlId);
       (familyMap[fam] ??= []).push({ controlId: ir.controlId, isProvider: false });
     });
+
+    for (const controlId of leveragedIndex.byControl.keys()) {
+      if (currentControlIds.has(controlId)) continue;
+      const fam = getFamily(controlId);
+      const entries = familyMap[fam] ??= [];
+      if (!entries.some((entry) => entry.controlId === controlId)) {
+        entries.push({ controlId, isProvider: true });
+      }
+    }
 
     const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => catalogSort.compare(a, b));
 
