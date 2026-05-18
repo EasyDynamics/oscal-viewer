@@ -1962,13 +1962,31 @@ function titleMatches(a: string, b: string): boolean {
   const ca = clean(a);
   const cb = clean(b);
   if (!ca || !cb) return false;
-  if (ca.includes(cb) || cb.includes(ca)) return true;
-  const stop = new Set(["system", "security", "plan", "ssp", "authorization", "authorized", "operate", "ato", "provisional", "provider", "services", "service", "the", "and", "for", "to", "of"]);
-  const ta = new Set(ca.split(" ").filter((t) => t.length > 2 && !stop.has(t)));
-  const tb = cb.split(" ").filter((t) => t.length > 2 && !stop.has(t));
-  if (ta.size === 0 || tb.length === 0) return false;
-  const overlap = tb.filter((t) => ta.has(t)).length;
-  return overlap >= Math.min(3, Math.max(2, Math.ceil(Math.min(ta.size, tb.length) * 0.45)));
+  if (ca === cb) return true;
+  // Require substring containment of a meaningfully long candidate, not just
+  // any short fragment (e.g. "ed" or "us").
+  if (ca.length >= 8 && cb.includes(ca)) return true;
+  if (cb.length >= 8 && ca.includes(cb)) return true;
+  // Stopwords cover OSCAL document phrasing plus generic government org tokens
+  // that are shared across most federal SSP titles and would otherwise drive
+  // false-positive matches between unrelated systems.
+  const stop = new Set([
+    "system", "security", "plan", "ssp", "authorization", "authorized",
+    "operate", "ato", "provisional", "provider", "services", "service",
+    "the", "and", "for", "to", "of",
+    "department", "education", "office", "agency", "bureau", "administration",
+    "national", "federal", "united", "states", "us", "usa", "gov", "government",
+  ]);
+  const tokens = (s: string) => new Set(s.split(" ").filter((t) => t.length > 2 && !stop.has(t)));
+  const ta = tokens(ca);
+  const tb = tokens(cb);
+  if (ta.size === 0 || tb.size === 0) return false;
+  const overlap = [...tb].filter((t) => ta.has(t)).length;
+  const smaller = Math.min(ta.size, tb.size);
+  // Require at least 2 overlapping distinctive tokens AND that the overlap
+  // covers a majority of the shorter side. This prevents two unrelated SSPs
+  // from matching solely on shared organizational vocabulary.
+  return overlap >= 2 && overlap / smaller >= 0.6;
 }
 
 function resolvePotentialHref(href: string | undefined, sourceUrl: string | null | undefined): string | undefined {
