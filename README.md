@@ -8,26 +8,37 @@ All processing happens in the browser — no server, no uploads, no data leaves 
 
 ## OSCAL Models
 
-The app provides a dedicated viewer page for each of the seven OSCAL models:
+The app provides a fully implemented SPA-style viewer page for each of the seven OSCAL models, each with sidebar navigation, content drill-down, and cross-reference resolution:
 
-| Model | Description |
-|---|---|
-| Catalog | Control definitions and groups |
-| Profile | Baseline selections / tailoring of catalog controls |
-| Component Definition | Security capabilities and control implementations for components |
-| System Security Plan (SSP) | Full system authorization package |
-| Assessment Plan | Planned assessment activities |
-| Assessment Results | Findings from an assessment |
-| POA&M | Plan of Action and Milestones for remediation tracking |
+| Model | Description | Key Features |
+|---|---|---|
+| Catalog | Control definitions and groups | Group/sub-group/control hierarchy; 5-section control views (overview, statement, guidance, examples, assessment method) |
+| Profile | Baseline selections / tailoring of catalog controls | Import visualization; parameter constraints; add/remove badges; family/control tree |
+| Component Definition | Security capabilities and control implementations | Control-to-component mappings; markdown rendering; MITRE ATT&CK tag rendering |
+| System Security Plan (SSP) | Full system authorization package | System characteristics; component hierarchy with service relationships; control implementation with export/inherited/satisfied blocks; leveraged authorization detail with controls-offered tree; provider SSP upload and cross-resolution |
+| Assessment Plan | Planned assessment activities | Activity and task views; step parsing; control method tracking |
+| Assessment Results | Findings from an assessment | Results → control families → observations drill-down; observation detail views |
+| POA&M | Plan of Action and Milestones | POAM items → risks → findings → observations hierarchy; catalog enrichment |
 
-The **Component Definition** viewer is fully implemented with a sidebar navigation tree, SPA-style content switching, back-matter resource resolution, and MITRE ATT&CK tag rendering. The remaining model viewers are stubbed and ready for development.
+### Common Viewer Features
+
+All model viewers share these capabilities:
+
+- **Sidebar tree navigation** — hierarchical, collapsible tree with icons and badges
+- **SPA-style content switching** — navigate without page reloads; scroll-to-top on view change
+- **Import/profile chain resolution** — automatically or manually resolve `import-profile` and other OSCAL references
+- **Back-matter resource resolution** — link `rlink` references to resources
+- **Responsive layout** — mobile-friendly with drill-in navigation on narrow viewports
+- **URL loading** — load documents directly via `?url=` query parameter
+- **Drag-and-drop upload** — drop JSON files onto the viewer to load them
+- **Catalog enrichment** — control detail views pull titles, parts, and parameters from resolved catalogs
 
 ## Tech Stack
 
 - **React 19** + **TypeScript** — UI framework
 - **Vite** — build tool and dev server
 - **React Router** — client-side routing
-- **Theming** — token-based design system with multiple theme support
+- **Theming** — token-based design system with multiple theme support (Easy Dynamics, OSCAL.io)
 
 ## Prerequisites
 
@@ -93,7 +104,7 @@ src/
 ├── components/
 │   ├── Layout.tsx              # App shell — header + tab navigation
 │   ├── Icons.tsx               # Shared SVG icon components
-│   ├── PageStub.tsx            # Reusable placeholder for unfinished viewers
+│   ├── PageStub.tsx            # Reusable placeholder page component
 │   ├── CookieBanner.tsx        # Cookie consent banner
 │   ├── ImportResolverBanner.tsx # Import resolution UI
 │   ├── ResolverModal.tsx       # Modal for resolving OSCAL imports
@@ -101,26 +112,26 @@ src/
 │   └── LinkChips.tsx           # Chip-style link components
 ├── context/
 │   ├── AuthContext.tsx    # Authentication state
-│   ├── OscalContext.tsx   # Loaded OSCAL document state
+│   ├── OscalContext.tsx   # Loaded OSCAL documents + leveraged SSP state
 │   └── ThemeContext.tsx   # Active theme state
 ├── hooks/
 │   ├── useImportResolver.ts  # Resolve OSCAL import chains
-│   ├── useChainResolver.ts   # Chained profile resolution
-│   ├── useUrlDocument.ts     # Load document from URL
+│   ├── useChainResolver.ts   # Chained profile/catalog resolution
+│   ├── useLeveragedIndex.ts  # O(1) lookup maps for leveraged SSP exports
+│   ├── useUrlDocument.ts     # Load document from URL query param
 │   ├── useCookieConsent.ts   # Cookie consent logic
 │   └── useIsMobile.ts        # Responsive breakpoint hook
 ├── pages/
-│   ├── HomePage.tsx
-│   ├── CatalogPage.tsx
-│   ├── ProfilePage.tsx
-│   ├── ComponentDefinitionPage.tsx   # Full sidebar + SPA viewer
-│   ├── SspPage.tsx
-│   ├── AssessmentPlanPage.tsx
-│   ├── AssessmentResultsPage.tsx
-│   ├── PoamPage.tsx
-│   ├── ExamplesPage.tsx
-│   ├── HowItWorksPage.tsx
-│   └── PrivacyPolicyPage.tsx
+│   ├── HomePage.tsx                  # Dashboard with model cards
+│   ├── CatalogPage.tsx              # Catalog viewer
+│   ├── ProfilePage.tsx              # Profile viewer
+│   ├── ComponentDefinitionPage.tsx  # Component Definition viewer
+│   ├── SspPage.tsx                  # System Security Plan viewer
+│   ├── AssessmentPlanPage.tsx       # Assessment Plan viewer
+│   ├── AssessmentResultsPage.tsx    # Assessment Results viewer
+│   ├── PoamPage.tsx                 # POA&M viewer
+│   ├── HowItWorksPage.tsx          # How It Works info page
+│   └── PrivacyPolicyPage.tsx        # Privacy Policy page
 ├── App.tsx               # React Router wiring
 └── main.tsx              # Entry point
 ```
