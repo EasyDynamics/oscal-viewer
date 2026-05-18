@@ -1423,7 +1423,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
   };
 
   return (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <IcoLayers size={48} style={{ color: colors.brightBlue }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>OSCAL Profile Viewer</h2>

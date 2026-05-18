@@ -1480,7 +1480,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
   };
 
   return (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <IcoShield size={48} style={{ color: colors.navy }} />
         <h2 style={{ fontSize: 22, color: colors.navy, marginTop: 12 }}>
