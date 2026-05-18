@@ -141,6 +141,22 @@ function fileNameFromUrl(url: string): string {
   }
 }
 
+const completedChainAttempts = new Set<string>();
+
+function chainAttemptKey(
+  initialHref: string,
+  baseUrl: string | null,
+  token: string | null,
+  chain: ChainLink[],
+): string {
+  return JSON.stringify({
+    initialHref,
+    baseUrl: baseUrl ?? "",
+    auth: token ? "auth" : "anon",
+    chain: chain.map((link) => link.modelKey),
+  });
+}
+
 /* ── Hook ── */
 
 export function useChainResolver(
@@ -191,6 +207,13 @@ export function useChainResolver(
       return;
     }
 
+    const attemptKey = chainAttemptKey(initialHref, baseUrl, token, chain);
+    if (completedChainAttempts.has(attemptKey)) {
+      lastHref.current = initialHref;
+      setSteps(makeIdle());
+      return;
+    }
+
     hasResetRef.current = false;
     lastHref.current = initialHref;
     let cancelled = false;
@@ -215,6 +238,7 @@ export function useChainResolver(
             n[i] = { ...n[i], status: "error", error: formatError };
             return n;
           });
+          completedChainAttempts.add(attemptKey);
           return; // stop chain
         }
         if (!rawUrl) {
@@ -229,6 +253,7 @@ export function useChainResolver(
             };
             return n;
           });
+          completedChainAttempts.add(attemptKey);
           return; // stop chain
         }
 
@@ -249,6 +274,7 @@ export function useChainResolver(
               };
               return n;
             });
+            completedChainAttempts.add(attemptKey);
             return;
           }
         } else {
@@ -261,6 +287,7 @@ export function useChainResolver(
             };
             return n;
           });
+          completedChainAttempts.add(attemptKey);
           return;
         }
 
@@ -272,6 +299,7 @@ export function useChainResolver(
             n[i] = { ...n[i], status: "error", error: urlFormatError };
             return n;
           });
+          completedChainAttempts.add(attemptKey);
           return; // stop chain
         }
 
@@ -374,13 +402,17 @@ export function useChainResolver(
           /* 6. Extract next step info */
           if (matchedLink.extractNext && matchedStep < chain.length - 1) {
             const next = matchedLink.extractNext(parsed);
-            if (!next.href) return; // no next reference → stop chain
+            if (!next.href) {
+              completedChainAttempts.add(attemptKey);
+              return; // no next reference → stop chain
+            }
             href = next.href;
             bm = next.backMatter;
             currentBase = fetchUrl; // use fetched URL as base for next step
             i = matchedStep; // advance loop index to the matched step
           } else {
             // We matched the last step or the matched step has no extractNext — chain complete
+            completedChainAttempts.add(attemptKey);
             return;
           }
         } catch (err) {
@@ -399,6 +431,7 @@ export function useChainResolver(
             };
             return n;
           });
+          completedChainAttempts.add(attemptKey);
           return; // stop chain on error
         } finally {
           if (timeoutId !== undefined) clearTimeout(timeoutId);
