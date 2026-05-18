@@ -1027,6 +1027,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
   hCtrl: string;
   onCtrl: (c: string) => void;
 }) {
+  const catalogSort = useCatalogSortIndex();
   const hasTasks = plan.tasks.length > 0;
   return (
     <>
