@@ -33,6 +33,7 @@ import type {
   Param as CatalogParam,
 } from "../context/OscalContext";
 import useIsMobile from "../hooks/useIsMobile";
+import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    OSCAL ASSESSMENT RESULTS TYPES
@@ -498,6 +499,7 @@ export default function AssessmentResultsPage() {
   const ar = (oscal.assessmentResults?.data as AssessmentResults) ?? null;
   const fileName = oscal.assessmentResults?.fileName ?? "";
   const catalog = oscal.catalog?.data ?? null;
+  const catalogSort = useCatalogSortIndex();
   const [error, setError] = useState("");
   const [view, setView] = useState("overview");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -700,10 +702,10 @@ export default function AssessmentResultsPage() {
       (f["related-observations"] ?? []).forEach((ro) => {
         (obsNistMap[ro["observation-uuid"]] ?? []).forEach((id) => ids.add(id));
       });
-      if (ids.size) m[f.uuid] = [...ids].sort();
+      if (ids.size) m[f.uuid] = [...ids].sort((a, b) => catalogSort.compare(a, b));
     });
     return m;
-  }, [allFindings, obsNistMap]);
+  }, [allFindings, obsNistMap, catalogSort]);
 
   /** NIST control IDs for each risk (aggregated from findings that reference it) */
   const riskNistMap = useMemo(() => {
@@ -714,11 +716,11 @@ export default function AssessmentResultsPage() {
       (f["associated-risks"] ?? []).forEach((ar) => {
         const prev = m[ar["risk-uuid"]] ?? [];
         const merged = new Set([...prev, ...fNist]);
-        m[ar["risk-uuid"]] = [...merged].sort();
+        m[ar["risk-uuid"]] = [...merged].sort((a, b) => catalogSort.compare(a, b));
       });
     });
     return m;
-  }, [allFindings, findingNistMap]);
+  }, [allFindings, findingNistMap, catalogSort]);
 
   /* ── Default collapsed state ── */
   const defaultCollapsed = useMemo(() => {
@@ -2521,15 +2523,16 @@ function FindingsListView({ findings, navigate, findingNistMap }: {
   riskMap: Record<string, Risk>;
   findingNistMap: Record<string, string[]>;
 }) {
+  const catalogSort = useCatalogSortIndex();
   const sorted = useMemo(() => {
     return [...findings].sort((a, b) => {
       // Not-satisfied first, then by target-id
       if (a.target.status.state !== b.target.status.state) {
         return a.target.status.state === "not-satisfied" ? -1 : 1;
       }
-      return a.target["target-id"].localeCompare(b.target["target-id"]);
+      return catalogSort.compare(a.target["target-id"], b.target["target-id"]);
     });
-  }, [findings]);
+  }, [findings, catalogSort]);
 
   return (
     <div>

@@ -9,7 +9,7 @@ const lightColors: ThemeColors = {
   navy: "#001131",
   orange: "#00BDE3",       /* cyan replaces orange as primary accent */
   yellow: "#FEB300",
-  gray: "#9B9DAA",
+  gray: "#6B6E7B",
 
   /* ── Tier 2: Secondary ── */
   darkNavy: "#000B20",
@@ -23,7 +23,7 @@ const lightColors: ThemeColors = {
   darkGreen: "#216570",
   brightCyan: "#00BDE3",
   purple: "#451298",
-  blueGray: "#6D8CA4",
+  blueGray: "#4F7490",
   paleOrange: "#33CFEF",
   neonYellow: "#FFF33E",
 
@@ -71,8 +71,8 @@ const lightColors: ThemeColors = {
 
   /* ── Text ── */
   textPrimary: "#1C2327",
-  textSecondary: "#555555",
-  textMuted: "#9B9DAA",
+  textSecondary: "#4A4A4A",
+  textMuted: "#6B6E7B",
   textOnAccent: "#FFFFFF",
 
   /* ── Borders ── */
@@ -104,7 +104,7 @@ const darkColors: ThemeColors = {
   navy: "#8BB8FF",
   orange: "#4DD4EC",
   yellow: "#FFD54F",
-  gray: "#8A8C98",
+  gray: "#9FA1AD",
 
   /* ── Tier 2: Secondary ── */
   darkNavy: "#0D1018",
@@ -118,7 +118,7 @@ const darkColors: ThemeColors = {
   darkGreen: "#4DB6AC",
   brightCyan: "#4DD4EC",
   purple: "#B388FF",
-  blueGray: "#90A4AE",
+  blueGray: "#A8BCC6",
   paleOrange: "#4DD4EC",
   neonYellow: "#FFF176",
 
@@ -166,8 +166,8 @@ const darkColors: ThemeColors = {
 
   /* ── Text ── */
   textPrimary: "#E0E0E6",
-  textSecondary: "#A0A0AA",
-  textMuted: "#8A8C98",
+  textSecondary: "#B0B0BA",
+  textMuted: "#9FA1AD",
   textOnAccent: "#FFFFFF",
 
   /* ── Borders ── */

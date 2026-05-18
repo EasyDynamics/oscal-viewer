@@ -32,6 +32,7 @@ import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import useIsMobile from "../hooks/useIsMobile";
+import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -858,7 +859,8 @@ function StepTableWithDetail({ activity, hCtrl, onCtrl }: {
 function ActivityHeader({ activity, hCtrl, onCtrl }: {
   activity: ActivityParsed; hCtrl: string; onCtrl: (c: string) => void;
 }) {
-  const ctrls = [...new Set(activity.steps.flatMap((s) => s.controls))].sort();
+  const catalogSort = useCatalogSortIndex();
+  const ctrls = [...new Set(activity.steps.flatMap((s) => s.controls))].sort((a, b) => catalogSort.compare(a, b));
   return (
     <>
       <div style={{
@@ -910,7 +912,8 @@ function ActivityHeader({ activity, hCtrl, onCtrl }: {
 function ActivitySubheader({ activity, hCtrl, onCtrl }: {
   activity: ActivityParsed; hCtrl: string; onCtrl: (c: string) => void;
 }) {
-  const ctrls = [...new Set(activity.steps.flatMap((s) => s.controls))].sort();
+  const catalogSort = useCatalogSortIndex();
+  const ctrls = [...new Set(activity.steps.flatMap((s) => s.controls))].sort((a, b) => catalogSort.compare(a, b));
   return (
     <>
       <div style={{
@@ -1091,7 +1094,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
 
       {/* Activity cards (when no tasks exist) */}
       {!hasTasks && plan.activities.map((a) => {
-        const ctrls = [...new Set([...a.steps.flatMap((s) => s.controls), ...a.relatedControls])].sort();
+        const ctrls = [...new Set([...a.steps.flatMap((s) => s.controls), ...a.relatedControls])].sort((x, y) => catalogSort.compare(x, y));
         const matchCount = hCtrl ? a.steps.filter((s) => s.controls.includes(hCtrl)).length + (a.relatedControls.includes(hCtrl) ? 1 : 0) : 0;
         return (
           <div key={a.uuid} onClick={() => onSelectActivity(a.uuid)} style={{
@@ -1561,6 +1564,7 @@ export default function AssessmentPlanPage() {
   const { token: authToken } = useAuth();
   const raw = oscal.assessmentPlan?.data ?? null;
   const catalog: OscalCatalog | null = oscal.catalog?.data ?? null;
+  const catalogSort = useCatalogSortIndex();
 
   const [error, setError] = useState("");
   const [hCtrl, setHCtrl] = useState("");
@@ -1685,8 +1689,8 @@ export default function AssessmentPlanPage() {
     const acts = allActivities;
     const stepCtrls = acts.flatMap((a) => a.steps.flatMap((s) => s.controls));
     const actCtrls = acts.flatMap((a) => a.relatedControls);
-    return [...new Set([...stepCtrls, ...actCtrls])].sort();
-  }, [plan, allActivities]);
+    return [...new Set([...stepCtrls, ...actCtrls])].sort((a, b) => catalogSort.compare(a, b));
+  }, [plan, allActivities, catalogSort]);
 
   const stats = useMemo(() => {
     if (!plan) return { totalActivities: 0, totalSteps: 0, totalControls: 0, totalTasks: 0 };
