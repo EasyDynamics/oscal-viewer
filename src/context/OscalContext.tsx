@@ -123,6 +123,7 @@ export interface Catalog {
 export interface UploadEntry<T> {
   data: T;
   fileName: string;
+  sourceUrl?: string | null;
 }
 
 /* ── Context shape ── */
@@ -161,7 +162,7 @@ export interface OscalContextValue {
 
   /** Leveraged SSPs — provider SSPs loaded for cross-SSP inheritance resolution */
   leveragedSsps: UploadEntry<unknown>[];
-  addLeveragedSsp: (data: unknown, fileName: string) => void;
+  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
   removeLeveragedSsp: (fileName: string) => void;
   clearLeveragedSsps: () => void;
 
@@ -204,10 +205,10 @@ export function OscalProvider({ children }: { children: ReactNode }) {
   const setPoam = useCallback((data: unknown, fileName: string) => _setPoam({ data, fileName }), []);
   const clearPoam = useCallback(() => _setPoam(null), []);
 
-  const addLeveragedSsp = useCallback((data: unknown, fileName: string) => {
+  const addLeveragedSsp = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => {
     _setLeveragedSsps((prev) => {
-      if (prev.some((e) => e.fileName === fileName)) return prev;
-      return [...prev, { data, fileName }];
+      if (prev.some((e) => e.fileName === fileName || (sourceUrl && e.sourceUrl === sourceUrl))) return prev;
+      return [...prev, { data, fileName, sourceUrl }];
     });
   }, []);
   const removeLeveragedSsp = useCallback((fileName: string) => {

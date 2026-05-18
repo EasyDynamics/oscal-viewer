@@ -20,6 +20,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useChainResolver, SSP_CHAIN } from "../hooks/useChainResolver";
+import { useLeveragedSspResolver } from "../hooks/useLeveragedSspResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
@@ -84,6 +85,9 @@ interface LeveragedAuth {
   title: string;
   partyUuid: string;
   dateAuthorized: string;
+  remarks: string;
+  href?: string;
+  links: { href: string; rel?: string; text?: string }[];
 }
 
 interface ProvidedEntry {
@@ -255,6 +259,32 @@ function parseLinks(arr: any[]): { href: string; rel?: string; text?: string }[]
   }));
 }
 
+function pickLeveragedHref(la: any): string | undefined {
+  if (typeof la?.href === "string") return la.href;
+  if (typeof la?.url === "string") return la.url;
+  if (typeof la?.source === "string") return la.source;
+  if (typeof la?.link?.href === "string") return la.link.href;
+
+  const links = [...(la?.links || []), ...(la?.rlinks || [])];
+  const jsonLink = links.find((l: any) => String(l?.["media-type"] ?? "").toLowerCase().includes("json") && l?.href);
+  if (jsonLink?.href) return jsonLink.href;
+
+  const semanticLink = links.find((l: any) => {
+    const rel = String(l?.rel ?? "").toLowerCase();
+    return l?.href && (rel.includes("ssp") || rel.includes("source") || rel.includes("provider") || rel.includes("authorization"));
+  });
+  if (semanticLink?.href) return semanticLink.href;
+
+  const prop = (la?.props || []).find((p: any) => {
+    const name = String(p?.name ?? "").toLowerCase();
+    return ["href", "url", "ssp-url", "source-url", "provider-ssp", "provider-ssp-url", "oscal-url"].includes(name) && typeof p?.value === "string";
+  });
+  if (prop?.value) return prop.value;
+
+  const remarksUrl = txt(la?.remarks).match(/https?:\/\/\S+?\.json(?:[?#][^\s)]+)?/i);
+  return remarksUrl?.[0];
+}
+
 function parseSetParams(arr: any[]): SetParameter[] {
   return (arr || []).map((sp: any) => ({
     paramId: sp["param-id"] || "",
@@ -392,6 +422,9 @@ function parseSsp(raw: any): SspParsed {
     title: la.title || "",
     partyUuid: la["party-uuid"] || "",
     dateAuthorized: la["date-authorized"] || "",
+    remarks: txt(la.remarks),
+    href: pickLeveragedHref(la),
+    links: parseLinks(la.links || la.rlinks),
   }));
 
   const systemImplementation: SystemImplementation = {
@@ -438,6 +471,37 @@ function parseSsp(raw: any): SspParsed {
   const importProfileHref = ssp["import-profile"]?.href || "";
 
   return { metadata, systemCharacteristics, systemImplementation, controlImplementation, backMatter, importProfileHref };
+}
+
+function loadProviderSspFile(
+  file: File,
+  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null) => void,
+  onError?: (message: string) => void,
+) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const json = JSON.parse(e.target?.result as string);
+      const inner = json["system-security-plan"] ?? json;
+      if (!inner.metadata) throw new Error("Not a valid OSCAL SSP — missing metadata.");
+      addLeveragedSsp(json, file.name);
+      onError?.("");
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : "Failed to parse provider SSP JSON");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function chooseProviderSspFile(onFile: (file: File) => void) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (file) onFile(file);
+  };
+  input.click();
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -1832,11 +1896,222 @@ function InventoryView({ ssp }: { ssp: SspParsed }) {
   );
 }
 
-function LeveragedView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: string) => void }) {
+interface LeveragedSystemSummary {
+  id: string;
+  title: string;
+  fileName: string;
+  sourceUrl?: string | null;
+  systemName: string;
+  systemNameShort: string;
+  description: string;
+  sensitivity: string;
+  status: string;
+  impact: SystemCharacteristics["securityImpactLevel"];
+  leveragedAuthorizations: LeveragedAuth[];
+  implementedControls: number;
+  exportedProvided: number;
+  exportedResponsibilities: number;
+  offeredFamilies: Record<string, number>;
+}
+
+interface LeveragedConnection {
+  fromId: string;
+  fromTitle: string;
+  toId?: string;
+  toTitle: string;
+  href?: string;
+}
+
+function summarizeSsp(parsed: SspParsed, id: string, fileName: string, sourceUrl?: string | null): LeveragedSystemSummary {
+  const offeredFamilies: Record<string, number> = {};
+  let exportedProvided = 0;
+  let exportedResponsibilities = 0;
+  parsed.controlImplementation.implementedRequirements.forEach((ir) => {
+    const allByComps = [...ir.byComponents, ...ir.statements.flatMap((st) => st.byComponents)];
+    const providedForControl = allByComps.reduce((sum, bc) => sum + (bc.export?.provided.length ?? 0), 0);
+    const responsibilitiesForControl = allByComps.reduce((sum, bc) => sum + (bc.export?.responsibilities.length ?? 0), 0);
+    exportedProvided += providedForControl;
+    exportedResponsibilities += responsibilitiesForControl;
+    if (providedForControl > 0 || responsibilitiesForControl > 0) {
+      const fam = getFamily(ir.controlId);
+      offeredFamilies[fam] = (offeredFamilies[fam] ?? 0) + 1;
+    }
+  });
+
+  return {
+    id,
+    title: parsed.metadata.title,
+    fileName,
+    sourceUrl,
+    systemName: parsed.systemCharacteristics.systemName,
+    systemNameShort: parsed.systemCharacteristics.systemNameShort,
+    description: parsed.systemCharacteristics.description,
+    sensitivity: parsed.systemCharacteristics.securitySensitivityLevel,
+    status: parsed.systemCharacteristics.status.state,
+    impact: parsed.systemCharacteristics.securityImpactLevel,
+    leveragedAuthorizations: parsed.systemImplementation.leveragedAuthorizations,
+    implementedControls: parsed.controlImplementation.implementedRequirements.length,
+    exportedProvided,
+    exportedResponsibilities,
+    offeredFamilies,
+  };
+}
+
+function titleMatches(a: string, b: string): boolean {
+  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const ca = clean(a);
+  const cb = clean(b);
+  if (!ca || !cb) return false;
+  if (ca.includes(cb) || cb.includes(ca)) return true;
+  const stop = new Set(["system", "security", "plan", "ssp", "authorization", "authorized", "operate", "ato", "provisional", "provider", "services", "service", "the", "and", "for", "to", "of"]);
+  const ta = new Set(ca.split(" ").filter((t) => t.length > 2 && !stop.has(t)));
+  const tb = cb.split(" ").filter((t) => t.length > 2 && !stop.has(t));
+  if (ta.size === 0 || tb.length === 0) return false;
+  const overlap = tb.filter((t) => ta.has(t)).length;
+  return overlap >= Math.min(3, Math.max(2, Math.ceil(Math.min(ta.size, tb.length) * 0.45)));
+}
+
+function resolvePotentialHref(href: string | undefined, sourceUrl: string | null | undefined): string | undefined {
+  if (!href) return undefined;
+  if (href.startsWith("http://") || href.startsWith("https://")) return href;
+  if (!sourceUrl) return href;
+  try { return new URL(href, sourceUrl).href; }
+  catch { return href; }
+}
+
+function matchLeveragedSummary(la: LeveragedAuth, from: LeveragedSystemSummary, summaries: LeveragedSystemSummary[]): LeveragedSystemSummary | undefined {
+  const href = resolvePotentialHref(la.href, from.sourceUrl);
+  if (href) {
+    const byUrl = summaries.find((s) => s.sourceUrl === href || s.fileName === fileNameFromUrl(href));
+    if (byUrl) return byUrl;
+  }
+  return summaries.find((s) => s.id !== from.id && (titleMatches(la.title, s.title) || titleMatches(la.title, s.systemName)));
+}
+
+function ImpactPills({ impact }: { impact: SystemCharacteristics["securityImpactLevel"] }) {
+  const vals = [
+    ["C", impact.objectiveConfidentiality],
+    ["I", impact.objectiveIntegrity],
+    ["A", impact.objectiveAvailability],
+  ].filter(([, value]) => value);
+  if (vals.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      {vals.map(([label, value]) => (
+        <span key={label} style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: radii.pill, backgroundColor: alpha(colors.navy, 7), color: colors.navy }}>
+          {label}: {String(value).replace("fips-199-", "")}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function OfferedFamilyChips({ families }: { families: Record<string, number> }) {
+  const entries = Object.entries(families).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return <span style={{ fontSize: 11, color: colors.gray }}>No exported controls detected</span>;
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      {entries.slice(0, 12).map(([family, count]) => (
+        <span key={family} style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: radii.pill, backgroundColor: alpha(colors.purple, 10), color: colors.purple }}>
+          {family.toUpperCase()} {count}
+        </span>
+      ))}
+      {entries.length > 12 && <span style={{ fontSize: 10, color: colors.gray }}>+{entries.length - 12} more</span>}
+    </div>
+  );
+}
+
+function LeveragedSystemsMap({ summaries, connections }: { summaries: LeveragedSystemSummary[]; connections: LeveragedConnection[] }) {
+  return (
+    <Card>
+      <SectionLabel>Leveraged System Map</SectionLabel>
+      <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 14px" }}>
+        Loaded SSPs and the authorizations they leverage. Unloaded or not-yet-resolvable references are shown as pending targets.
+      </p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 16 }}>
+        {summaries.map((system, i) => (
+          <div key={system.id} style={{ border: `1px solid ${i === 0 ? alpha(colors.darkGreen, 35) : alpha(colors.purple, 24)}`, borderRadius: radii.md, padding: 12, backgroundColor: i === 0 ? alpha(colors.darkGreen, 4) : colors.card }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: radii.sm, backgroundColor: i === 0 ? colors.darkGreen : colors.purple, color: colors.white, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <IcoLayers size={15} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={system.title}>{system.systemName || system.title}</div>
+                {system.systemNameShort && <div style={{ fontSize: 10, color: colors.gray }}>{system.systemNameShort}</div>}
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <ImpactPills impact={system.impact} />
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: colors.gray }}>
+                {system.sensitivity && <span>Sensitivity: <strong style={{ color: colors.black }}>{system.sensitivity.replace("fips-199-", "")}</strong></span>}
+                {system.status && <span>Status: <strong style={{ color: colors.black }}>{system.status}</strong></span>}
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <StatChip value={system.implementedControls} label="Controls" color={colors.orange} />
+                <StatChip value={system.exportedProvided} label="Provided" color={colors.darkGreen} />
+                <StatChip value={system.exportedResponsibilities} label="Resp." color={colors.purple} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: colors.cobalt, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Offered families</div>
+                <OfferedFamilyChips families={system.offeredFamilies} />
+              </div>
+              {system.description && <p style={{ fontSize: 11, color: colors.gray, margin: 0, lineHeight: 1.5 }}>{trunc(system.description, 220)}</p>}
+              {system.sourceUrl && <div style={{ fontSize: 10, color: colors.gray, fontFamily: fonts.mono, wordBreak: "break-all" }}>{system.sourceUrl}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {connections.length > 0 && (
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: colors.cobalt, textTransform: "uppercase", letterSpacing: 0.5 }}>Authorization edges</div>
+          {connections.map((c, i) => (
+            <div key={`${c.fromId}-${i}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: radii.sm, backgroundColor: c.toId ? alpha(colors.darkGreen, 5) : alpha(colors.orange, 6), border: `1px solid ${c.toId ? alpha(colors.darkGreen, 16) : alpha(colors.orange, 20)}` }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.fromTitle}</span>
+              <span style={{ fontSize: 16, color: c.toId ? colors.darkGreen : colors.orange }}>→</span>
+              <span style={{ fontSize: 12, color: c.toId ? colors.darkGreen : colors.orange, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.href}>
+                {c.toTitle}{!c.toId ? " (not loaded)" : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate: (id: string) => void; sourceUrl?: string | null }) {
   const items = ssp.systemImplementation.leveragedAuthorizations;
   const oscal = useOscal();
   const leveragedIndex = useLeveragedIndex(oscal.leveragedSsps);
   const [dragOver, setDragOver] = useState(false);
+  const summaries = useMemo(() => {
+    const list: LeveragedSystemSummary[] = [summarizeSsp(ssp, "current", "Current SSP", sourceUrl)];
+    oscal.leveragedSsps.forEach((entry, i) => {
+      try {
+        list.push(summarizeSsp(parseSsp(entry.data), `provider-${i}`, entry.fileName, entry.sourceUrl));
+      } catch { /* Ignore invalid provider SSPs in graph */ }
+    });
+    return list;
+  }, [ssp, oscal.leveragedSsps, sourceUrl]);
+  const currentSummary = summaries[0];
+  const connections = useMemo(() => {
+    const result: LeveragedConnection[] = [];
+    summaries.forEach((summary) => {
+      summary.leveragedAuthorizations.forEach((la) => {
+        const match = matchLeveragedSummary(la, summary, summaries);
+        result.push({
+          fromId: summary.id,
+          fromTitle: summary.systemName || summary.title,
+          toId: match?.id,
+          toTitle: match?.systemName || match?.title || la.title || la.uuid.slice(0, 12),
+          href: resolvePotentialHref(la.href, summary.sourceUrl),
+        });
+      });
+    });
+    return result;
+  }, [summaries]);
   const partyMap = useMemo(() => {
     const m: Record<string, string> = {};
     ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
@@ -1844,16 +2119,7 @@ function LeveragedView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: strin
   }, [ssp]);
 
   const loadLeveragedFile = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target?.result as string);
-        const inner = json["system-security-plan"] ?? json;
-        if (!inner.metadata) return;
-        oscal.addLeveragedSsp(json, file.name);
-      } catch { /* ignore invalid files */ }
-    };
-    reader.readAsText(file);
+    loadProviderSspFile(file, oscal.addLeveragedSsp);
   }, [oscal]);
 
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -1876,19 +2142,44 @@ function LeveragedView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: strin
           External systems whose authorizations are leveraged. Click an authorization to explore the controls it offers.
         </p>
       </Card>
-      {items.map((la, i) => (
-        <Card key={la.uuid} style={{ cursor: "pointer" }}>
-          <div onClick={() => navigate(`leveraged-auth-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <IcoLayers size={15} style={{ color: colors.purple }} />
-            <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, flex: 1 }}>{la.title}</h4>
-            <span style={{ fontSize: 11, color: colors.cobalt, fontWeight: 600 }}>View &rarr;</span>
+      <LeveragedSystemsMap summaries={summaries} connections={connections} />
+      {items.map((la, i) => {
+        const matched = currentSummary ? matchLeveragedSummary(la, currentSummary, summaries) : undefined;
+        return (
+        <Card key={la.uuid} style={{ cursor: "default" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div onClick={() => navigate(`leveraged-auth-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}>
+              <IcoLayers size={15} style={{ color: colors.purple }} />
+              <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{la.title}</h4>
+            </div>
+            {matched ? (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.darkGreen, 10), color: colors.darkGreen }}>
+                SSP loaded
+              </span>
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); chooseProviderSspFile(loadLeveragedFile); }}
+                style={{ background: alpha(colors.cobalt, 10), border: `1px solid ${alpha(colors.cobalt, 25)}`, borderRadius: radii.sm, color: colors.cobalt, cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "4px 10px" }}
+              >
+                Load SSP
+              </button>
+            )}
+            <button
+              onClick={() => navigate(`leveraged-auth-${i}`)}
+              style={{ background: "none", border: "none", color: colors.cobalt, cursor: "pointer", fontSize: 11, fontWeight: 600, padding: 0 }}
+            >
+              View &rarr;
+            </button>
           </div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
             {la.dateAuthorized && <MField label="Authorized" value={fmtDate(la.dateAuthorized)} />}
+            {la.href && <MField label="SSP URL" value={la.href} mono />}
+            {matched && <MField label="Loaded As" value={matched.systemName || matched.title} />}
           </div>
         </Card>
-      ))}
+        );
+      })}
 
       {/* Provider SSP upload section */}
       <Card>
@@ -1928,7 +2219,7 @@ function LeveragedView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: strin
                 backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}`,
               }}>
                 <span style={{ fontSize: 12, color: colors.darkGreen, fontWeight: 600 }}>✓</span>
-                <span style={{ fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.fileName}</span>
+                <span style={{ fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={entry.sourceUrl ?? entry.fileName}>{entry.fileName}</span>
                 <button
                   onClick={() => oscal.removeLeveragedSsp(entry.fileName)}
                   style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: colors.gray, padding: "0 4px" }}
@@ -1952,27 +2243,27 @@ function LeveragedView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: strin
 }
 
 function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: { ssp: SspParsed; authIndex: number; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
+  const oscal = useOscal();
   const catalogSort = useCatalogSortIndex();
   const la = ssp.systemImplementation.leveragedAuthorizations[authIndex];
+  const [providerDragOver, setProviderDragOver] = useState(false);
+  const [providerLoadError, setProviderLoadError] = useState("");
   const partyMap = useMemo(() => {
     const m: Record<string, string> = {};
     ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
     return m;
   }, [ssp]);
 
+  const loadLeveragedFile = useCallback((file: File) => {
+    loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError);
+  }, [oscal]);
+
   /* Match this leveraged authorization to provider exports by title similarity */
   const offeredControls = useMemo(() => {
     const result: { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[] = [];
-    const titleLower = la.title.toLowerCase();
     for (const [controlId, entries] of leveragedIndex.byControl.entries()) {
-      const matching = entries.filter((e) => e.providerSspTitle.toLowerCase().includes(titleLower) || titleLower.includes(e.providerSspTitle.toLowerCase()));
+      const matching = entries.filter((e) => titleMatches(la.title, e.providerSspTitle));
       if (matching.length > 0) result.push({ controlId, entries: matching });
-    }
-    /* If no title match, show all provider exports (single provider scenario) */
-    if (result.length === 0 && leveragedIndex.providerCount === 1) {
-      for (const [controlId, entries] of leveragedIndex.byControl.entries()) {
-        result.push({ controlId, entries });
-      }
     }
     result.sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
     return result;
@@ -2002,8 +2293,45 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
           {la.dateAuthorized && <MField label="Date Authorized" value={fmtDate(la.dateAuthorized)} />}
+          {la.href && <MField label="SSP URL" value={la.href} mono />}
           <MField label="UUID" value={la.uuid} mono />
         </div>
+      </Card>
+
+      <Card>
+        <SectionLabel>{offeredControls.length > 0 ? "Load Another Provider SSP" : "Load Provider SSP"}</SectionLabel>
+        <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 10px" }}>
+          If you have this provider&apos;s SSP locally, load it here to resolve the controls and customer responsibilities offered by this authorization.
+        </p>
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDragEnter={(e) => { e.preventDefault(); setProviderDragOver(true); }}
+          onDragLeave={() => setProviderDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setProviderDragOver(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) loadLeveragedFile(file);
+          }}
+          onClick={() => chooseProviderSspFile(loadLeveragedFile)}
+          style={{
+            border: `2px dashed ${providerDragOver ? colors.cobalt : colors.paleGray}`,
+            borderRadius: radii.md,
+            padding: "16px 20px",
+            textAlign: "center",
+            cursor: "pointer",
+            backgroundColor: providerDragOver ? alpha(colors.cobalt, 10) : alpha(colors.cobalt, 3),
+            transition: "border-color 0.15s, background-color 0.15s",
+          }}
+        >
+          <IcoUpload size={20} style={{ color: colors.cobalt, marginBottom: 4 }} />
+          <div style={{ fontSize: 12, color: colors.gray }}>Drop this provider&apos;s SSP JSON here, or click to browse</div>
+        </div>
+        {providerLoadError && (
+          <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: radii.sm, backgroundColor: colors.errorBg, color: colors.red, fontSize: 12, fontWeight: 600 }}>
+            {providerLoadError}
+          </div>
+        )}
       </Card>
 
       {/* Controls offered tree */}
@@ -2015,7 +2343,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
 
         {offeredControls.length === 0 ? (
           <div style={{ padding: "16px 0", textAlign: "center", color: colors.gray, fontSize: 12, fontStyle: "italic" }}>
-            No provider SSP loaded for this authorization. Upload the provider SSP in the Leveraged Auth section to see controls offered.
+            No provider SSP loaded for this authorization yet. Load it above to see controls offered.
           </div>
         ) : (
           <div style={{ border: `1px solid ${colors.paleGray}`, borderRadius: radii.md, overflow: "hidden" }}>
@@ -2120,9 +2448,10 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
   );
 }
 
-function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: string) => void }) {
+function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: SspParsed; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
   const ci = ssp.controlImplementation;
   const catalogSort = useCatalogSortIndex();
+  const [scope, setScope] = useState("current");
   /* Group by family */
   const families = useMemo(() => {
     const map: Record<string, ImplementedRequirement[]> = {};
@@ -2132,6 +2461,44 @@ function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate
     });
     return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
   }, [ci, catalogSort]);
+
+  const providerScopes = useMemo(() => {
+    const map = new Map<string, { title: string; controls: { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[] }>();
+    for (const [controlId, entries] of leveragedIndex.byControl.entries()) {
+      entries.forEach((entry) => {
+        const provider = entry.providerSspTitle;
+        const current = map.get(provider) ?? { title: provider, controls: [] };
+        const control = current.controls.find((c) => c.controlId === controlId);
+        if (control) control.entries.push(entry);
+        else current.controls.push({ controlId, entries: [entry] });
+        map.set(provider, current);
+      });
+    }
+    return [...map.values()]
+      .map((provider) => ({
+        ...provider,
+        controls: provider.controls.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)),
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [leveragedIndex, catalogSort]);
+
+  useEffect(() => {
+    if (scope !== "current" && !providerScopes.some((p) => p.title === scope)) setScope("current");
+  }, [scope, providerScopes]);
+
+  const selectedProvider = providerScopes.find((p) => p.title === scope);
+  const selectedProviderFamilies = useMemo(() => {
+    if (!selectedProvider) return [];
+    const map: Record<string, { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[]> = {};
+    selectedProvider.controls.forEach((control) => {
+      const fam = getFamily(control.controlId);
+      (map[fam] ??= []).push(control);
+    });
+    return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
+  }, [selectedProvider, catalogSort]);
+
+  const currentScopeButton = scope === "current";
+
   return (
     <>
       <Card>
@@ -2142,8 +2509,53 @@ function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate
           <StatChip value={ci.implementedRequirements.length} label="Controls" color={colors.orange} />
           <StatChip value={ci.implementedRequirements.reduce((n, r) => n + r.statements.length, 0)} label="Statements" color={colors.darkGreen} />
         </div>
+        <div style={{ borderTop: `1px solid ${colors.paleGray}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: colors.cobalt, marginBottom: 8 }}>
+            Show controls from
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => setScope("current")}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: radii.sm,
+                border: `1px solid ${currentScopeButton ? colors.orange : colors.paleGray}`,
+                backgroundColor: currentScopeButton ? colors.warningBg : colors.card,
+                color: currentScopeButton ? colors.orange : colors.black,
+                cursor: "pointer", fontSize: 12, fontWeight: 700,
+              }}
+            >
+              <IcoShield size={12} /> Current SSP <span style={{ ...S.badge, marginLeft: 2 }}>{ci.implementedRequirements.length}</span>
+            </button>
+            {providerScopes.map((provider) => {
+              const active = scope === provider.title;
+              return (
+                <button
+                  key={provider.title}
+                  onClick={() => setScope(provider.title)}
+                  title={provider.title}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: radii.sm,
+                    border: `1px solid ${active ? colors.purple : colors.paleGray}`,
+                    backgroundColor: active ? alpha(colors.purple, 10) : colors.card,
+                    color: active ? colors.purple : colors.black,
+                    cursor: "pointer", fontSize: 12, fontWeight: 700, maxWidth: 260,
+                  }}
+                >
+                  <IcoLayers size={12} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.title}</span>
+                  <span style={{ ...S.badge, marginLeft: 2 }}>{provider.controls.length}</span>
+                </button>
+              );
+            })}
+          </div>
+          {providerScopes.length > 0 && (
+            <p style={{ fontSize: 11, color: colors.gray, margin: "8px 0 0" }}>
+              The current SSP is shown by default. Loaded provider SSPs are available here without mixing their controls into the primary control list.
+            </p>
+          )}
+        </div>
       </Card>
-      {families.map(([fam, reqs]) => (
+      {scope === "current" && families.map(([fam, reqs]) => (
         <Card key={fam}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}
             onClick={() => navigate(`ctrl-family-${fam}`)}>
@@ -2168,6 +2580,47 @@ function ControlImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate
           </div>
         </Card>
       ))}
+      {selectedProvider && (
+        <>
+          <Card>
+            <SectionLabel>Provider Controls</SectionLabel>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: colors.navy, margin: "0 0 6px" }}>{selectedProvider.title}</h3>
+            <p style={{ fontSize: 12, color: colors.gray, margin: 0 }}>
+              Controls offered by this loaded provider SSP. Select Current SSP above to return to the main system implementation.
+            </p>
+          </Card>
+          {selectedProviderFamilies.map(([fam, controls]) => (
+            <Card key={fam}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <IcoFolder size={14} style={{ color: colors.purple }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: colors.navy }}>{fam.toUpperCase()}</span>
+                <span style={{ fontSize: 12, color: colors.gray }}>{FAMILY_NAMES[fam] || fam}</span>
+                <span style={S.badge}>{controls.length}</span>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {controls.map(({ controlId, entries }) => {
+                  const provided = entries.reduce((n, e) => n + e.provided.length, 0);
+                  const responsibilities = entries.reduce((n, e) => n + e.responsibilities.length, 0);
+                  return (
+                    <div key={controlId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: radii.sm, backgroundColor: alpha(colors.purple, 4), border: `1px solid ${alpha(colors.purple, 12)}` }}>
+                      <IcoLayers size={12} style={{ color: colors.purple }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, fontFamily: fonts.mono }}>{controlId.toUpperCase()}</span>
+                      <span style={{ fontSize: 10, color: colors.darkGreen }}>{provided} provided</span>
+                      <span style={{ fontSize: 10, color: colors.orange }}>{responsibilities} responsibilities</span>
+                      <button
+                        onClick={() => navigate(`ctrl-${controlId}`)}
+                        style={{ marginLeft: "auto", background: "none", border: `1px solid ${colors.purple}`, borderRadius: radii.sm, padding: "2px 8px", fontSize: 10, color: colors.purple, cursor: "pointer", fontWeight: 700 }}
+                      >
+                        View Detail
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
     </>
   );
 }
@@ -2254,6 +2707,11 @@ function ByComponentTabs({ bc, size, leveragedIndex }: { bc: ByComponent; size: 
   if (hasSatisfied) tabs.push({ key: "satisfied", label: "Satisfied", count: bc.satisfied.length, color: colors.purple });
 
   const [active, setActive] = useState<ByCompTabKey>("impl");
+
+  useEffect(() => {
+    setActive("impl");
+  }, [bc.uuid]);
+
   const activeTab = tabs.find((t) => t.key === active) ?? tabs[0];
 
   // No optional buckets — render implementation body inline, no tab strip.
@@ -2594,9 +3052,53 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: Implement
 
   const [activeCompUuid, setActiveCompUuid] = useState<string>(allComponents[0]?.uuid ?? "");
 
+  useEffect(() => {
+    const firstCompUuid = allComponents[0]?.uuid ?? "";
+    if (!activeCompUuid || !allComponents.some((comp) => comp.uuid === activeCompUuid)) {
+      setActiveCompUuid(firstCompUuid);
+    }
+  }, [activeCompUuid, allComponents]);
+
   /* Status from props */
   const status = ir.props.find((p) => p.name === "implementation-status")?.value ?? "unknown";
   const familyLabel = FAMILY_NAMES[getFamily(ir.controlId)] || "";
+
+  const providerExportsForControl = useMemo(
+    () => leveragedIndex.byControl.get(ir.controlId) ?? [],
+    [leveragedIndex, ir.controlId],
+  );
+  const providerExportGroups = useMemo(() => {
+    const groups = new Map<string, {
+      title: string;
+      providedCount: number;
+      responsibilityCount: number;
+      components: typeof providerExportsForControl;
+    }>();
+    providerExportsForControl.forEach((entry) => {
+      const group = groups.get(entry.providerSspTitle) ?? {
+        title: entry.providerSspTitle,
+        providedCount: 0,
+        responsibilityCount: 0,
+        components: [],
+      };
+      group.providedCount += entry.provided.length;
+      group.responsibilityCount += entry.responsibilities.length;
+      group.components.push(entry);
+      groups.set(entry.providerSspTitle, group);
+    });
+    return [...groups.values()].sort((a, b) => a.title.localeCompare(b.title));
+  }, [providerExportsForControl]);
+  const [activeProviderExport, setActiveProviderExport] = useState("");
+  useEffect(() => {
+    if (providerExportGroups.length === 0) {
+      if (activeProviderExport) setActiveProviderExport("");
+      return;
+    }
+    if (!providerExportGroups.some((group) => group.title === activeProviderExport)) {
+      setActiveProviderExport(providerExportGroups[0].title);
+    }
+  }, [activeProviderExport, providerExportGroups]);
+  const selectedProviderExport = providerExportGroups.find((group) => group.title === activeProviderExport) ?? providerExportGroups[0];
 
   return (
     <>
@@ -2787,69 +3289,120 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: Implement
       )}
 
       {/* Provider Exports for this control (from leveraged SSPs) */}
-      {leveragedIndex.byControl.has(ir.controlId) && (
+      {providerExportGroups.length > 0 && (
         <Card>
           <SectionLabel>
             Provider Exports for {ir.controlId.toUpperCase()}
           </SectionLabel>
-          <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 10px" }}>
-            What leveraged provider systems export for this control:
+          <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 12px" }}>
+            Select a loaded provider SSP to inspect what it offers for this control. Provider exports stay grouped separately from the current SSP implementation above.
           </p>
-          {leveragedIndex.byControl.get(ir.controlId)!.map((entry, ei) => (
-            <div key={ei} style={{ marginBottom: 12, padding: "10px 14px", backgroundColor: alpha(colors.brightBlue, 4), borderRadius: radii.sm, border: `1px solid ${alpha(colors.brightBlue, 12)}` }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: colors.navy, marginBottom: 2 }}>
-                {entry.providerSspTitle}
-              </div>
-              <div style={{ fontSize: 10, color: colors.gray, marginBottom: 6 }}>
-                Component: {entry.providerComponentTitle}
-              </div>
-              {entry.description && (
-                <MarkupBlock value={entry.description} style={{ fontSize: 12, marginBottom: 8 }} />
-              )}
-              {entry.provided.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 4 }}>
-                    Provided ({entry.provided.length})
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+            {providerExportGroups.map((group) => {
+              const active = group.title === selectedProviderExport?.title;
+              return (
+                <button
+                  key={group.title}
+                  onClick={() => setActiveProviderExport(group.title)}
+                  title={group.title}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", borderRadius: radii.sm,
+                    border: `1px solid ${active ? colors.purple : colors.paleGray}`,
+                    backgroundColor: active ? alpha(colors.purple, 10) : colors.card,
+                    color: active ? colors.purple : colors.black,
+                    cursor: "pointer", fontSize: 12, fontWeight: 700, maxWidth: 300,
+                  }}
+                >
+                  <IcoLayers size={12} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.title}</span>
+                  <span style={{ ...S.badge, marginLeft: 2 }}>{group.components.length}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedProviderExport && (
+            <div style={{ border: `1px solid ${alpha(colors.purple, 18)}`, borderRadius: radii.md, overflow: "hidden", backgroundColor: alpha(colors.purple, 3) }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", backgroundColor: alpha(colors.purple, 8), borderBottom: `1px solid ${alpha(colors.purple, 18)}` }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: colors.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={selectedProviderExport.title}>
+                    {selectedProviderExport.title}
                   </div>
-                  {entry.provided.map((p, pi) => (
-                    <div key={pi} style={{ padding: "6px 10px", marginBottom: 3, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
-                      <MarkupBlock value={p.description} style={{ fontSize: 11.5 }} />
-                      {p.responsibleRoles.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
-                          {p.responsibleRoles.map((rr, ri) => (
-                            <span key={ri} style={{ fontSize: 8, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
-                              {rr.roleId}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {entry.responsibilities.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.orange, marginBottom: 4 }}>
-                    Customer Responsibilities ({entry.responsibilities.length})
+                  <div style={{ fontSize: 10, color: colors.gray, marginTop: 2 }}>
+                    {selectedProviderExport.components.length} exporting component{selectedProviderExport.components.length !== 1 ? "s" : ""}
                   </div>
-                  {entry.responsibilities.map((r, ri) => (
-                    <div key={ri} style={{ padding: "6px 10px", marginBottom: 3, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
-                      <MarkupBlock value={r.description} style={{ fontSize: 11.5 }} />
-                      {r.responsibleRoles.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
-                          {r.responsibleRoles.map((rr, rri) => (
-                            <span key={rri} style={{ fontSize: 8, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
-                              {rr.roleId}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
                 </div>
-              )}
+                <StatChip value={selectedProviderExport.providedCount} label="Provided" color={colors.darkGreen} />
+                <StatChip value={selectedProviderExport.responsibilityCount} label="Responsibilities" color={colors.orange} />
+              </div>
+
+              <div style={{ display: "grid", gap: 10, padding: 12 }}>
+                {selectedProviderExport.components.map((entry, ei) => (
+                  <div key={`${entry.providerComponentTitle}-${ei}`} style={{ backgroundColor: colors.card, borderRadius: radii.sm, border: `1px solid ${colors.paleGray}`, overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "9px 12px", borderBottom: `1px solid ${colors.bg}` }}>
+                      <IcoCube size={13} style={{ color: colors.purple }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, flex: 1, minWidth: 180 }}>{entry.providerComponentTitle}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: colors.darkGreen }}>{entry.provided.length} provided</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: colors.orange }}>{entry.responsibilities.length} responsibilities</span>
+                    </div>
+
+                    {entry.description && (
+                      <div style={{ padding: "8px 12px 0" }}>
+                        <MarkupBlock value={entry.description} style={{ fontSize: 12 }} />
+                      </div>
+                    )}
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10, padding: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 6 }}>
+                          Provided ({entry.provided.length})
+                        </div>
+                        {entry.provided.length === 0 ? (
+                          <div style={{ fontSize: 11, color: colors.gray, fontStyle: "italic" }}>No provided entries.</div>
+                        ) : entry.provided.map((p, pi) => (
+                          <div key={pi} style={{ padding: "8px 10px", marginBottom: 6, backgroundColor: alpha(colors.darkGreen, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.darkGreen}` }}>
+                            <MarkupBlock value={p.description} style={{ fontSize: 11.5 }} />
+                            {p.responsibleRoles.length > 0 && (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                                {p.responsibleRoles.map((rr, ri) => (
+                                  <span key={ri} style={{ fontSize: 8, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.darkGreen, color: colors.white, fontWeight: 500 }}>
+                                    {rr.roleId}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: 0.5, color: colors.orange, marginBottom: 6 }}>
+                          Customer Responsibilities ({entry.responsibilities.length})
+                        </div>
+                        {entry.responsibilities.length === 0 ? (
+                          <div style={{ fontSize: 11, color: colors.gray, fontStyle: "italic" }}>No customer responsibilities.</div>
+                        ) : entry.responsibilities.map((r, ri) => (
+                          <div key={ri} style={{ padding: "8px 10px", marginBottom: 6, backgroundColor: alpha(colors.orange, 5), borderRadius: radii.sm, borderLeft: `3px solid ${colors.orange}` }}>
+                            <MarkupBlock value={r.description} style={{ fontSize: 11.5 }} />
+                            {r.responsibleRoles.length > 0 && (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                                {r.responsibleRoles.map((rr, rri) => (
+                                  <span key={rri} style={{ fontSize: 8, padding: "1px 5px", borderRadius: radii.pill, backgroundColor: colors.orange, color: colors.white, fontWeight: 500 }}>
+                                    {rr.roleId}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
         </Card>
       )}
 
@@ -3296,9 +3849,10 @@ interface ViewRouterProps {
   navigate: (id: string) => void;
   catalog: OscalCatalog | null;
   leveragedIndex: LeveragedIndex;
+  sourceUrl?: string | null;
 }
 
-function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex }: ViewRouterProps) {
+function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }: ViewRouterProps) {
   if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} />;
   if (view === "metadata") return <MetadataView ssp={ssp} />;
   if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} />;
@@ -3306,8 +3860,8 @@ function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex }: ViewRouter
   if (view === "sys-impl-components") return <ComponentsView ssp={ssp} navigate={navigate} />;
   if (view === "sys-impl-users") return <UsersView ssp={ssp} />;
   if (view === "sys-impl-inventory") return <InventoryView ssp={ssp} />;
-  if (view === "sys-impl-leveraged") return <LeveragedView ssp={ssp} navigate={navigate} />;
-  if (view === "ctrl-impl") return <ControlImplementationView ssp={ssp} navigate={navigate} />;
+  if (view === "sys-impl-leveraged") return <LeveragedView ssp={ssp} navigate={navigate} sourceUrl={sourceUrl} />;
+  if (view === "ctrl-impl") return <ControlImplementationView ssp={ssp} navigate={navigate} leveragedIndex={leveragedIndex} />;
   if (view === "back-matter") return <BackMatterView ssp={ssp} />;
 
   /* leveraged-auth-<index> — individual leveraged authorization detail */
@@ -3413,6 +3967,13 @@ export default function SspPage() {
     SSP_CHAIN,
     !!oscal.profile,
   );
+  const leveragedResolver = useLeveragedSspResolver(
+    raw,
+    urlDoc.sourceUrl,
+    authToken,
+    oscal.leveragedSsps,
+    oscal.addLeveragedSsp,
+  );
   const chainStored = useRef(new Set<string>());
   useEffect(() => {
     if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
@@ -3448,6 +4009,7 @@ export default function SspPage() {
 
   const handleNewFile = useCallback(() => {
     oscal.clearSsp();
+    oscal.clearLeveragedSsps();
     setError("");
     setView("overview");
   }, [oscal]);
@@ -3522,24 +4084,13 @@ export default function SspPage() {
     /* Control Implementation — group by family */
     items.push({ id: "ctrl-impl", label: "Control Implementation", icon: "shield", color: colors.orange, depth: 0 });
 
-    /* Merge primary SSP controls with provider-only controls */
-    const localControlIds = new Set(ci.implementedRequirements.map((ir) => ir.controlId));
-    const providerOnlyControlIds: string[] = [];
-    for (const controlId of leveragedIndex.byControl.keys()) {
-      if (!localControlIds.has(controlId)) {
-        providerOnlyControlIds.push(controlId);
-      }
-    }
-
-    /* Build combined family map */
+    /* Build the current SSP family map. Provider controls are selectable in
+       the Control Implementation page and Leveraged Authorization views, but
+       are intentionally not mixed into the primary SSP navigation tree. */
     const familyMap: Record<string, { controlId: string; isProvider: boolean }[]> = {};
     ci.implementedRequirements.forEach((ir) => {
       const fam = getFamily(ir.controlId);
       (familyMap[fam] ??= []).push({ controlId: ir.controlId, isProvider: false });
-    });
-    providerOnlyControlIds.forEach((controlId) => {
-      const fam = getFamily(controlId);
-      (familyMap[fam] ??= []).push({ controlId, isProvider: true });
     });
 
     const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => catalogSort.compare(a, b));
@@ -3650,7 +4201,10 @@ export default function SspPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} onSkip={chain.cancel} />
+    <ResolverModal
+      items={[...chain.items, ...leveragedResolver.items]}
+      onSkip={() => { chain.cancel(); leveragedResolver.cancel(); }}
+    />
   );
 
   /* ── No data — drop zone ── */
@@ -3678,7 +4232,7 @@ export default function SspPage() {
             <button style={S.topBtn} onClick={handleNewFile}>New</button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <ViewRouter view={view} ssp={ssp} navigate={mobileNavigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} leveragedIndex={leveragedIndex} />
+            <ViewRouter view={view} ssp={ssp} navigate={mobileNavigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} leveragedIndex={leveragedIndex} sourceUrl={urlDoc.sourceUrl} />
           </div>
         </div>
       );
@@ -3811,7 +4365,7 @@ export default function SspPage() {
 
         {/* CONTENT */}
         <div ref={contentRef} style={S.content}>
-          <ViewRouter view={view} ssp={ssp} navigate={navigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} leveragedIndex={leveragedIndex} />
+          <ViewRouter view={view} ssp={ssp} navigate={navigate} catalog={(oscal.catalog?.data as OscalCatalog) ?? null} leveragedIndex={leveragedIndex} sourceUrl={urlDoc.sourceUrl} />
         </div>
       </div>
     </div>
