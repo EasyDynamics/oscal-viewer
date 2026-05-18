@@ -2248,26 +2248,48 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
   const la = ssp.systemImplementation.leveragedAuthorizations[authIndex];
   const [providerDragOver, setProviderDragOver] = useState(false);
   const [providerLoadError, setProviderLoadError] = useState("");
+  const [offeredView, setOfferedView] = useState<"control" | "component">("control");
   const partyMap = useMemo(() => {
     const m: Record<string, string> = {};
     ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
     return m;
   }, [ssp]);
 
+  const loadedProvider = useMemo(() => {
+    const href = resolvePotentialHref(la.href, undefined);
+    for (const entry of oscal.leveragedSsps) {
+      try {
+        const parsed = parseSsp(entry.data);
+        const summary = summarizeSsp(parsed, entry.fileName, entry.fileName, entry.sourceUrl);
+        if (href && (entry.sourceUrl === href || entry.fileName === fileNameFromUrl(href))) return { entry, summary };
+        if (titleMatches(la.title, summary.title) || titleMatches(la.title, summary.systemName)) return { entry, summary };
+      } catch { /* Ignore invalid provider SSPs */ }
+    }
+    return null;
+  }, [la, oscal.leveragedSsps]);
+
   const loadLeveragedFile = useCallback((file: File) => {
     loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError);
   }, [oscal]);
+
+  const replaceLeveragedFile = useCallback((file: File) => {
+    if (loadedProvider) oscal.removeLeveragedSsp(loadedProvider.entry.fileName);
+    loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError);
+  }, [loadedProvider, oscal]);
 
   /* Match this leveraged authorization to provider exports by title similarity */
   const offeredControls = useMemo(() => {
     const result: { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[] = [];
     for (const [controlId, entries] of leveragedIndex.byControl.entries()) {
-      const matching = entries.filter((e) => titleMatches(la.title, e.providerSspTitle));
+      const matching = entries.filter((e) =>
+        titleMatches(la.title, e.providerSspTitle) ||
+        (!!loadedProvider && e.providerSspTitle === loadedProvider.summary.title),
+      );
       if (matching.length > 0) result.push({ controlId, entries: matching });
     }
     result.sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
     return result;
-  }, [la, leveragedIndex, catalogSort]);
+  }, [la, loadedProvider, leveragedIndex, catalogSort]);
 
   /* Group offered controls by family */
   const familyGroups = useMemo(() => {
@@ -2279,11 +2301,67 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
     return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
   }, [offeredControls, catalogSort]);
 
+  /* Group offered controls by exporting provider component */
+  const componentGroups = useMemo(() => {
+    const map = new Map<string, {
+      componentTitle: string;
+      controls: { controlId: string; entry: import("../hooks/useLeveragedIndex").ControlExportEntry }[];
+      providedCount: number;
+      responsibilityCount: number;
+    }>();
+    offeredControls.forEach(({ controlId, entries }) => {
+      entries.forEach((entry) => {
+        const componentTitle = entry.providerComponentTitle || "Provider component";
+        const group = map.get(componentTitle) ?? { componentTitle, controls: [], providedCount: 0, responsibilityCount: 0 };
+        group.controls.push({ controlId, entry });
+        group.providedCount += entry.provided.length;
+        group.responsibilityCount += entry.responsibilities.length;
+        map.set(componentTitle, group);
+      });
+    });
+    return [...map.values()]
+      .map((group) => ({
+        ...group,
+        controls: group.controls.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)),
+      }))
+      .sort((a, b) => a.componentTitle.localeCompare(b.componentTitle));
+  }, [offeredControls, catalogSort]);
+
   const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
   const [expandedControls, setExpandedControls] = useState<Record<string, boolean>>({});
+  const [expandedComponents, setExpandedComponents] = useState<Record<string, boolean>>({});
 
   const toggleFamily = (fam: string) => setExpandedFamilies((prev) => ({ ...prev, [fam]: !prev[fam] }));
   const toggleControl = (id: string) => setExpandedControls((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleComponent = (id: string) => setExpandedComponents((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const renderProviderEntryDetail = (entry: import("../hooks/useLeveragedIndex").ControlExportEntry): ReactNode => (
+    <>
+      {entry.description && (
+        <div style={{ fontSize: 12, color: colors.black, marginBottom: 6 }}>{entry.description}</div>
+      )}
+      {entry.provided.length > 0 && (
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 2 }}>Provided</div>
+          {entry.provided.map((p) => (
+            <div key={p.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.darkGreen}`, marginBottom: 3 }}>
+              {p.description}
+            </div>
+          ))}
+        </div>
+      )}
+      {entry.responsibilities.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.orange, marginBottom: 2 }}>Responsibilities</div>
+          {entry.responsibilities.map((r) => (
+            <div key={r.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.orange}`, marginBottom: 3 }}>
+              {r.description}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -2299,34 +2377,55 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
       </Card>
 
       <Card>
-        <SectionLabel>{offeredControls.length > 0 ? "Load Another Provider SSP" : "Load Provider SSP"}</SectionLabel>
-        <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 10px" }}>
-          If you have this provider&apos;s SSP locally, load it here to resolve the controls and customer responsibilities offered by this authorization.
-        </p>
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDragEnter={(e) => { e.preventDefault(); setProviderDragOver(true); }}
-          onDragLeave={() => setProviderDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setProviderDragOver(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) loadLeveragedFile(file);
-          }}
-          onClick={() => chooseProviderSspFile(loadLeveragedFile)}
-          style={{
-            border: `2px dashed ${providerDragOver ? colors.cobalt : colors.paleGray}`,
-            borderRadius: radii.md,
-            padding: "16px 20px",
-            textAlign: "center",
-            cursor: "pointer",
-            backgroundColor: providerDragOver ? alpha(colors.cobalt, 10) : alpha(colors.cobalt, 3),
-            transition: "border-color 0.15s, background-color 0.15s",
-          }}
-        >
-          <IcoUpload size={20} style={{ color: colors.cobalt, marginBottom: 4 }} />
-          <div style={{ fontSize: 12, color: colors.gray }}>Drop this provider&apos;s SSP JSON here, or click to browse</div>
-        </div>
+        <SectionLabel>{loadedProvider ? "Loaded Provider SSP" : "Load Provider SSP"}</SectionLabel>
+        {loadedProvider ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 2 }}>
+                {loadedProvider.summary.systemName || loadedProvider.summary.title}
+              </div>
+              <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }} title={loadedProvider.entry.sourceUrl ?? loadedProvider.entry.fileName}>
+                {loadedProvider.entry.fileName}
+              </div>
+            </div>
+            <button
+              onClick={() => chooseProviderSspFile(replaceLeveragedFile)}
+              style={{ background: alpha(colors.purple, 10), border: `1px solid ${alpha(colors.purple, 28)}`, borderRadius: radii.sm, color: colors.purple, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 12px" }}
+            >
+              Replace SSP
+            </button>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 10px" }}>
+              If you have this provider&apos;s SSP locally, load it here to resolve the controls and customer responsibilities offered by this authorization.
+            </p>
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnter={(e) => { e.preventDefault(); setProviderDragOver(true); }}
+              onDragLeave={() => setProviderDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setProviderDragOver(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) loadLeveragedFile(file);
+              }}
+              onClick={() => chooseProviderSspFile(loadLeveragedFile)}
+              style={{
+                border: `2px dashed ${providerDragOver ? colors.cobalt : colors.paleGray}`,
+                borderRadius: radii.md,
+                padding: "16px 20px",
+                textAlign: "center",
+                cursor: "pointer",
+                backgroundColor: providerDragOver ? alpha(colors.cobalt, 10) : alpha(colors.cobalt, 3),
+                transition: "border-color 0.15s, background-color 0.15s",
+              }}
+            >
+              <IcoUpload size={20} style={{ color: colors.cobalt, marginBottom: 4 }} />
+              <div style={{ fontSize: 12, color: colors.gray }}>Drop this provider&apos;s SSP JSON here, or click to browse</div>
+            </div>
+          </>
+        )}
         {providerLoadError && (
           <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: radii.sm, backgroundColor: colors.errorBg, color: colors.red, fontSize: 12, fontWeight: 600 }}>
             {providerLoadError}
@@ -2338,14 +2437,37 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
       <Card>
         <SectionLabel>Controls Offered ({offeredControls.length})</SectionLabel>
         <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 12px" }}>
-          Controls provided by this leveraged system, grouped by family. Click a control to view its full implementation detail.
+          Controls provided by this leveraged system. View them by control family or by exporting provider component.
         </p>
+        {offeredControls.length > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {(["control", "component"] as const).map((mode) => {
+              const active = offeredView === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setOfferedView(mode)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: radii.sm,
+                    border: `1px solid ${active ? colors.purple : colors.paleGray}`,
+                    backgroundColor: active ? alpha(colors.purple, 10) : colors.card,
+                    color: active ? colors.purple : colors.black,
+                    cursor: "pointer", fontSize: 11, fontWeight: 700,
+                  }}
+                >
+                  {mode === "control" ? <IcoShield size={11} /> : <IcoCube size={11} />}
+                  By {mode === "control" ? "Control" : "Component"}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {offeredControls.length === 0 ? (
           <div style={{ padding: "16px 0", textAlign: "center", color: colors.gray, fontSize: 12, fontStyle: "italic" }}>
             No provider SSP loaded for this authorization yet. Load it above to see controls offered.
           </div>
-        ) : (
+        ) : offeredView === "control" ? (
           <div style={{ border: `1px solid ${colors.paleGray}`, borderRadius: radii.md, overflow: "hidden" }}>
             {familyGroups.map(([fam, controls]) => {
               const famExpanded = expandedFamilies[fam] === true;
@@ -2433,6 +2555,75 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
                                 )}
                               </div>
                             ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ border: `1px solid ${colors.paleGray}`, borderRadius: radii.md, overflow: "hidden" }}>
+            {componentGroups.map((group) => {
+              const componentExpanded = expandedComponents[group.componentTitle] === true;
+              return (
+                <div key={group.componentTitle}>
+                  <div
+                    onClick={() => toggleComponent(group.componentTitle)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                      backgroundColor: colors.surfaceSubtle, cursor: "pointer",
+                      borderBottom: `1px solid ${colors.paleGray}`,
+                      userSelect: "none",
+                    }}
+                  >
+                    <IcoChev open={componentExpanded} style={{ color: colors.purple }} />
+                    <IcoCube size={13} style={{ color: colors.purple }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={group.componentTitle}>
+                      {group.componentTitle}
+                    </span>
+                    <span style={{ fontSize: 10, color: colors.darkGreen }}>{group.providedCount} provided</span>
+                    <span style={{ fontSize: 10, color: colors.orange }}>{group.responsibilityCount} resp.</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.purple, 10), color: colors.purple }}>
+                      {group.controls.length}
+                    </span>
+                  </div>
+
+                  {componentExpanded && group.controls.map(({ controlId, entry }) => {
+                    const rowId = `${group.componentTitle}-${controlId}`;
+                    const ctrlExpanded = expandedControls[rowId] ?? false;
+                    return (
+                      <div key={rowId} style={{ borderBottom: `1px solid ${colors.bg}` }}>
+                        <div
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8, padding: "6px 12px 6px 28px",
+                            cursor: "pointer", transition: "background .1s",
+                          }}
+                          onClick={() => toggleControl(rowId)}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = alpha(colors.purple, 5); }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent"; }}
+                        >
+                          <IcoChev open={ctrlExpanded} style={{ color: colors.orange }} />
+                          <IcoShield size={12} style={{ color: colors.orange }} />
+                          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: fonts.mono, color: colors.navy }}>{controlId.toUpperCase()}</span>
+                          <span style={{ fontSize: 10, color: colors.darkGreen }}>{entry.provided.length} provided</span>
+                          <span style={{ fontSize: 10, color: colors.orange }}>{entry.responsibilities.length} responsibilities</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); navigate(`ctrl-${controlId}`); }}
+                            style={{
+                              marginLeft: "auto", background: "none", border: `1px solid ${colors.cobalt}`, borderRadius: radii.sm,
+                              padding: "2px 8px", fontSize: 10, color: colors.cobalt, cursor: "pointer", fontWeight: 600,
+                            }}
+                          >
+                            View Detail
+                          </button>
+                        </div>
+
+                        {ctrlExpanded && (
+                          <div style={{ padding: "8px 12px 12px 48px", backgroundColor: alpha(colors.purple, 3) }}>
+                            {renderProviderEntryDetail(entry)}
                           </div>
                         )}
                       </div>
