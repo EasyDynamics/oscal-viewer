@@ -675,12 +675,16 @@ export default function PoamPage() {
     return (poam["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
   }, [poam]);
   const importSspHref = poam?.["import-ssp"]?.href ?? null;
+  const resolverChain = useMemo(
+    () => oscal.catalog ? POAM_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : POAM_CHAIN,
+    [oscal.catalog],
+  );
   const chain = useChainResolver(
     importSspHref,
     poamBackMatter,
     urlDoc.sourceUrl,
     authToken,
-    POAM_CHAIN,
+    resolverChain,
     !!oscal.ssp,
   );
   const chainStored = useRef(new Set<string>());

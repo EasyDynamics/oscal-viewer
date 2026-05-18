@@ -666,10 +666,11 @@ export default function ProfilePage() {
     return (profile["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
   }, [profile]);
   const importCatalogHref = useMemo(() => {
+    if (oscal.catalog) return null;
     if (!profile) return null;
     const { href } = extractCatalogFromProfile(profile);
     return href;
-  }, [profile]);
+  }, [profile, oscal.catalog]);
   const chain = useChainResolver(
     importCatalogHref,
     profileBackMatter,
