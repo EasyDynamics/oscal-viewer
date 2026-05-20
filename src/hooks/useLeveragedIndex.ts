@@ -103,33 +103,55 @@ function buildMaps(
 
     for (const ir of ci["implemented-requirements"]) {
       const controlId: string = ir["control-id"] || "";
+      if (!controlId) continue;
       const allBcs = [...(ir["by-components"] || [])];
       for (const st of ir.statements || []) {
         allBcs.push(...(st["by-components"] || []));
       }
 
+      // Track per-component export entries; if a component has no export, we
+      // still want the control to appear in `byControl` so the consumer SSP
+      // shows that the provider implements it (just without exports).
+      const componentEntries = new Map<string, ControlExportEntry>();
+      const ensureEntry = (compUuid: string): ControlExportEntry => {
+        const compTitle = compMap.get(compUuid) || (compUuid ? compUuid.slice(0, 12) : "Component");
+        let entry = componentEntries.get(compUuid);
+        if (!entry) {
+          entry = {
+            providerSspTitle: sspTitle,
+            providerComponentTitle: compTitle,
+            description: "",
+            provided: [],
+            responsibilities: [],
+          };
+          componentEntries.set(compUuid, entry);
+        }
+        return entry;
+      };
+
+      // Always record at least one entry per control so it appears in byControl
+      // (use a blank component-uuid bucket if there are no by-components).
+      if (allBcs.length === 0) ensureEntry("");
+
       for (const bc of allBcs) {
         const compUuid: string = bc["component-uuid"] || "";
-        const compTitle = compMap.get(compUuid) || compUuid.slice(0, 12);
+        const entry = ensureEntry(compUuid);
         const exp = bc.export;
         if (!exp) continue;
 
-        // Build UUID-based index
-        const providedEntries: ControlExportEntry["provided"] = [];
-        const respEntries: ControlExportEntry["responsibilities"] = [];
+        if (txt(exp.description)) entry.description = txt(exp.description);
 
         for (const p of exp.provided || []) {
           if (!p.uuid) continue;
           const roles = (p["responsible-roles"] || []).map((rr: any) => ({ roleId: rr["role-id"] || "" }));
           provided.set(p.uuid, {
             providerSspTitle: sspTitle,
-            providerComponentTitle: compTitle,
+            providerComponentTitle: entry.providerComponentTitle,
             controlId,
             description: txt(p.description),
             responsibleRoles: roles,
           });
-          providedEntries.push({ uuid: p.uuid, description: txt(p.description), responsibleRoles: roles });
-          contributed = true;
+          entry.provided.push({ uuid: p.uuid, description: txt(p.description), responsibleRoles: roles });
         }
 
         for (const r of exp.responsibilities || []) {
@@ -137,28 +159,21 @@ function buildMaps(
           const roles = (r["responsible-roles"] || []).map((rr: any) => ({ roleId: rr["role-id"] || "" }));
           responsibilities.set(r.uuid, {
             providerSspTitle: sspTitle,
-            providerComponentTitle: compTitle,
+            providerComponentTitle: entry.providerComponentTitle,
             controlId,
             description: txt(r.description),
             linkedProvidedUuid: r["provided-uuid"],
             responsibleRoles: roles,
           });
-          respEntries.push({ uuid: r.uuid, description: txt(r.description), providedUuid: r["provided-uuid"], responsibleRoles: roles });
-          contributed = true;
+          entry.responsibilities.push({ uuid: r.uuid, description: txt(r.description), providedUuid: r["provided-uuid"], responsibleRoles: roles });
         }
+      }
 
-        // Build control-id-based index
-        if (providedEntries.length > 0 || respEntries.length > 0) {
-          const existing = byControl.get(controlId) || [];
-          existing.push({
-            providerSspTitle: sspTitle,
-            providerComponentTitle: compTitle,
-            description: txt(exp.description),
-            provided: providedEntries,
-            responsibilities: respEntries,
-          });
-          byControl.set(controlId, existing);
-        }
+      if (componentEntries.size > 0) {
+        const existing = byControl.get(controlId) || [];
+        existing.push(...componentEntries.values());
+        byControl.set(controlId, existing);
+        contributed = true;
       }
     }
 
