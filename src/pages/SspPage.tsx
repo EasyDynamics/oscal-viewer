@@ -27,6 +27,7 @@ import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
+import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import type {
@@ -69,6 +70,7 @@ interface SspLink {
   rel?: string;
   text?: string;
   mediaType?: string;
+  resourceFragment?: string;
 }
 
 interface SspComponent {
@@ -290,7 +292,23 @@ function parseLinks(arr: any[]): SspLink[] {
     rel: l.rel || undefined,
     text: l.text || undefined,
     mediaType: l["media-type"] || l.mediaType || undefined,
+    resourceFragment: l["resource-fragment"] || l.resourceFragment || undefined,
   }));
+}
+
+function mediaTypeFromFilename(filename?: string): string | undefined {
+  const lower = filename?.toLowerCase().split(/[?#]/)[0] ?? "";
+  if (!lower) return undefined;
+  if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "text/markdown";
+  if (lower.endsWith(".txt") || lower.endsWith(".log")) return "text/plain";
+  if (lower.endsWith(".json")) return "application/json";
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return undefined;
 }
 
 function parseBase64Content(value: any): SspBase64Content | undefined {
@@ -298,9 +316,11 @@ function parseBase64Content(value: any): SspBase64Content | undefined {
   if (typeof value === "string") return { value };
   const content = value.value || value.data || value.content || "";
   if (!content) return undefined;
+  const filename = value.filename || value.name || value.title;
+  const mediaType = value["media-type"] || value.mediaType || mediaTypeFromFilename(filename);
   return {
-    filename: value.filename,
-    mediaType: value["media-type"] || value.mediaType,
+    filename,
+    mediaType,
     value: content,
   };
 }
@@ -1842,6 +1862,61 @@ function diagramLinks(diagram: SspDiagram, backMatter: SspResource[]): { link: S
     result.push({ link });
   });
   return result;
+}
+
+function resolveArtifactUrl(href: string, sourceUrl?: string | null): string | undefined {
+  if (!href) return undefined;
+  if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("data:") || href.startsWith("blob:")) return href;
+  if (!sourceUrl) return undefined;
+  try { return new URL(href, sourceUrl).href; }
+  catch { return undefined; }
+}
+
+function artifactFromRlink(rlink: { href: string; "media-type"?: string }, title: string, description?: string, sourceUrl?: string | null): ArtifactItem | null {
+  const href = resolveArtifactUrl(rlink.href, sourceUrl);
+  if (!href) return null;
+  return {
+    title,
+    href,
+    mediaType: rlink["media-type"] || mediaTypeFromFilename(rlink.href),
+    fileName: rlink.href.split(/[/?#]/).filter(Boolean).pop(),
+    description,
+  };
+}
+
+function artifactFromLink(link: SspLink, backMatter: SspResource[], sourceUrl?: string | null): ArtifactItem | null {
+  if (!link.href) return null;
+  if (link.href.startsWith("#")) {
+    const resource = backMatter.find((r) => r.uuid === link.href.slice(1));
+    if (!resource) return null;
+    const title = link.text || resource.title || resource.uuid.slice(0, 12);
+    if (resource.base64) {
+      return {
+        title,
+        href: dataUrlFromBase64(resource.base64),
+        mediaType: resource.base64.mediaType || mediaTypeFromFilename(resource.base64.filename),
+        fileName: resource.base64.filename,
+        description: resource.description,
+      };
+    }
+    const rlink = resource.rlinks?.[0];
+    return rlink ? artifactFromRlink(rlink, title, resource.description, sourceUrl) : null;
+  }
+
+  const href = resolveArtifactUrl(link.href, sourceUrl);
+  if (!href) return null;
+  return {
+    title: link.text || link.href.split(/[/?#]/).filter(Boolean).pop() || link.href,
+    href,
+    mediaType: link.mediaType || mediaTypeFromFilename(link.href),
+    fileName: link.href.split(/[/?#]/).filter(Boolean).pop(),
+  };
+}
+
+function linkDisplayText(link: SspLink, backMatter: SspResource[]): string {
+  const resource = link.href?.startsWith("#") ? backMatter.find((r) => r.uuid === link.href.slice(1)) : undefined;
+  const baseText = link.text || resource?.title || (link.rel === "mitre" ? (link.href.split("/").pop() ?? link.href) : link.href);
+  return link.resourceFragment ? `${baseText} — ${link.resourceFragment}` : baseText;
 }
 
 function buildDiagramAssets(diagrams: SspDiagram[], backMatter: SspResource[], sourceUrl?: string | null): DiagramAsset[] {
@@ -3785,7 +3860,7 @@ function ByCompSatisfied({ entries, size, leveragedIndex }: { entries: Satisfied
   );
 }
 
-function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: ImplementedRequirement; ssp: SspParsed; catalog: OscalCatalog | null; leveragedIndex: LeveragedIndex }) {
+function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir: ImplementedRequirement; ssp: SspParsed; catalog: OscalCatalog | null; leveragedIndex: LeveragedIndex; sourceUrl?: string | null }) {
   const compMap = useMemo(() => {
     const m: Record<string, string> = {};
     ssp.systemImplementation.components.forEach((c) => { m[c.uuid] = c.title || c.uuid.slice(0, 8); });
@@ -3824,6 +3899,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: Implement
   }, [ir, compMap, ssp]);
 
   const [activeCompUuid, setActiveCompUuid] = useState<string>(allComponents[0]?.uuid ?? "");
+  const [activeArtifact, setActiveArtifact] = useState<ArtifactItem | null>(null);
 
   useEffect(() => {
     const firstCompUuid = allComponents[0]?.uuid ?? "";
@@ -4186,14 +4262,16 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: Implement
         <Card>
           <LinkChips
             links={ir.links.map((l) => {
-              const frag = (l as { "resource-fragment"?: string })["resource-fragment"];
-              const baseText = l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : l.href);
-              const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
-              return { text, href: l.href, rel: l.rel };
+              const artifact = artifactFromLink(l, ssp.backMatter, sourceUrl);
+              return artifact
+                ? { text: linkDisplayText(l, ssp.backMatter), rel: l.rel, onClick: () => setActiveArtifact(artifact) }
+                : { text: linkDisplayText(l, ssp.backMatter), href: l.href, rel: l.rel };
             })}
           />
         </Card>
       )}
+
+      <ArtifactModal artifact={activeArtifact} onClose={() => setActiveArtifact(null)} />
 
       {/* Responsible Roles */}
       {ir.responsibleRoles.length > 0 && (
@@ -4237,8 +4315,9 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: Implement
   );
 }
 
-function BackMatterView({ ssp }: { ssp: SspParsed }) {
+function BackMatterView({ ssp, sourceUrl }: { ssp: SspParsed; sourceUrl?: string | null }) {
   const resources = ssp.backMatter;
+  const [activeArtifact, setActiveArtifact] = useState<ArtifactItem | null>(null);
   return (
     <>
       <Card>
@@ -4254,18 +4333,42 @@ function BackMatterView({ ssp }: { ssp: SspParsed }) {
             <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{r.title || r.uuid.slice(0, 12)}</span>
           </div>
           {r.description && <MarkupBlock value={r.description} style={{ fontSize: 12 }} />}
+          {r.base64 && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={() => setActiveArtifact({
+                  title: r.title || r.uuid.slice(0, 12),
+                  href: dataUrlFromBase64(r.base64!),
+                  mediaType: r.base64!.mediaType || mediaTypeFromFilename(r.base64!.filename),
+                  fileName: r.base64!.filename,
+                  description: r.description,
+                })}
+                style={{ fontSize: 11, padding: "4px 10px", borderRadius: radii.pill, backgroundColor: alpha(colors.cobalt, 8), color: colors.cobalt, fontWeight: 700 }}
+              >
+                Preview embedded artifact{r.base64.mediaType ? ` (${r.base64.mediaType})` : ""}
+              </button>
+            </div>
+          )}
           {r.rlinks && r.rlinks.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-              {r.rlinks.map((rl, i) => (
-                <a key={i} href={rl.href} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 10.5, color: colors.cobalt, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3 }}>
-                  <IcoLink size={10} />{trunc(rl.href, 60)}
-                </a>
-              ))}
+              {r.rlinks.map((rl, i) => {
+                const artifact = artifactFromRlink(rl, r.title || r.uuid.slice(0, 12), r.description, sourceUrl);
+                return artifact ? (
+                  <button key={i} onClick={() => setActiveArtifact(artifact)} style={{ fontSize: 10.5, color: colors.cobalt, background: "transparent", padding: 0, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <IcoLink size={10} />{trunc(rl.href, 60)}
+                  </button>
+                ) : (
+                  <a key={i} href={rl.href} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 10.5, color: colors.cobalt, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <IcoLink size={10} />{trunc(rl.href, 60)}
+                  </a>
+                );
+              })}
             </div>
           )}
         </Card>
       ))}
+      <ArtifactModal artifact={activeArtifact} onClose={() => setActiveArtifact(null)} />
     </>
   );
 }
@@ -4640,7 +4743,7 @@ function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }:
   if (view === "sys-impl-inventory") return <InventoryView ssp={ssp} />;
   if (view === "sys-impl-leveraged") return <LeveragedView ssp={ssp} navigate={navigate} sourceUrl={sourceUrl} />;
   if (view === "ctrl-impl") return <ControlImplementationView ssp={ssp} navigate={navigate} leveragedIndex={leveragedIndex} />;
-  if (view === "back-matter") return <BackMatterView ssp={ssp} />;
+  if (view === "back-matter") return <BackMatterView ssp={ssp} sourceUrl={sourceUrl} />;
 
   /* leveraged-auth-<index> — individual leveraged authorization detail */
   const leveragedMatch = view.match(/^leveraged-auth-(\d+)$/);
@@ -4671,7 +4774,7 @@ function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }:
     const ir = ssp.controlImplementation.implementedRequirements.find(
       (r) => r.controlId === controlId,
     );
-    if (ir) return <ControlDetailView ir={ir} ssp={ssp} catalog={catalog} leveragedIndex={leveragedIndex} />;
+    if (ir) return <ControlDetailView ir={ir} ssp={ssp} catalog={catalog} leveragedIndex={leveragedIndex} sourceUrl={sourceUrl} />;
     /* Provider-only control — no local implementation but exists in leveraged index */
     const providerEntries = leveragedIndex.byControl.get(controlId);
     if (providerEntries) return <ProviderOnlyControlView controlId={controlId} entries={providerEntries} />;
