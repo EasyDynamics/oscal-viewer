@@ -325,17 +325,17 @@ function parseBase64Content(value: any): SspBase64Content | undefined {
   };
 }
 
-function dataUrlFromBase64(base64: SspBase64Content): string {
-  const mediaType = base64.mediaType || "application/octet-stream";
+function dataUrlFromBase64(base64: SspBase64Content, mediaTypeOverride?: string): string {
+  const mediaType = base64.mediaType || mediaTypeOverride || "application/octet-stream";
   const value = base64.value.replace(/\s+/g, "");
   if (value.startsWith("data:")) return value;
   return `data:${mediaType};base64,${value}`;
 }
 
-function linkFromBase64(base64: SspBase64Content, text?: string): SspLink {
+function linkFromBase64(base64: SspBase64Content, text?: string, mediaTypeOverride?: string): SspLink {
   return {
-    href: dataUrlFromBase64(base64),
-    mediaType: base64.mediaType,
+    href: dataUrlFromBase64(base64, mediaTypeOverride),
+    mediaType: base64.mediaType || mediaTypeOverride,
     text: text || base64.filename,
   };
 }
@@ -2112,7 +2112,7 @@ function diagramLinks(diagram: SspDiagram, backMatter: SspResource[]): { link: S
       const resource = backMatter.find((r) => r.uuid === link.href.slice(1));
       if (resource?.base64) {
         result.push({
-          link: linkFromBase64(resource.base64, link.text || resource.title),
+          link: linkFromBase64(resource.base64, link.text || resource.title, link.mediaType),
           title: resource.title,
           description: resource.description,
         });
@@ -2162,8 +2162,8 @@ function artifactFromLink(link: SspLink, backMatter: SspResource[], sourceUrl?: 
     if (resource.base64) {
       return {
         title,
-        href: dataUrlFromBase64(resource.base64),
-        mediaType: resource.base64.mediaType || mediaTypeFromFilename(resource.base64.filename),
+        href: dataUrlFromBase64(resource.base64, link.mediaType),
+        mediaType: resource.base64.mediaType || link.mediaType || mediaTypeFromFilename(resource.base64.filename),
         fileName: resource.base64.filename,
         description: resource.description,
       };
