@@ -636,6 +636,24 @@ function IcoLayers({ size = 16, style }: IconProps) {
     </svg>
   );
 }
+function IcoShieldLayers({ size = 16, style }: IconProps) {
+  const shieldColor = style?.color ?? colors.orange;
+  const badgeSize = Math.max(9, Math.round(size * 0.72));
+  return (
+    <span style={{ ...style, position: "relative", display: "inline-flex", width: size, height: size, flexShrink: 0 }}>
+      <IcoShield size={size} style={{ color: shieldColor }} />
+      <span style={{
+        position: "absolute", right: -4, bottom: -4,
+        width: badgeSize + 3, height: badgeSize + 3,
+        borderRadius: radii.pill, backgroundColor: colors.card,
+        border: `1px solid ${alpha(colors.purple, 35)}`,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <IcoLayers size={badgeSize} style={{ color: colors.purple }} />
+      </span>
+    </span>
+  );
+}
 function IcoUsers({ size = 16, style }: IconProps) {
   return (
     <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -678,6 +696,25 @@ function IcoFolder({ size = 16, style }: IconProps) {
     <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
     </svg>
+  );
+}
+
+function IcoFolderLayers({ size = 16, style }: IconProps) {
+  const folderColor = style?.color ?? colors.purple;
+  const badgeSize = Math.max(9, Math.round(size * 0.72));
+  return (
+    <span style={{ ...style, position: "relative", display: "inline-flex", width: size, height: size, flexShrink: 0 }}>
+      <IcoFolder size={size} style={{ color: folderColor }} />
+      <span style={{
+        position: "absolute", right: -4, bottom: -4,
+        width: badgeSize + 3, height: badgeSize + 3,
+        borderRadius: radii.pill, backgroundColor: colors.card,
+        border: `1px solid ${alpha(colors.purple, 35)}`,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <IcoLayers size={badgeSize} style={{ color: colors.purple }} />
+      </span>
+    </span>
   );
 }
 
@@ -976,6 +1013,7 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "server": return <IcoServer size={size} style={st} />;
     case "cube": return <IcoCube size={size} style={st} />;
     case "layers": return <IcoLayers size={size} style={st} />;
+    case "shield-layers": return <IcoShieldLayers size={size} style={st} />;
     case "shield": return <IcoShield size={size} style={st} />;
     case "users": return <IcoUsers size={size} style={st} />;
     case "clipboard": return <IcoClipboard size={size} style={st} />;
@@ -983,6 +1021,7 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "link": return <IcoLink size={size} style={st} />;
     case "box": return <IcoBox size={size} style={st} />;
     case "folder": return <IcoFolder size={size} style={st} />;
+    case "folder-layers": return <IcoFolderLayers size={size} style={st} />;
     case "tag": return <IcoTag size={size} style={st} />;
     case "this-system": return <IcoThisSystem size={size} style={st} />;
     case "ext-system": return <IcoExternalSystem size={size} style={st} />;
@@ -1000,6 +1039,28 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "network": return <IcoNetwork size={size} style={st} />;
     default: return <IcoBook size={size} style={st} />;
   }
+}
+
+function controlSourceIconKey(hasCurrent: boolean, hasProvider: boolean): string {
+  if (hasCurrent && hasProvider) return "shield-layers";
+  if (hasProvider) return "layers";
+  return "shield";
+}
+
+function controlSourceColor(hasCurrent: boolean, hasProvider: boolean): string {
+  if (hasCurrent) return colors.orange;
+  if (hasProvider) return colors.purple;
+  return colors.gray;
+}
+
+function controlSourceTitle(hasCurrent: boolean, hasProvider: boolean): string {
+  if (hasCurrent && hasProvider) return "Implemented by the current SSP and offered by a loaded provider SSP";
+  if (hasProvider) return "Offered by a loaded provider SSP";
+  return "Implemented by the current SSP";
+}
+
+function ControlSourceIcon({ hasCurrent, hasProvider, size = 14 }: { hasCurrent: boolean; hasProvider: boolean; size?: number }) {
+  return <>{navIcon(controlSourceIconKey(hasCurrent, hasProvider), controlSourceColor(hasCurrent, hasProvider), size)}</>;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1413,6 +1474,7 @@ interface NavItem {
   depth: number;
   parent?: string;
   childCount?: number;
+  title?: string;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2774,18 +2836,22 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
             <span style={S.badge}>{reqs.length}</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {[...reqs].sort((a, b) => catalogSort.compare(a.controlId, b.controlId)).map((ir) => (
-              <button key={ir.uuid}
-                onClick={() => navigate(`ctrl-${ir.controlId}`)}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 4,
-                  padding: "3px 10px", borderRadius: radii.sm, fontSize: 11, fontWeight: 600,
-                  fontFamily: fonts.mono, border: `1px solid ${colors.orange}`, background: colors.warningBg,
-                  color: colors.orange, cursor: "pointer", transition: "all .12s",
-                }}>
-                <IcoShield size={10} />{ir.controlId.toUpperCase()}
-              </button>
-            ))}
+            {[...reqs].sort((a, b) => catalogSort.compare(a.controlId, b.controlId)).map((ir) => {
+              const hasProvider = leveragedIndex.byControl.has(ir.controlId);
+              return (
+                <button key={ir.uuid}
+                  onClick={() => navigate(`ctrl-${ir.controlId}`)}
+                  title={controlSourceTitle(true, hasProvider)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "3px 10px", borderRadius: radii.sm, fontSize: 11, fontWeight: 600,
+                    fontFamily: fonts.mono, border: `1px solid ${colors.orange}`, background: colors.warningBg,
+                    color: colors.orange, cursor: "pointer", transition: "all .12s",
+                  }}>
+                  <ControlSourceIcon hasCurrent hasProvider={hasProvider} size={10} />{ir.controlId.toUpperCase()}
+                </button>
+              );
+            })}
           </div>
         </Card>
       ))}
@@ -2834,7 +2900,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
   );
 }
 
-function ControlFamilyView({ familyId, ssp, navigate }: { familyId: string; ssp: SspParsed; navigate: (id: string) => void }) {
+function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { familyId: string; ssp: SspParsed; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
   const catalogSort = useCatalogSortIndex();
   const familyControls = useMemo(() => {
     return ssp.controlImplementation.implementedRequirements.filter(
@@ -2861,7 +2927,9 @@ function ControlFamilyView({ familyId, ssp, navigate }: { familyId: string; ssp:
         <Card key={ir.uuid}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
             onClick={() => navigate(`ctrl-${ir.controlId}`)}>
-            <IcoShield size={14} style={{ color: colors.orange }} />
+            <span title={controlSourceTitle(true, leveragedIndex.byControl.has(ir.controlId))} style={{ display: "inline-flex" }}>
+              <ControlSourceIcon hasCurrent hasProvider={leveragedIndex.byControl.has(ir.controlId)} size={14} />
+            </span>
             <span style={{ fontSize: 14, fontWeight: 700, color: colors.navy, fontFamily: fonts.mono }}>{ir.controlId.toUpperCase()}</span>
             {ir.statements.length > 0 && (
               <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.sm, background: colors.bg, color: colors.gray }}>
@@ -3314,7 +3382,9 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex }: { ir: Implement
       {/* Header */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <IcoTag size={20} style={{ color: colors.orange }} />
+          <span title={controlSourceTitle(true, providerExportGroups.length > 0)} style={{ display: "inline-flex" }}>
+            <ControlSourceIcon hasCurrent hasProvider={providerExportGroups.length > 0} size={20} />
+          </span>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: colors.navy, margin: 0 }}>
             {ir.controlId.toUpperCase()}{familyLabel ? ` ${familyLabel}` : ""}
           </h1>
@@ -4092,7 +4162,7 @@ function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }:
   /* ctrl-family-<prefix> — family group view */
   const famMatch = view.match(/^ctrl-family-(.+)$/);
   if (famMatch) {
-    return <ControlFamilyView familyId={famMatch[1]} ssp={ssp} navigate={navigate} />;
+    return <ControlFamilyView familyId={famMatch[1]} ssp={ssp} navigate={navigate} leveragedIndex={leveragedIndex} />;
   }
 
   /* ctrl-<control-id> */
@@ -4296,21 +4366,18 @@ export default function SspPage() {
     /* Build the control family map. Current SSP controls remain primary;
        provider-only controls from loaded leveraged SSPs are added so the
        sidebar tree grows as authorizations are resolved one by one. */
-    const familyMap: Record<string, { controlId: string; isProvider: boolean }[]> = {};
-    const currentControlIds = new Set<string>();
+    const familyMap: Record<string, { controlId: string; hasCurrent: boolean; hasProvider: boolean }[]> = {};
     ci.implementedRequirements.forEach((ir) => {
       const fam = getFamily(ir.controlId);
-      currentControlIds.add(ir.controlId);
-      (familyMap[fam] ??= []).push({ controlId: ir.controlId, isProvider: false });
+      (familyMap[fam] ??= []).push({ controlId: ir.controlId, hasCurrent: true, hasProvider: leveragedIndex.byControl.has(ir.controlId) });
     });
 
     for (const controlId of leveragedIndex.byControl.keys()) {
-      if (currentControlIds.has(controlId)) continue;
       const fam = getFamily(controlId);
       const entries = familyMap[fam] ??= [];
-      if (!entries.some((entry) => entry.controlId === controlId)) {
-        entries.push({ controlId, isProvider: true });
-      }
+      const existing = entries.find((entry) => entry.controlId === controlId);
+      if (existing) existing.hasProvider = true;
+      else entries.push({ controlId, hasCurrent: false, hasProvider: true });
     }
 
     const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => catalogSort.compare(a, b));
@@ -4320,8 +4387,8 @@ export default function SspPage() {
 
       /* Separate base controls from enhancements */
       const controlIdSet = new Set(entries.map((e) => e.controlId));
-      const baseEntries: { controlId: string; isProvider: boolean }[] = [];
-      const enhancementMap: Record<string, { controlId: string; isProvider: boolean }[]> = {};
+      const baseEntries: { controlId: string; hasCurrent: boolean; hasProvider: boolean }[] = [];
+      const enhancementMap: Record<string, { controlId: string; hasCurrent: boolean; hasProvider: boolean }[]> = {};
 
       entries.forEach((entry) => {
         const parentId = getParentControlId(entry.controlId);
@@ -4336,14 +4403,17 @@ export default function SspPage() {
       baseEntries.sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
       Object.values(enhancementMap).forEach((arr) => arr.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
 
+      const allProviderOnly = entries.length > 0 && entries.every((entry) => !entry.hasCurrent && entry.hasProvider);
+
       items.push({
         id: famId,
         label: `${fam.toUpperCase()} — ${FAMILY_NAMES[fam] || fam}`,
-        icon: "folder",
-        color: colors.cobalt,
+        icon: allProviderOnly ? "folder-layers" : "folder",
+        color: allProviderOnly ? colors.purple : colors.cobalt,
         depth: 1,
         parent: "ctrl-impl",
         childCount: baseEntries.length,
+        title: allProviderOnly ? "All controls in this family are offered by loaded provider SSPs" : undefined,
       });
 
       baseEntries.forEach((entry) => {
@@ -4351,21 +4421,23 @@ export default function SspPage() {
         const enhancements = enhancementMap[entry.controlId] ?? [];
         items.push({
           id: ctrlId,
-          label: entry.controlId.toUpperCase() + (entry.isProvider ? " ⬡" : ""),
-          icon: entry.isProvider ? "layers" : "shield",
-          color: entry.isProvider ? colors.purple : colors.orange,
+          label: entry.controlId.toUpperCase(),
+          icon: controlSourceIconKey(entry.hasCurrent, entry.hasProvider),
+          color: controlSourceColor(entry.hasCurrent, entry.hasProvider),
           depth: 2,
           parent: famId,
           childCount: enhancements.length || undefined,
+          title: controlSourceTitle(entry.hasCurrent, entry.hasProvider),
         });
         enhancements.forEach((enh) => {
           items.push({
             id: `ctrl-${enh.controlId}`,
-            label: enh.controlId.toUpperCase() + (enh.isProvider ? " ⬡" : ""),
-            icon: enh.isProvider ? "layers" : "tag",
-            color: enh.isProvider ? colors.purple : colors.orange,
+            label: enh.controlId.toUpperCase(),
+            icon: controlSourceIconKey(enh.hasCurrent, enh.hasProvider),
+            color: controlSourceColor(enh.hasCurrent, enh.hasProvider),
             depth: 3,
             parent: ctrlId,
+            title: controlSourceTitle(enh.hasCurrent, enh.hasProvider),
           });
         });
       });
@@ -4509,6 +4581,7 @@ export default function SspPage() {
                   if (hasKids) mobileDrillIn(item.id);
                   else mobileNavigate(item.id);
                 }}
+                title={item.title}
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, cursor: "pointer", minHeight: 48, borderBottom: `1px solid ${colors.bg}` }}>
                 {navIcon(item.icon, item.color)}
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
@@ -4560,6 +4633,7 @@ export default function SspPage() {
                   if (hasChildren) toggleGroup(item.id);
                   navigate(item.id);
                 }}
+                title={item.title}
                 style={{
                   ...S.navItem,
                   paddingLeft: 12 + item.depth * 16,
