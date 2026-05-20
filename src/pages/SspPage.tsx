@@ -11,7 +11,9 @@ import {
   useRef,
   type CSSProperties,
   type DragEvent,
+  type MouseEvent,
   type ReactNode,
+  type WheelEvent,
 } from "react";
 import { Marked } from "marked";
 import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
@@ -62,6 +64,13 @@ interface SspUser {
   authorizedPrivileges: { title: string; functionsPerformed: string[] }[];
 }
 
+interface SspLink {
+  href: string;
+  rel?: string;
+  text?: string;
+  mediaType?: string;
+}
+
 interface SspComponent {
   uuid: string;
   type: string;
@@ -69,7 +78,7 @@ interface SspComponent {
   description: string;
   status: string;
   props: OscalProp[];
-  links: { href: string; rel?: string; text?: string }[];
+  links: SspLink[];
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
 }
 
@@ -87,7 +96,7 @@ interface LeveragedAuth {
   dateAuthorized: string;
   remarks: string;
   href?: string;
-  links: { href: string; rel?: string; text?: string }[];
+  links: SspLink[];
 }
 
 interface ProvidedEntry {
@@ -96,7 +105,7 @@ interface ProvidedEntry {
   remarks: string;
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
   props: OscalProp[];
-  links: { href: string; rel?: string; text?: string }[];
+  links: SspLink[];
 }
 
 interface ResponsibilityEntry {
@@ -105,7 +114,7 @@ interface ResponsibilityEntry {
   remarks: string;
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
   props: OscalProp[];
-  links: { href: string; rel?: string; text?: string }[];
+  links: SspLink[];
   providedUuid?: string;
 }
 
@@ -158,7 +167,7 @@ interface ByComponent {
   satisfied: SatisfiedEntry[];
   setParameters: SetParameter[];
   props: OscalProp[];
-  links: { href: string; rel?: string; text?: string }[];
+  links: SspLink[];
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
 }
 
@@ -180,7 +189,26 @@ interface ImplementedRequirement {
   statements: SspStatement[];
   byComponents: ByComponent[];
   responsibleRoles: { roleId: string; partyUuids: string[] }[];
-  links: { href: string; rel?: string; text?: string }[];
+  links: SspLink[];
+}
+
+interface SspDiagram {
+  uuid?: string;
+  title: string;
+  description: string;
+  props: OscalProp[];
+  links: SspLink[];
+}
+
+interface SspBase64Content {
+  filename?: string;
+  mediaType?: string;
+  value: string;
+}
+
+interface CharacteristicSection {
+  description: string;
+  diagrams: SspDiagram[];
 }
 
 interface SystemCharacteristics {
@@ -191,7 +219,9 @@ interface SystemCharacteristics {
   systemIds: { id: string; identifierType?: string }[];
   securityImpactLevel: { objectiveConfidentiality: string; objectiveIntegrity: string; objectiveAvailability: string };
   status: { state: string; remarks?: string };
-  authorizationBoundary: { description: string };
+  authorizationBoundary: CharacteristicSection;
+  networkArchitecture: CharacteristicSection;
+  dataFlow: CharacteristicSection;
   informationTypes: InformationType[];
   props: OscalProp[];
 }
@@ -214,6 +244,7 @@ interface SspResource {
   description?: string;
   props?: OscalProp[];
   rlinks?: { href: string; "media-type"?: string }[];
+  base64?: SspBase64Content;
 }
 
 interface SspParsed {
@@ -253,10 +284,53 @@ function parseRoles(arr: any[]): { roleId: string; partyUuids: string[] }[] {
   }));
 }
 
-function parseLinks(arr: any[]): { href: string; rel?: string; text?: string }[] {
+function parseLinks(arr: any[]): SspLink[] {
   return (arr || []).map((l: any) => ({
-    href: l.href || "", rel: l.rel || undefined, text: l.text || undefined,
+    href: l.href || "",
+    rel: l.rel || undefined,
+    text: l.text || undefined,
+    mediaType: l["media-type"] || l.mediaType || undefined,
   }));
+}
+
+function parseBase64Content(value: any): SspBase64Content | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") return { value };
+  const content = value.value || value.data || value.content || "";
+  if (!content) return undefined;
+  return {
+    filename: value.filename,
+    mediaType: value["media-type"] || value.mediaType,
+    value: content,
+  };
+}
+
+function dataUrlFromBase64(base64: SspBase64Content): string {
+  const mediaType = base64.mediaType || "application/octet-stream";
+  const value = base64.value.replace(/\s+/g, "");
+  if (value.startsWith("data:")) return value;
+  return `data:${mediaType};base64,${value}`;
+}
+
+function linkFromBase64(base64: SspBase64Content, text?: string): SspLink {
+  return {
+    href: dataUrlFromBase64(base64),
+    mediaType: base64.mediaType,
+    text: text || base64.filename,
+  };
+}
+
+function parseDiagrams(arr: any[]): SspDiagram[] {
+  return (arr || []).map((d: any) => {
+    const base64 = parseBase64Content(d.base64);
+    return {
+      uuid: d.uuid,
+      title: d.title || d.caption || base64?.filename || "",
+      description: txt(d.description),
+      props: d.props || [],
+      links: [...parseLinks([...(d.links || []), ...(d.rlinks || [])]), ...(base64 ? [linkFromBase64(base64, d.title || d.caption)] : [])],
+    };
+  });
 }
 
 function pickLeveragedHref(la: any): string | undefined {
@@ -357,6 +431,9 @@ function parseSsp(raw: any): SspParsed {
   /* System Characteristics */
   const sc = ssp["system-characteristics"] || {};
   const sil = sc["security-impact-level"] || {};
+  const authorizationBoundary = sc["authorization-boundary"] || {};
+  const networkArchitecture = sc["network-architecture"] || {};
+  const dataFlow = sc["data-flow"] || {};
   const systemCharacteristics: SystemCharacteristics = {
     systemName: sc["system-name"] || "",
     systemNameShort: sc["system-name-short"] || "",
@@ -372,7 +449,9 @@ function parseSsp(raw: any): SspParsed {
       objectiveAvailability: sil["security-objective-availability"] || "",
     },
     status: { state: sc.status?.state || "", remarks: txt(sc.status?.remarks) },
-    authorizationBoundary: { description: txt(sc["authorization-boundary"]?.description) },
+    authorizationBoundary: { description: txt(authorizationBoundary.description), diagrams: parseDiagrams(authorizationBoundary.diagrams) },
+    networkArchitecture: { description: txt(networkArchitecture.description), diagrams: parseDiagrams(networkArchitecture.diagrams) },
+    dataFlow: { description: txt(dataFlow.description), diagrams: parseDiagrams(dataFlow.diagrams) },
     informationTypes: ((sc["system-information"]?.["information-types"]) || []).map((it: any) => ({
       uuid: it.uuid,
       title: it.title || "",
@@ -465,6 +544,7 @@ function parseSsp(raw: any): SspParsed {
     description: txt(r.description),
     props: r.props || [],
     rlinks: r.rlinks || [],
+    base64: parseBase64Content(r.base64),
   }));
 
   /* Import profile */
@@ -673,6 +753,13 @@ function IcoBook({ size = 16, style }: IconProps) {
   return (
     <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+    </svg>
+  );
+}
+function IcoCode({ size = 16, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
     </svg>
   );
 }
@@ -1694,7 +1781,419 @@ function MetadataView({ ssp }: { ssp: SspParsed }) {
   );
 }
 
-function SystemCharacteristicsView({ ssp }: { ssp: SspParsed }) {
+type DiagramKind = "mermaid" | "drawio" | "image" | "other";
+
+interface DiagramAsset {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  resolvedUrl?: string;
+  mediaType: string;
+  kind: DiagramKind;
+}
+
+function linkMediaType(link: SspLink): string {
+  return String(link.mediaType ?? "").toLowerCase();
+}
+
+function inferDiagramKind(href: string, mediaType: string): DiagramKind {
+  const lowerHref = href.toLowerCase().split(/[?#]/)[0];
+  if (mediaType.includes("mermaid") || lowerHref.endsWith(".mmd") || lowerHref.endsWith(".mermaid")) return "mermaid";
+  if (
+    mediaType.includes("drawio") || mediaType.includes("jgraph") ||
+    lowerHref.endsWith(".drawio") || lowerHref.endsWith(".dio") || lowerHref.endsWith(".mxfile")
+  ) return "drawio";
+  if (mediaType.startsWith("image/") || /\.(svg|png|jpg|jpeg|gif|webp)$/.test(lowerHref)) return "image";
+  return "other";
+}
+
+function resolveDiagramUrl(href: string, sourceUrl?: string | null): string | undefined {
+  if (!href) return undefined;
+  if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("data:") || href.startsWith("blob:")) return href;
+  if (!sourceUrl) return undefined;
+  try { return new URL(href, sourceUrl).href; }
+  catch { return undefined; }
+}
+
+function diagramLinks(diagram: SspDiagram, backMatter: SspResource[]): { link: SspLink; title?: string; description?: string }[] {
+  const result: { link: SspLink; title?: string; description?: string }[] = [];
+  diagram.links.forEach((link) => {
+    if (link.href?.startsWith("#")) {
+      const resource = backMatter.find((r) => r.uuid === link.href.slice(1));
+      if (resource?.base64) {
+        result.push({
+          link: linkFromBase64(resource.base64, link.text || resource.title),
+          title: resource.title,
+          description: resource.description,
+        });
+      }
+      if (resource?.rlinks?.length) {
+        resource.rlinks.forEach((rl) => {
+          result.push({
+            link: { href: rl.href, mediaType: rl["media-type"], rel: link.rel, text: link.text },
+            title: resource.title,
+            description: resource.description,
+          });
+        });
+      }
+      return;
+    }
+    result.push({ link });
+  });
+  return result;
+}
+
+function buildDiagramAssets(diagrams: SspDiagram[], backMatter: SspResource[], sourceUrl?: string | null): DiagramAsset[] {
+  return diagrams.flatMap((diagram, diagramIndex) => {
+    const links = diagramLinks(diagram, backMatter);
+    return links.map(({ link, title, description }, linkIndex) => {
+      const mediaType = linkMediaType(link);
+      const fallbackTitle = title || diagram.title || link.text || link.href.split("/").pop() || `Diagram ${diagramIndex + 1}`;
+      return {
+        id: `${diagram.uuid ?? diagramIndex}-${linkIndex}-${link.href}`,
+        title: fallbackTitle,
+        description: diagram.description || description || "",
+        href: link.href,
+        resolvedUrl: resolveDiagramUrl(link.href, sourceUrl),
+        mediaType,
+        kind: inferDiagramKind(link.href, mediaType),
+      };
+    });
+  });
+}
+
+function drawIoViewerUrl(url: string): string {
+  return `https://viewer.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=1&url=${encodeURIComponent(url)}`;
+}
+
+function textFromDataUrl(url: string): string {
+  const comma = url.indexOf(",");
+  if (!url.startsWith("data:") || comma === -1) return "";
+  const meta = url.slice(0, comma).toLowerCase();
+  const data = url.slice(comma + 1);
+  if (meta.includes(";base64")) return atob(data.replace(/\s+/g, ""));
+  return decodeURIComponent(data);
+}
+
+function MermaidDiagram({ url, compact }: { url: string; compact?: boolean }) {
+  const [svg, setSvg] = useState("");
+  const [error, setError] = useState("");
+  const renderId = useMemo(() => `mermaid-${Math.random().toString(36).slice(2)}`, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSvg("");
+    setError("");
+    (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const source = await res.text();
+        const mermaidModule = await import("mermaid");
+        const mermaid = mermaidModule.default;
+        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "default" });
+        const rendered = await mermaid.render(renderId, source);
+        if (!cancelled) setSvg(rendered.svg);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Unable to render Mermaid diagram");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [renderId, url]);
+
+  if (error) return <DiagramPlaceholder message={error} />;
+  if (!svg) return <DiagramPlaceholder message="Rendering Mermaid diagram…" />;
+  return (
+    <div
+      style={{ width: "100%", height: compact ? 170 : "auto", overflow: compact ? "hidden" : "auto", display: "flex", justifyContent: "center" }}
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
+function DiagramPlaceholder({ message }: { message: string }) {
+  return (
+    <div style={{
+      height: "100%", minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+      padding: 16, color: colors.gray, fontSize: 12, backgroundColor: colors.surfaceSubtle,
+    }}>
+      {message}
+    </div>
+  );
+}
+
+function DiagramPreview({ asset, compact = false }: { asset: DiagramAsset; compact?: boolean }) {
+  if (!asset.resolvedUrl) {
+    return <DiagramPlaceholder message="Diagram link is relative to a local SSP. Load the SSP from a URL to preview it here." />;
+  }
+  if (asset.kind === "mermaid") return <MermaidDiagram url={asset.resolvedUrl} compact={compact} />;
+  if (asset.kind === "drawio") {
+    if (asset.resolvedUrl.startsWith("data:")) return <DrawIoDiagram url={asset.resolvedUrl} compact={compact} />;
+    if (!asset.resolvedUrl.startsWith("http://") && !asset.resolvedUrl.startsWith("https://")) {
+      return <DiagramPlaceholder message="Draw.io previews require an HTTP(S) diagram URL." />;
+    }
+    return (
+      <iframe
+        title={asset.title}
+        src={drawIoViewerUrl(asset.resolvedUrl)}
+        style={{ width: "100%", height: compact ? 180 : "70vh", border: 0, backgroundColor: colors.white, pointerEvents: compact ? "none" : "auto" }}
+      />
+    );
+  }
+  if (asset.kind === "image") {
+    return <img src={asset.resolvedUrl} alt={asset.title} style={{ width: "100%", maxHeight: compact ? 180 : "70vh", objectFit: "contain", display: "block" }} />;
+  }
+  return <DiagramPlaceholder message="Unsupported diagram media type. Open the source link to view it." />;
+}
+
+function DrawIoDiagram({ url, compact }: { url: string; compact?: boolean }) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [xml, setXml] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setError("");
+    try {
+      const text = textFromDataUrl(url);
+      if (!text.trim()) throw new Error("Embedded draw.io data is empty.");
+      setXml(text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to decode embedded draw.io diagram");
+    }
+  }, [url]);
+
+  useEffect(() => {
+    if (!xml) return;
+    const frame = iframeRef.current;
+    const sendLoad = () => {
+      frame?.contentWindow?.postMessage(JSON.stringify({ action: "load", xml, autosave: 0, modified: 0 }), "*");
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (typeof event.data !== "string") return;
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.event === "init") sendLoad();
+      } catch { /* ignore non-json postMessages */ }
+    };
+    window.addEventListener("message", onMessage);
+    const timeoutId = window.setTimeout(sendLoad, 800);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(timeoutId);
+    };
+  }, [xml]);
+
+  if (error) return <DiagramPlaceholder message={error} />;
+  if (!xml) return <DiagramPlaceholder message="Decoding embedded draw.io diagram…" />;
+  return (
+    <iframe
+      ref={iframeRef}
+      title="draw.io diagram"
+      src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min&libraries=1"
+      style={{ width: "100%", height: compact ? 180 : "70vh", border: 0, backgroundColor: colors.white, pointerEvents: compact ? "none" : "auto" }}
+    />
+  );
+}
+
+function DiagramPanZoomViewer({ asset }: { asset: DiagramAsset }) {
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+  const zoomBy = useCallback((factor: number) => {
+    setScale((prev) => Math.min(6, Math.max(0.25, prev * factor)));
+  }, []);
+
+  const reset = useCallback(() => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  const onWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 1.12 : 0.88);
+  }, [zoomBy]);
+
+  const onMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    if (asset.kind === "drawio") return;
+    dragRef.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+  }, [asset.kind, offset.x, offset.y]);
+
+  const onMouseMove = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    setOffset({ x: drag.ox + e.clientX - drag.x, y: drag.oy + e.clientY - drag.y });
+  }, []);
+
+  const stopDrag = useCallback(() => { dragRef.current = null; }, []);
+  const isDrawIo = asset.kind === "drawio";
+
+  return (
+    <div style={{ height: "calc(96vh - 76px)", display: "flex", flexDirection: "column", backgroundColor: colors.surfaceSubtle }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${colors.paleGray}`, backgroundColor: colors.card }}>
+        <span style={{ fontSize: 11, color: colors.gray, flex: 1 }}>
+          {isDrawIo ? "Use the diagrams.net canvas controls to pan and zoom." : "Drag to pan. Scroll to zoom."}
+        </span>
+        {!isDrawIo && (
+          <>
+            <button onClick={() => zoomBy(0.8)} style={diagramToolButtonStyle}>−</button>
+            <span style={{ fontSize: 11, fontFamily: fonts.mono, color: colors.gray, minWidth: 44, textAlign: "center" }}>{Math.round(scale * 100)}%</span>
+            <button onClick={() => zoomBy(1.25)} style={diagramToolButtonStyle}>+</button>
+            <button onClick={reset} style={diagramToolButtonStyle}>Reset</button>
+          </>
+        )}
+      </div>
+      <div
+        onWheel={isDrawIo ? undefined : onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={stopDrag}
+        onMouseLeave={stopDrag}
+        style={{
+          flex: 1, overflow: "hidden", position: "relative", cursor: isDrawIo ? "default" : dragRef.current ? "grabbing" : "grab",
+          backgroundImage: `linear-gradient(${alpha(colors.gray, 6)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(colors.gray, 6)} 1px, transparent 1px)`,
+          backgroundSize: "24px 24px",
+        }}
+      >
+        {isDrawIo ? (
+          <DiagramPreview asset={asset} />
+        ) : (
+          <div style={{
+            minWidth: "100%", minHeight: "100%", padding: 40, display: "flex", alignItems: "center", justifyContent: "center",
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "center center",
+          }}>
+            <div style={{ backgroundColor: colors.card, borderRadius: radii.md, boxShadow: shadows.md, padding: 18, maxWidth: "none" }}>
+              <DiagramPreview asset={asset} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const diagramToolButtonStyle: CSSProperties = {
+  border: `1px solid ${colors.paleGray}`,
+  backgroundColor: colors.card,
+  color: colors.cobalt,
+  borderRadius: radii.sm,
+  padding: "4px 9px",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+function DiagramGallery({ title, diagrams, backMatter, sourceUrl }: { title: string; diagrams: SspDiagram[]; backMatter: SspResource[]; sourceUrl?: string | null }) {
+  const [active, setActive] = useState<DiagramAsset | null>(null);
+  const assets = useMemo(() => buildDiagramAssets(diagrams, backMatter, sourceUrl), [diagrams, backMatter, sourceUrl]);
+  if (assets.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: colors.cobalt, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+        {title} ({assets.length})
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+        {assets.map((asset) => (
+          <button
+            key={asset.id}
+            onClick={() => setActive(asset)}
+            style={{
+              textAlign: "left", padding: 0, border: `1px solid ${colors.paleGray}`, borderRadius: radii.md, backgroundColor: colors.card,
+              overflow: "hidden", cursor: "zoom-in", boxShadow: shadows.sm,
+            }}
+          >
+            <div style={{ height: 190, backgroundColor: colors.surfaceSubtle, overflow: "hidden" }}>
+              <DiagramPreview asset={asset} compact />
+            </div>
+            <div style={{ padding: "10px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                {asset.kind === "mermaid" ? <IcoCode size={12} style={{ color: colors.darkGreen }} /> : asset.kind === "drawio" ? <IcoLayers size={12} style={{ color: colors.purple }} /> : <IcoBook size={12} style={{ color: colors.cobalt }} />}
+                <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.title}</span>
+              </div>
+              {asset.description && <div style={{ fontSize: 11, color: colors.gray, lineHeight: 1.4 }}>{trunc(asset.description, 140)}</div>}
+              <div style={{ marginTop: 6, fontSize: 10, color: colors.gray, fontFamily: fonts.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {asset.mediaType || asset.href}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {active && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setActive(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 2000, backgroundColor: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "98vw", height: "96vh", backgroundColor: colors.card, borderRadius: radii.lg, boxShadow: shadows.lg, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${colors.paleGray}` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: colors.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{active.title}</div>
+                <div style={{ fontSize: 10, color: colors.gray, fontFamily: fonts.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{active.href}</div>
+              </div>
+              {active.resolvedUrl && (
+                <a href={active.kind === "drawio" && active.resolvedUrl.startsWith("http") ? drawIoViewerUrl(active.resolvedUrl) : active.resolvedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: colors.cobalt, fontWeight: 700, textDecoration: "none" }}>
+                  Open source
+                </a>
+              )}
+              <button onClick={() => setActive(null)} style={{ border: "none", background: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: colors.gray }}>×</button>
+            </div>
+            <DiagramPanZoomViewer asset={active} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CharacteristicNarrativeCard({ title, section, backMatter, sourceUrl }: { title: string; section: CharacteristicSection; backMatter: SspResource[]; sourceUrl?: string | null }) {
+  if (!section.description && section.diagrams.length === 0) return null;
+  return (
+    <Card>
+      <SectionLabel>{title}</SectionLabel>
+      {section.description && <MarkupBlock value={section.description} />}
+      <DiagramGallery title={`${title} Diagrams`} diagrams={section.diagrams} backMatter={backMatter} sourceUrl={sourceUrl} />
+    </Card>
+  );
+}
+
+function DiagramSectionView({ title, section, backMatter, sourceUrl }: { title: string; section: CharacteristicSection; backMatter: SspResource[]; sourceUrl?: string | null }) {
+  const assets = useMemo(() => buildDiagramAssets(section.diagrams, backMatter, sourceUrl), [section.diagrams, backMatter, sourceUrl]);
+  return (
+    <>
+      <Card>
+        <SectionLabel>{title}</SectionLabel>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: "0 0 8px" }}>
+          {title}
+        </h2>
+        <p style={{ fontSize: 13, color: colors.gray, margin: 0 }}>
+          {assets.length > 0
+            ? `Select a diagram preview to open a larger pan and zoom view. ${assets.length} diagram${assets.length !== 1 ? "s" : ""} available.`
+            : "No diagrams are available for this section."}
+        </p>
+      </Card>
+      {section.description && (
+        <Card>
+          <SectionLabel>Section Description</SectionLabel>
+          <MarkupBlock value={section.description} />
+        </Card>
+      )}
+      <Card>
+        <DiagramGallery title="Diagrams" diagrams={section.diagrams} backMatter={backMatter} sourceUrl={sourceUrl} />
+        {assets.length === 0 && (
+          <div style={{ padding: "16px 0", textAlign: "center", color: colors.gray, fontSize: 12, fontStyle: "italic" }}>
+            No diagram links or embedded diagram resources were found.
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function SystemCharacteristicsView({ ssp, sourceUrl }: { ssp: SspParsed; sourceUrl?: string | null }) {
   const sc = ssp.systemCharacteristics;
   return (
     <>
@@ -1737,12 +2236,9 @@ function SystemCharacteristicsView({ ssp }: { ssp: SspParsed }) {
         </Card>
       )}
 
-      {sc.authorizationBoundary.description && (
-        <Card>
-          <SectionLabel>Authorization Boundary</SectionLabel>
-          <MarkupBlock value={sc.authorizationBoundary.description} />
-        </Card>
-      )}
+      <CharacteristicNarrativeCard title="Authorization Boundary" section={sc.authorizationBoundary} backMatter={ssp.backMatter} sourceUrl={sourceUrl} />
+      <CharacteristicNarrativeCard title="Network Architecture" section={sc.networkArchitecture} backMatter={ssp.backMatter} sourceUrl={sourceUrl} />
+      <CharacteristicNarrativeCard title="Data Flow" section={sc.dataFlow} backMatter={ssp.backMatter} sourceUrl={sourceUrl} />
 
       {sc.informationTypes.length > 0 && (
         <Card>
@@ -4134,7 +4630,10 @@ interface ViewRouterProps {
 function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }: ViewRouterProps) {
   if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} />;
   if (view === "metadata") return <MetadataView ssp={ssp} />;
-  if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} />;
+  if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} sourceUrl={sourceUrl} />;
+  if (view === "sys-char-auth-diagrams") return <DiagramSectionView title="Authorization Diagrams" section={ssp.systemCharacteristics.authorizationBoundary} backMatter={ssp.backMatter} sourceUrl={sourceUrl} />;
+  if (view === "sys-char-network-diagrams") return <DiagramSectionView title="Network Diagrams" section={ssp.systemCharacteristics.networkArchitecture} backMatter={ssp.backMatter} sourceUrl={sourceUrl} />;
+  if (view === "sys-char-data-diagrams") return <DiagramSectionView title="Data Flow Diagrams" section={ssp.systemCharacteristics.dataFlow} backMatter={ssp.backMatter} sourceUrl={sourceUrl} />;
   if (view === "sys-impl") return <SystemImplementationView ssp={ssp} navigate={navigate} />;
   if (view === "sys-impl-components") return <ComponentsView ssp={ssp} navigate={navigate} />;
   if (view === "sys-impl-users") return <UsersView ssp={ssp} />;
@@ -4322,12 +4821,31 @@ export default function SspPage() {
     const items: NavItem[] = [];
     const si = ssp.systemImplementation;
     const ci = ssp.controlImplementation;
+    const sc = ssp.systemCharacteristics;
 
     items.push({ id: "overview", label: "Overview", icon: "home", color: colors.darkGreen, depth: 0 });
     items.push({ id: "metadata", label: "Metadata", icon: "info", color: colors.navy, depth: 0 });
 
     /* System Characteristics */
     items.push({ id: "sys-char", label: "System Characteristics", icon: "server", color: colors.darkGreen, depth: 0 });
+    ([
+      { id: "sys-char-auth-diagrams", label: "Authorization Diagrams", icon: "layers", color: colors.purple, section: sc.authorizationBoundary },
+      { id: "sys-char-network-diagrams", label: "Network Diagrams", icon: "network", color: colors.cobalt, section: sc.networkArchitecture },
+      { id: "sys-char-data-diagrams", label: "Data Flow Diagrams", icon: "link", color: colors.darkGreen, section: sc.dataFlow },
+    ] as const).forEach((entry) => {
+      const count = buildDiagramAssets(entry.section.diagrams, ssp.backMatter, urlDoc.sourceUrl).length;
+      if (count === 0) return;
+      items.push({
+        id: entry.id,
+        label: entry.label,
+        icon: entry.icon,
+        color: entry.color,
+        depth: 1,
+        parent: "sys-char",
+        childCount: count,
+        title: `View ${count} ${entry.label.toLowerCase()}`,
+      });
+    });
 
     /* System Implementation */
     items.push({ id: "sys-impl", label: "System Implementation", icon: "cube", color: colors.cobalt, depth: 0 });
@@ -4447,7 +4965,7 @@ export default function SspPage() {
     items.push({ id: "back-matter", label: "Back Matter", icon: "book", color: colors.gray, depth: 0, childCount: ssp.backMatter.length || undefined });
 
     return items;
-  }, [ssp, leveragedIndex, catalogSort]);
+  }, [ssp, leveragedIndex, catalogSort, urlDoc.sourceUrl]);
 
   /* ── Child counts ── */
   const childCounts = useMemo(() => {
