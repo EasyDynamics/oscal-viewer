@@ -790,6 +790,13 @@ function IcoLink({ size = 14, style }: IconProps) {
     </svg>
   );
 }
+function IcoPaperclip({ size = 14, style }: IconProps) {
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
 function IcoBox({ size = 16, style }: IconProps) {
   return (
     <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1845,7 +1852,15 @@ interface NavItem {
   depth: number;
   parent?: string;
   childCount?: number;
+  attachmentCount?: number;
   title?: string;
+}
+
+interface ControlNavEntry {
+  controlId: string;
+  hasCurrent: boolean;
+  hasProvider: boolean;
+  attachmentCount: number;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2180,6 +2195,18 @@ function artifactFromLink(link: SspLink, backMatter: SspResource[], sourceUrl?: 
     mediaType: link.mediaType || mediaTypeFromFilename(link.href),
     fileName: link.href.split(/[/?#]/).filter(Boolean).pop(),
   };
+}
+
+function base64BackMatterAttachmentCount(links: SspLink[], backMatter: SspResource[]): number {
+  return links.reduce((count, link) => {
+    if (!link.href?.startsWith("#")) return count;
+    const resource = backMatter.find((r) => r.uuid === link.href.slice(1));
+    return resource?.base64 ? count + 1 : count;
+  }, 0);
+}
+
+function attachmentTitle(count: number): string {
+  return count === 1 ? "1 embedded attachment" : `${count} embedded attachments`;
 }
 
 function linkDisplayText(link: SspLink, backMatter: SspResource[]): string {
@@ -4180,6 +4207,10 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
   /* Status from props */
   const status = ir.props.find((p) => p.name === "implementation-status")?.value ?? "unknown";
   const familyLabel = FAMILY_NAMES[getFamily(ir.controlId)] || "";
+  const implementationAttachmentCount = useMemo(
+    () => base64BackMatterAttachmentCount(ir.links, ssp.backMatter),
+    [ir.links, ssp.backMatter],
+  );
 
   const providerExportsForControl = useMemo(
     () => leveragedIndex.byControl.get(ir.controlId) ?? [],
@@ -4408,6 +4439,29 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
         </Card>
       )}
 
+      {/* Implementation attachments and links */}
+      {ir.links.length > 0 && (
+        <Card style={{ borderLeft: `4px solid ${implementationAttachmentCount > 0 ? colors.darkGreen : colors.cobalt}` }}>
+          <SectionLabel>
+            Implementation Attachments & Links ({ir.links.length})
+          </SectionLabel>
+          {implementationAttachmentCount > 0 && (
+            <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 8px" }}>
+              {attachmentTitle(implementationAttachmentCount)} referenced by this control implementation.
+            </p>
+          )}
+          <LinkChips
+            label={null}
+            links={ir.links.map((l) => {
+              const artifact = artifactFromLink(l, ssp.backMatter, sourceUrl);
+              return artifact
+                ? { text: linkDisplayText(l, ssp.backMatter), rel: l.rel, onClick: () => setActiveArtifact(artifact) }
+                : { text: linkDisplayText(l, ssp.backMatter), href: l.href, rel: l.rel };
+            })}
+          />
+        </Card>
+      )}
+
       {/* Provider Exports for this control (from leveraged SSPs) */}
       {providerExportGroups.length > 0 && (
         <Card>
@@ -4523,20 +4577,6 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
               </div>
             </div>
           )}
-        </Card>
-      )}
-
-      {/* Links */}
-      {ir.links.length > 0 && (
-        <Card>
-          <LinkChips
-            links={ir.links.map((l) => {
-              const artifact = artifactFromLink(l, ssp.backMatter, sourceUrl);
-              return artifact
-                ? { text: linkDisplayText(l, ssp.backMatter), rel: l.rel, onClick: () => setActiveArtifact(artifact) }
-                : { text: linkDisplayText(l, ssp.backMatter), href: l.href, rel: l.rel };
-            })}
-          />
         </Card>
       )}
 
@@ -5253,21 +5293,26 @@ export default function SspPage() {
     /* Control Implementation — group by family */
     items.push({ id: "ctrl-impl", label: "Control Implementation", icon: "shield", color: colors.orange, depth: 0 });
 
-    /* Build the control family map. Current SSP controls remain primary;
-       provider-only controls from loaded leveraged SSPs are added so the
-       sidebar tree grows as authorizations are resolved one by one. */
-    const familyMap: Record<string, { controlId: string; hasCurrent: boolean; hasProvider: boolean }[]> = {};
+    /* Build the control family map from the main SSP only. Leveraged SSPs may
+       decorate matching controls as provider-backed, but provider-only controls
+       are intentionally kept out of the navigation tree. */
+    const familyMap: Record<string, ControlNavEntry[]> = {};
     ci.implementedRequirements.forEach((ir) => {
       const fam = getFamily(ir.controlId);
-      (familyMap[fam] ??= []).push({ controlId: ir.controlId, hasCurrent: true, hasProvider: leveragedIndex.byControl.has(ir.controlId) });
+      (familyMap[fam] ??= []).push({
+        controlId: ir.controlId,
+        hasCurrent: true,
+        hasProvider: leveragedIndex.byControl.has(ir.controlId),
+        attachmentCount: base64BackMatterAttachmentCount(ir.links, ssp.backMatter),
+      });
     });
 
     for (const controlId of leveragedIndex.byControl.keys()) {
       const fam = getFamily(controlId);
-      const entries = familyMap[fam] ??= [];
+      const entries = familyMap[fam];
+      if (!entries) continue;
       const existing = entries.find((entry) => entry.controlId === controlId);
       if (existing) existing.hasProvider = true;
-      else entries.push({ controlId, hasCurrent: false, hasProvider: true });
     }
 
     const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => catalogSort.compare(a, b));
@@ -5277,8 +5322,9 @@ export default function SspPage() {
 
       /* Separate base controls from enhancements */
       const controlIdSet = new Set(entries.map((e) => e.controlId));
-      const baseEntries: { controlId: string; hasCurrent: boolean; hasProvider: boolean }[] = [];
-      const enhancementMap: Record<string, { controlId: string; hasCurrent: boolean; hasProvider: boolean }[]> = {};
+      const baseEntries: ControlNavEntry[] = [];
+      const enhancementMap: Record<string, ControlNavEntry[]> = {};
+      const familyAttachmentCount = entries.reduce((count, entry) => count + entry.attachmentCount, 0);
 
       entries.forEach((entry) => {
         const parentId = getParentControlId(entry.controlId);
@@ -5303,7 +5349,11 @@ export default function SspPage() {
         depth: 1,
         parent: "ctrl-impl",
         childCount: baseEntries.length,
-        title: allProviderOnly ? "All controls in this family are offered by loaded provider SSPs" : undefined,
+        attachmentCount: familyAttachmentCount || undefined,
+        title: [
+          allProviderOnly ? "All controls in this family are offered by loaded provider SSPs" : undefined,
+          familyAttachmentCount ? attachmentTitle(familyAttachmentCount) : undefined,
+        ].filter(Boolean).join(" · ") || undefined,
       });
 
       baseEntries.forEach((entry) => {
@@ -5317,7 +5367,11 @@ export default function SspPage() {
           depth: 2,
           parent: famId,
           childCount: enhancements.length || undefined,
-          title: controlSourceTitle(entry.hasCurrent, entry.hasProvider),
+          attachmentCount: entry.attachmentCount || undefined,
+          title: [
+            controlSourceTitle(entry.hasCurrent, entry.hasProvider),
+            entry.attachmentCount ? attachmentTitle(entry.attachmentCount) : undefined,
+          ].filter(Boolean).join(" · "),
         });
         enhancements.forEach((enh) => {
           items.push({
@@ -5327,7 +5381,11 @@ export default function SspPage() {
             color: controlSourceColor(enh.hasCurrent, enh.hasProvider),
             depth: 3,
             parent: ctrlId,
-            title: controlSourceTitle(enh.hasCurrent, enh.hasProvider),
+            attachmentCount: enh.attachmentCount || undefined,
+            title: [
+              controlSourceTitle(enh.hasCurrent, enh.hasProvider),
+              enh.attachmentCount ? attachmentTitle(enh.attachmentCount) : undefined,
+            ].filter(Boolean).join(" · "),
           });
         });
       });
@@ -5475,6 +5533,12 @@ export default function SspPage() {
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, cursor: "pointer", minHeight: 48, borderBottom: `1px solid ${colors.bg}` }}>
                 {navIcon(item.icon, item.color)}
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                {item.attachmentCount != null && (
+                  <span title={attachmentTitle(item.attachmentCount)} style={S.attachmentIndicator}>
+                    <IcoPaperclip size={12} />
+                    {item.attachmentCount > 1 && <span>{item.attachmentCount}</span>}
+                  </span>
+                )}
                 {item.childCount != null && <span style={S.badge}>{item.childCount}</span>}
                 {hasKids && <IcoChev open={false} style={{ color: colors.gray }} />}
               </div>
@@ -5541,6 +5605,12 @@ export default function SspPage() {
                 }}>
                   {item.label}
                 </span>
+                {item.attachmentCount != null && (
+                  <span title={attachmentTitle(item.attachmentCount)} style={S.attachmentIndicator}>
+                    <IcoPaperclip size={12} />
+                    {item.attachmentCount > 1 && <span>{item.attachmentCount}</span>}
+                  </span>
+                )}
                 {item.childCount != null && <span style={S.badge}>{item.childCount}</span>}
               </div>
             );
@@ -5599,6 +5669,12 @@ const S: Record<string, CSSProperties> = {
   badge: {
     fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: radii.pill,
     backgroundColor: colors.bg, color: colors.gray, marginLeft: "auto",
+  },
+  attachmentIndicator: {
+    display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0,
+    fontSize: 10, fontWeight: 800, color: colors.darkGreen,
+    backgroundColor: alpha(colors.darkGreen, 9), border: `1px solid ${alpha(colors.darkGreen, 20)}`,
+    borderRadius: radii.pill, padding: "1px 5px",
   },
   content: { flex: 1, overflowY: "auto" as const, padding: 24 },
   mobileBackBtn: {

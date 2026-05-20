@@ -29,8 +29,11 @@ export default function Layout() {
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const jwtRef = useRef<HTMLDivElement>(null);
   const sspCount = (oscal.ssp ? 1 : 0) + oscal.leveragedSsps.length;
-  const sspCountTitle = sspCount > 1
-    ? [oscal.ssp?.fileName ? `Current: ${oscal.ssp.fileName}` : "Current SSP", ...oscal.leveragedSsps.map((entry) => `Leveraged: ${entry.fileName}`)].join("\n")
+  const sspCountTitle = sspCount > 0
+    ? [
+        `Main SSP: ${oscal.ssp ? documentDisplayName(oscal.ssp) : "none loaded"}`,
+        ...oscal.leveragedSsps.map((entry, i) => `Leveraged SSP ${i + 1}: ${documentDisplayName(entry)}`),
+      ].join("\n")
     : undefined;
 
   /* Close the menu when the route changes */
@@ -216,7 +219,7 @@ export default function Layout() {
               >
                 <StatusDot color={loaded ? m.color : colors.gray} loaded={loaded} />
                 {m.label}
-                {m.key === "ssp" && sspCount > 1 && <SspCountBadge count={sspCount} />}
+                {m.key === "ssp" && sspCount > 1 && <SspCountBadge count={sspCount} title={sspCountTitle} />}
               </NavLink>
             );
           })}
@@ -259,6 +262,7 @@ export default function Layout() {
                   key={m.key}
                   to={m.path}
                   label={m.key === "ssp" && sspCount > 1 ? `${m.label} (${sspCount})` : m.label}
+                  title={m.key === "ssp" ? sspCountTitle : undefined}
                   isActive={location.pathname.startsWith(m.path)}
                   dot={{ color: loaded ? m.color : colors.gray, loaded }}
                   onTap={() => setMenuOpen(false)}
@@ -458,9 +462,18 @@ function StatusDot({ color, loaded }: { color: string; loaded: boolean }) {
   );
 }
 
-function SspCountBadge({ count }: { count: number }) {
+function documentDisplayName(entry: { data: unknown; fileName: string; sourceUrl?: string | null }): string {
+  const raw = entry.data as Record<string, unknown> | null;
+  const ssp = (raw?.["system-security-plan"] ?? raw) as Record<string, unknown> | null;
+  const metadata = ssp?.metadata as Record<string, unknown> | undefined;
+  const title = typeof metadata?.title === "string" ? metadata.title : "";
+  const source = entry.sourceUrl ? ` — ${entry.sourceUrl}` : "";
+  return title && title !== entry.fileName ? `${title} (${entry.fileName})${source}` : `${entry.fileName}${source}`;
+}
+
+function SspCountBadge({ count, title }: { count: number; title?: string }) {
   return (
-    <span style={{
+    <span title={title} style={{
       marginLeft: 6,
       padding: "1px 7px",
       borderRadius: radii.pill,
@@ -476,8 +489,9 @@ function SspCountBadge({ count }: { count: number }) {
   );
 }
 
-function MobileMenuItem({ to, label, isActive, dot, onTap }: {
+function MobileMenuItem({ to, label, isActive, title, dot, onTap }: {
   to: string; label: string; isActive: boolean;
+  title?: string;
   dot?: { color: string; loaded: boolean };
   onTap: () => void;
 }) {
@@ -485,6 +499,7 @@ function MobileMenuItem({ to, label, isActive, dot, onTap }: {
     <NavLink
       to={to}
       onClick={onTap}
+      title={title}
       style={{
         display: "flex",
         alignItems: "center",
