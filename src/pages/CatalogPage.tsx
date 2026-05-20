@@ -2101,7 +2101,9 @@ function ProseWithParams({ text, paramMap }: { text: unknown; paramMap: Record<s
                 padding: "1px 6px",
                 borderRadius: radii.sm,
                 border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
-                whiteSpace: "nowrap",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
               }}
             >
               {rendered}

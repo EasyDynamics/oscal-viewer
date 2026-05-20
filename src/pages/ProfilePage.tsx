@@ -1917,6 +1917,23 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
         </Card>
       )}
 
+      {/* Catalog-based 5 part sections with inline tailoring */}
+      {catalogControl && PART_SECTIONS.map((sec) => {
+        const parts = sectionParts[sec.name];
+        if (!parts || parts.length === 0) return null;
+        return (
+          <Card key={sec.name} style={{ borderLeft: `4px solid ${sec.color}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              {sectionIcon(sec.icon, 18, { color: sec.color })}
+              <span style={{ fontSize: 15, fontWeight: 700, color: sec.color }}>{sec.label}</span>
+            </div>
+            {parts.map((part, i) => (
+              <ResolvedPartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} />
+            ))}
+          </Card>
+        );
+      })}
+
       {/* Set-Parameters */}
       {setParams.length > 0 && (
         <Card style={{ borderLeft: `4px solid ${colors.brightBlue}` }}>
@@ -1955,23 +1972,6 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
           ))}
         </Card>
       )}
-
-      {/* Catalog-based 5 part sections with inline tailoring */}
-      {catalogControl && PART_SECTIONS.map((sec) => {
-        const parts = sectionParts[sec.name];
-        if (!parts || parts.length === 0) return null;
-        return (
-          <Card key={sec.name} style={{ borderLeft: `4px solid ${sec.color}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              {sectionIcon(sec.icon, 18, { color: sec.color })}
-              <span style={{ fontSize: 15, fontWeight: 700, color: sec.color }}>{sec.label}</span>
-            </div>
-            {parts.map((part, i) => (
-              <ResolvedPartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} />
-            ))}
-          </Card>
-        );
-      })}
 
       {/* Fallback: profile-only adds/removes when no catalog is loaded */}
       {!catalogControl && alter && (
@@ -2150,67 +2150,82 @@ function ResolvedPartTree({ part, depth, paramMap }: {
       ? removedColors[depth % removedColors.length]
       : normalColors[depth % normalColors.length];
 
+  // Build container style — keep paddingLeft + borderLeft for indentation hierarchy,
+  // and layer on add/remove visuals without using the `padding` shorthand
+  // (which would override paddingLeft and collapse the hierarchical indent).
+  const containerStyle: CSSProperties = {
+    marginTop: depth === 0 ? 0 : 8,
+    paddingLeft: depth > 0 ? 16 : 0,
+    borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
+  };
+  if (isAdded || isRemoved) {
+    containerStyle.backgroundColor = isAdded ? alpha(colors.successFg, 6) : alpha(colors.dangerFg, 10);
+    containerStyle.borderRadius = radii.sm;
+    containerStyle.paddingTop = 4;
+    containerStyle.paddingBottom = 4;
+    containerStyle.paddingRight = 4;
+    // Preserve hierarchical indent: only add inset padding when at depth 0
+    if (depth === 0) containerStyle.paddingLeft = 4;
+  }
+
   return (
-    <div style={{
-      marginTop: depth === 0 ? 0 : 8,
-      paddingLeft: depth > 0 ? 16 : 0,
-      borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
-      backgroundColor: isAdded ? alpha(colors.successFg, 6) : isRemoved ? alpha(colors.dangerFg, 10) : "transparent",
-      borderRadius: isAdded || isRemoved ? radii.sm : 0,
-      padding: isAdded || isRemoved ? (depth > 0 ? "4px 4px 4px 16px" : "4px") : undefined,
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-        {/* Badge for add/remove */}
-        {isAdded && <AddBadge size={18} />}
-        {isRemoved && <RemoveBadge size={18} />}
+    <div style={containerStyle}>
+      {/* Badge for add/remove (inline so it doesn't break depth indentation) */}
+      {isAdded && (
+        <span style={{ display: "inline-block", marginRight: 4, verticalAlign: "middle" }}>
+          <AddBadge size={14} />
+        </span>
+      )}
+      {isRemoved && (
+        <span style={{ display: "inline-block", marginRight: 4, verticalAlign: "middle" }}>
+          <RemoveBadge size={14} />
+        </span>
+      )}
 
-        <div style={{ flex: 1 }}>
-          {/* Part label (e.g. "a.", "1.") */}
-          {partLabel && (
-            <span style={{
-              fontSize: 13, fontWeight: 700,
-              color: isRemoved ? colors.dangerFg : isAdded ? colors.successFg : borderColor,
-              fontFamily: fonts.mono, marginRight: 6,
-              textDecoration: isRemoved ? "line-through" : "none",
-            }}>
-              {partLabel}
-            </span>
-          )}
+      {/* Part label (e.g. "a.", "1.") */}
+      {partLabel && (
+        <span style={{
+          fontSize: 13, fontWeight: 700,
+          color: isRemoved ? colors.dangerFg : isAdded ? colors.successFg : borderColor,
+          fontFamily: fonts.mono, marginRight: 6,
+          textDecoration: isRemoved ? "line-through" : "none",
+        }}>
+          {partLabel}
+        </span>
+      )}
 
-          {/* Prose content */}
-          {part.prose && (
-            isRemoved ? (
-              <span style={{
-                fontSize: 13, lineHeight: 1.75,
-                color: colors.dangerFg, textDecoration: "line-through", opacity: 0.75,
-              }}>
-                {part.prose}
-              </span>
-            ) : (
-              <ProseWithParamsProfile text={part.prose} paramMap={paramMap} isAdded={isAdded} />
-            )
-          )}
+      {/* Prose content */}
+      {part.prose && (
+        isRemoved ? (
+          <span style={{
+            fontSize: 13, lineHeight: 1.75,
+            color: colors.dangerFg, textDecoration: "line-through", opacity: 0.75,
+          }}>
+            {part.prose}
+          </span>
+        ) : (
+          <ProseWithParamsProfile text={part.prose} paramMap={paramMap} isAdded={isAdded} />
+        )
+      )}
 
-          {/* Links within a part */}
-          {part.links && part.links.length > 0 && !isRemoved && (
-            <div style={{ marginTop: 4 }}>
-              {part.links.map((lk, i) => {
-                const frag = lk["resource-fragment"];
-                const display = frag ? `${lk.text ?? lk.href} — ${frag}` : (lk.text ?? lk.href);
-                return (
-                  <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
-                    <IcoLink size={11} style={{ color: colors.brightBlue }} />
-                    <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 11, color: colors.brightBlue }}>
-                      {display}
-                    </a>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+      {/* Links within a part */}
+      {part.links && part.links.length > 0 && !isRemoved && (
+        <div style={{ marginTop: 4 }}>
+          {part.links.map((lk, i) => {
+            const frag = lk["resource-fragment"];
+            const display = frag ? `${lk.text ?? lk.href} — ${frag}` : (lk.text ?? lk.href);
+            return (
+              <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
+                <IcoLink size={11} style={{ color: colors.brightBlue }} />
+                <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: colors.brightBlue }}>
+                  {display}
+                </a>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
 
       {/* Recursive children */}
       {subParts.length > 0 && (
@@ -2305,7 +2320,9 @@ function ProseWithParamsProfile({ text, paramMap, isAdded }: {
                 padding: "1px 6px",
                 borderRadius: radii.sm,
                 border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
-                whiteSpace: "nowrap",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
               }}
             >
               {rendered}
