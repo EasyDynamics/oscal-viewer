@@ -1260,6 +1260,270 @@ function ImplStatusBadge({ status }: { status: string }) {
   );
 }
 
+const CONTROL_STATUS_ORDER = ["implemented", "partial", "planned", "alternative", "not-applicable"] as const;
+type KnownControlStatus = typeof CONTROL_STATUS_ORDER[number];
+
+interface StatusBucket {
+  status: string;
+  label: string;
+  count: number;
+  color: string;
+  background: string;
+  description: string;
+}
+
+interface FamilyStatusSummary {
+  family: string;
+  label: string;
+  total: number;
+  buckets: StatusBucket[];
+}
+
+interface ControlStatusDashboardSummary {
+  totalControls: number;
+  totalComponents: number;
+  totalStatements: number;
+  totalByComponentEntries: number;
+  controlBuckets: StatusBucket[];
+  componentBuckets: StatusBucket[];
+  familySummaries: FamilyStatusSummary[];
+}
+
+function statusLabel(status: string): string {
+  if (!status) return "Unspecified";
+  return status.split(/[-_\s]+/).filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
+}
+
+function controlStatusMeta(status: string): { color: string; background: string; description: string } {
+  const lower = status.toLowerCase();
+  if (lower === "implemented") return { color: colors.darkGreen, background: colors.successBg, description: "The control is fully implemented." };
+  if (lower === "partial") return { color: colors.orange, background: colors.warningBg, description: "The control is partially implemented." };
+  if (lower === "planned") return { color: colors.brightBlue, background: alpha(colors.brightBlue, 10), description: "A plan exists for implementing the control." };
+  if (lower === "alternative") return { color: colors.cobalt, background: alpha(colors.cobalt, 10), description: "An alternative implementation is described." };
+  if (lower === "not-applicable") return { color: colors.blueGray, background: colors.surfaceSubtle, description: "The control is justified as not applicable." };
+  if (lower === "unspecified") return { color: colors.gray, background: colors.surfaceSubtle, description: "No implementation status was found." };
+  return { color: colors.purple, background: alpha(colors.purple, 10), description: "Locally defined implementation status." };
+}
+
+function statusSortValue(status: string): number {
+  const idx = CONTROL_STATUS_ORDER.indexOf(status.toLowerCase() as KnownControlStatus);
+  if (idx >= 0) return idx;
+  if (status.toLowerCase() === "unspecified") return 999;
+  return 100;
+}
+
+function buildStatusBuckets(counts: Record<string, number>): StatusBucket[] {
+  return Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .sort(([a, ac], [b, bc]) => statusSortValue(a) - statusSortValue(b) || bc - ac || a.localeCompare(b))
+    .map(([status, count]) => {
+      const meta = controlStatusMeta(status);
+      return { status, label: statusLabel(status), count, ...meta };
+    });
+}
+
+function collectImplementationStatuses(ir: ImplementedRequirement): string[] {
+  return [
+    ...ir.byComponents.map((bc) => bc.implementationStatus),
+    ...ir.statements.flatMap((st) => st.byComponents.map((bc) => bc.implementationStatus)),
+  ].map((status) => status.trim().toLowerCase()).filter(Boolean);
+}
+
+function rollupControlStatus(ir: ImplementedRequirement): string {
+  const propStatus = ir.props.find((p) => p.name === "implementation-status")?.value?.trim().toLowerCase();
+  if (propStatus) return propStatus;
+
+  const statuses = collectImplementationStatuses(ir);
+  if (statuses.length === 0) return "unspecified";
+  const unique = [...new Set(statuses)];
+  if (unique.length === 1) return unique[0];
+  if (statuses.includes("partial")) return "partial";
+  if (statuses.includes("implemented") && statuses.some((status) => status !== "implemented")) return "partial";
+  if (statuses.includes("planned")) return "planned";
+  if (statuses.includes("alternative")) return "alternative";
+  if (statuses.includes("not-applicable")) return "not-applicable";
+  return unique[0] ?? "unspecified";
+}
+
+function incrementCount(counts: Record<string, number>, key: string) {
+  counts[key] = (counts[key] ?? 0) + 1;
+}
+
+function buildControlStatusDashboard(ssp: SspParsed, catalogSort: ReturnType<typeof useCatalogSortIndex>): ControlStatusDashboardSummary {
+  const controlCounts: Record<string, number> = {};
+  const componentCounts: Record<string, number> = {};
+  const familyCounts: Record<string, Record<string, number>> = {};
+  let totalStatements = 0;
+  let totalByComponentEntries = 0;
+
+  ssp.controlImplementation.implementedRequirements.forEach((ir) => {
+    const controlStatus = rollupControlStatus(ir);
+    incrementCount(controlCounts, controlStatus);
+    const family = getFamily(ir.controlId);
+    familyCounts[family] ??= {};
+    incrementCount(familyCounts[family], controlStatus);
+
+    totalStatements += ir.statements.length;
+    const statuses = collectImplementationStatuses(ir);
+    totalByComponentEntries += ir.byComponents.length + ir.statements.reduce((sum, st) => sum + st.byComponents.length, 0);
+    if (statuses.length === 0) incrementCount(componentCounts, "unspecified");
+    else statuses.forEach((status) => incrementCount(componentCounts, status));
+  });
+
+  const familySummaries = Object.entries(familyCounts)
+    .map(([family, counts]) => ({
+      family,
+      label: FAMILY_NAMES[family] || family.toUpperCase(),
+      total: Object.values(counts).reduce((sum, count) => sum + count, 0),
+      buckets: buildStatusBuckets(counts),
+    }))
+    .sort((a, b) => catalogSort.compare(a.family, b.family));
+
+  return {
+    totalControls: ssp.controlImplementation.implementedRequirements.length,
+    totalComponents: ssp.systemImplementation.components.length,
+    totalStatements,
+    totalByComponentEntries,
+    controlBuckets: buildStatusBuckets(controlCounts),
+    componentBuckets: buildStatusBuckets(componentCounts),
+    familySummaries,
+  };
+}
+
+function StatusDistributionBar({ buckets, total, height = 12 }: { buckets: StatusBucket[]; total: number; height?: number }) {
+  if (total <= 0) return <div style={{ height, borderRadius: radii.pill, backgroundColor: colors.surfaceSubtle }} />;
+  return (
+    <div style={{ display: "flex", height, borderRadius: radii.pill, overflow: "hidden", backgroundColor: colors.surfaceSubtle }}>
+      {buckets.map((bucket) => (
+        <div
+          key={bucket.status}
+          title={`${bucket.label}: ${bucket.count}`}
+          style={{ width: `${(bucket.count / total) * 100}%`, backgroundColor: bucket.color, minWidth: bucket.count > 0 ? 3 : 0 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function StatusDonut({ buckets, total }: { buckets: StatusBucket[]; total: number }) {
+  let cursor = 0;
+  const segments = total > 0
+    ? buckets.map((bucket) => {
+        const start = cursor;
+        cursor += (bucket.count / total) * 100;
+        return `${bucket.color} ${start}% ${cursor}%`;
+      }).join(", ")
+    : colors.surfaceSubtle;
+
+  return (
+    <div style={{ position: "relative", width: 170, height: 170, flexShrink: 0 }}>
+      <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: total > 0 ? `conic-gradient(${segments})` : colors.surfaceSubtle, boxShadow: shadows.sm }} />
+      <div style={{ position: "absolute", inset: 26, borderRadius: "50%", backgroundColor: colors.card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: `inset 0 0 0 1px ${colors.paleGray}` }}>
+        <div style={{ fontSize: 34, fontWeight: 800, color: colors.navy, lineHeight: 1 }}>{total}</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.8 }}>Controls</div>
+      </div>
+    </div>
+  );
+}
+
+function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusDashboardSummary; navigate: (id: string) => void }) {
+  const implemented = summary.controlBuckets.find((bucket) => bucket.status === "implemented")?.count ?? 0;
+  const implementationRate = summary.totalControls > 0 ? Math.round((implemented / summary.totalControls) * 100) : 0;
+
+  return (
+    <Card>
+      <SectionLabel>SSP Dashboard</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 22, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+          <StatusDonut buckets={summary.controlBuckets} total={summary.totalControls} />
+          <div style={{ minWidth: 180, flex: 1 }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: colors.darkGreen, lineHeight: 1 }}>{implementationRate}%</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: colors.navy, marginTop: 3 }}>control rollup implemented</div>
+            <p style={{ fontSize: 12, color: colors.gray, lineHeight: 1.6, margin: "8px 0 0" }}>
+              Rollup status is derived from explicit control properties when present, otherwise from each control&apos;s component and statement implementation statuses.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
+            <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.darkGreen, 7), border: `1px solid ${alpha(colors.darkGreen, 18)}` }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: colors.darkGreen }}>{summary.totalComponents}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>Components</div>
+            </div>
+            <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.cobalt, 7), border: `1px solid ${alpha(colors.cobalt, 18)}` }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: colors.cobalt }}>{summary.familySummaries.length}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>Families</div>
+            </div>
+            <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.orange, 7), border: `1px solid ${alpha(colors.orange, 18)}` }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: colors.orange }}>{summary.totalStatements}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>Statements</div>
+            </div>
+            <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.purple, 7), border: `1px solid ${alpha(colors.purple, 18)}` }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: colors.purple }}>{summary.totalByComponentEntries}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>Impl Entries</div>
+            </div>
+          </div>
+
+          <StatusDistributionBar buckets={summary.controlBuckets} total={summary.totalControls} height={14} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginTop: 12 }}>
+            {summary.controlBuckets.map((bucket) => (
+              <div key={bucket.status} style={{ padding: "8px 10px", borderRadius: radii.sm, backgroundColor: bucket.background, border: `1px solid ${alpha(bucket.color, 22)}` }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: bucket.color }}>{bucket.label}</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: bucket.color }}>{bucket.count}</span>
+                </div>
+                <div style={{ fontSize: 10.5, color: colors.gray, lineHeight: 1.35 }}>{bucket.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {summary.familySummaries.length > 0 && (
+        <div style={{ marginTop: 20, borderTop: `1px solid ${colors.paleGray}`, paddingTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: colors.navy, textTransform: "uppercase", letterSpacing: 0.6 }}>Status by control family</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {summary.controlBuckets.map((bucket) => (
+                <span key={bucket.status} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: colors.gray }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: bucket.color }} />{bucket.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {summary.familySummaries.map((family) => (
+              <div key={family.family} onClick={() => navigate(`ctrl-family-${family.family}`)} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 210px) 1fr auto", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: radii.sm, backgroundColor: colors.bg, cursor: "pointer" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: colors.navy }}>{family.family.toUpperCase()}</div>
+                  <div style={{ fontSize: 10.5, color: colors.gray, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={family.label}>{family.label}</div>
+                </div>
+                <StatusDistributionBar buckets={family.buckets} total={family.total} height={10} />
+                <span style={{ ...S.badge, marginLeft: 0 }}>{family.total}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {summary.componentBuckets.length > 0 && (
+        <div style={{ marginTop: 18, borderTop: `1px solid ${colors.paleGray}`, paddingTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: colors.navy, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Component implementation entries</div>
+          <StatusDistributionBar buckets={summary.componentBuckets} total={summary.componentBuckets.reduce((sum, bucket) => sum + bucket.count, 0)} height={10} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {summary.componentBuckets.map((bucket) => (
+              <span key={bucket.status} style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: radii.pill, backgroundColor: bucket.background, color: bucket.color }}>
+                {bucket.label}: {bucket.count}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CATALOG ENRICHMENT HELPERS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1661,11 +1925,14 @@ function buildComponentHierarchy(components: SspComponent[]): ComponentHierarchy
    PLACEHOLDER VIEWS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ ssp, leveragedIndex }: {
+function OverviewView({ ssp, leveragedIndex, navigate }: {
   ssp: SspParsed;
   leveragedIndex: LeveragedIndex;
+  navigate: (id: string) => void;
 }) {
   const { metadata: md, systemCharacteristics: sc, systemImplementation: si, controlImplementation: ci, backMatter: bm } = ssp;
+  const catalogSort = useCatalogSortIndex();
+  const dashboardSummary = useMemo(() => buildControlStatusDashboard(ssp, catalogSort), [ssp, catalogSort]);
   return (
     <>
       <Card>
@@ -1729,6 +1996,8 @@ function OverviewView({ ssp, leveragedIndex }: {
           })()}
         </div>
       </Card>
+
+      <ControlStatusDashboard summary={dashboardSummary} navigate={navigate} />
 
       {/* Impact levels */}
       {(sc.securityImpactLevel.objectiveConfidentiality || sc.securityImpactLevel.objectiveIntegrity || sc.securityImpactLevel.objectiveAvailability) && (
@@ -4731,7 +5000,7 @@ interface ViewRouterProps {
 }
 
 function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }: ViewRouterProps) {
-  if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} />;
+  if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} navigate={navigate} />;
   if (view === "metadata") return <MetadataView ssp={ssp} />;
   if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} sourceUrl={sourceUrl} />;
   if (view === "sys-char-auth-diagrams") return <DiagramSectionView title="Authorization Diagrams" section={ssp.systemCharacteristics.authorizationBoundary} backMatter={ssp.backMatter} sourceUrl={sourceUrl} />;

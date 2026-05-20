@@ -6,127 +6,127 @@ import type { ThemeDefinition, ThemeColors } from "../themeContract";
 
 const lightColors: ThemeColors = {
   /* ── Tier 1: Primary ── */
-  navy: "#001131",
-  orange: "#00BDE3",       /* cyan replaces orange as primary accent */
-  yellow: "#FEB300",
-  gray: "#6B6E7B",
+  navy: "#001B44",
+  orange: "#008FB8",       /* cyan replaces orange as primary accent */
+  yellow: "#F6A400",
+  gray: "#505667",
 
   /* ── Tier 2: Secondary ── */
-  darkNavy: "#000B20",
-  brightBlue: "#00BDE3",
-  paleGray: "#CFCED3",
-  black: "#1C2327",
+  darkNavy: "#000A1F",
+  brightBlue: "#009FD1",
+  paleGray: "#B7C2D0",
+  black: "#172026",
 
   /* ── Tier 3: Accent ── */
-  cobalt: "#1565C0",
-  mint: "#48CDB6",
-  darkGreen: "#216570",
-  brightCyan: "#00BDE3",
-  purple: "#451298",
-  blueGray: "#4F7490",
-  paleOrange: "#33CFEF",
-  neonYellow: "#FFF33E",
+  cobalt: "#0F5BB5",
+  mint: "#18A999",
+  darkGreen: "#0F766E",
+  brightCyan: "#00A7CF",
+  purple: "#5B21B6",
+  blueGray: "#365D78",
+  paleOrange: "#00B9D8",
+  neonYellow: "#FACC15",
 
   /* ── Semantic / UI ── */
   white: "#FFFFFF",
-  bg: "#F4F5F7",
+  bg: "#EEF3F8",
   card: "#FFFFFF",
-  red: "#D32F2F",
+  red: "#C81E1E",
 
   /* ── Status (Assessment Results) ── */
-  statusPassBg: "#e8f5e9",
-  statusPassFg: "#2e7d32",
-  statusPassBorder: "#4caf50",
-  statusFailBg: "#ffebee",
-  statusFailFg: "#c62828",
-  statusFailBorder: "#ef5350",
-  statusErrorBg: "#fff3e0",
-  statusErrorFg: "#e65100",
-  statusErrorBorder: "#ff9800",
-  statusNaBg: "#f3e5f5",
-  statusNaFg: "#6a1b9a",
-  statusNaBorder: "#ab47bc",
+  statusPassBg: "#DDF8E8",
+  statusPassFg: "#176B35",
+  statusPassBorder: "#22A55A",
+  statusFailBg: "#FFE1E1",
+  statusFailFg: "#A91D1D",
+  statusFailBorder: "#E03131",
+  statusErrorBg: "#FFE8C2",
+  statusErrorFg: "#A94700",
+  statusErrorBorder: "#F97316",
+  statusNaBg: "#EEE2FF",
+  statusNaFg: "#5B21B6",
+  statusNaBorder: "#8B5CF6",
 
   /* ── Surface variants ── */
-  surfaceSubtle: "#EEF2F8",
-  surfaceMuted: "#F8F9FB",
+  surfaceSubtle: "#E3EAF3",
+  surfaceMuted: "#F6F8FC",
   surfaceOverlay: "rgba(0,0,0,0.35)",
 
   /* ── Feedback / semantic ── */
-  dropzoneBg: "#f0f4ff",
-  errorBg: "#fff5f5",
-  warningBg: "#FFF8E1",
-  successBg: "#e8f5e9",
-  successFg: "#2e7d32",
-  successBorder: "#c8e6c9",
-  dangerBg: "#ffebee",
-  dangerFg: "#c62828",
+  dropzoneBg: "#E5F6FF",
+  errorBg: "#FFE8E8",
+  warningBg: "#FFF0C2",
+  successBg: "#DDF8E8",
+  successFg: "#176B35",
+  successBorder: "#9FE7BB",
+  dangerBg: "#FFE1E1",
+  dangerFg: "#A91D1D",
 
   /* ── Tint backgrounds ── */
-  tintOrange: "#FFF0E6",
-  tintGreen: "#E6F3F0",
-  tintBlue: "#E8F0FE",
-  tintPurple: "#F0E8FE",
-  tintYellow: "#FFF8E6",
+  tintOrange: "#DDF6FF",
+  tintGreen: "#DDF8E8",
+  tintBlue: "#DCEBFF",
+  tintPurple: "#EEE2FF",
+  tintYellow: "#FFF0C2",
 
   /* ── Text ── */
-  textPrimary: "#1C2327",
-  textSecondary: "#4A4A4A",
-  textMuted: "#6B6E7B",
+  textPrimary: "#172026",
+  textSecondary: "#2F3A45",
+  textMuted: "#505667",
   textOnAccent: "#FFFFFF",
 
   /* ── Borders ── */
-  border: "#E2E4EA",
-  borderSubtle: "#EEEEF2",
+  border: "#CCD6E3",
+  borderSubtle: "#DDE5EF",
 
   /* ── Misc ── */
   loadedDot: "#22c55e",
-  shadow: "rgba(0,0,0,0.12)",
+  shadow: "rgba(0,17,49,0.16)",
 
   /* ── Code / markup ── */
-  codeBg: "#E8EDF4",
-  codeFg: "#1A1A2E",
-  codeBorder: "#B0B8C8",
+  codeBg: "#DFE8F3",
+  codeFg: "#102033",
+  codeBorder: "#A5B4C7",
 
   /* ── Severity / risk ── */
-  riskLowBg: "#e8f5e9",
-  riskLowFg: "#2e7d32",
-  riskModerateBg: "#fff3e0",
-  riskModerateFg: "#e65100",
-  riskHighBg: "#ffebee",
-  riskHighFg: "#c62828",
+  riskLowBg: "#DDF8E8",
+  riskLowFg: "#176B35",
+  riskModerateBg: "#FFE8C2",
+  riskModerateFg: "#A94700",
+  riskHighBg: "#FFE1E1",
+  riskHighFg: "#A91D1D",
   riskCriticalBg: "#4a0010",
   riskCriticalFg: "#ff1744",
 };
 
 const darkColors: ThemeColors = {
   /* ── Tier 1: Primary ── */
-  navy: "#8BB8FF",
-  orange: "#4DD4EC",
-  yellow: "#FFD54F",
-  gray: "#9FA1AD",
+  navy: "#A9C7FF",
+  orange: "#22D3EE",
+  yellow: "#FCD34D",
+  gray: "#AEB6C6",
 
   /* ── Tier 2: Secondary ── */
   darkNavy: "#0D1018",
-  brightBlue: "#4DD4EC",
-  paleGray: "#383B48",
-  black: "#E0E0E6",
+  brightBlue: "#38BDF8",
+  paleGray: "#4B5568",
+  black: "#EEF2F8",
 
   /* ── Tier 3: Accent ── */
-  cobalt: "#64B5F6",
-  mint: "#5EDBC7",
-  darkGreen: "#4DB6AC",
-  brightCyan: "#4DD4EC",
-  purple: "#B388FF",
-  blueGray: "#A8BCC6",
-  paleOrange: "#4DD4EC",
-  neonYellow: "#FFF176",
+  cobalt: "#60A5FA",
+  mint: "#34D399",
+  darkGreen: "#2DD4BF",
+  brightCyan: "#22D3EE",
+  purple: "#C084FC",
+  blueGray: "#CBD5E1",
+  paleOrange: "#67E8F9",
+  neonYellow: "#FDE047",
 
   /* ── Semantic / UI ── */
   white: "#FFFFFF",
-  bg: "#121218",
-  card: "#1A1A24",
-  red: "#EF5350",
+  bg: "#0D111A",
+  card: "#171B26",
+  red: "#F87171",
 
   /* ── Status (Assessment Results) ── */
   statusPassBg: "#1B3A25",
@@ -143,14 +143,14 @@ const darkColors: ThemeColors = {
   statusNaBorder: "#AB47BC",
 
   /* ── Surface variants ── */
-  surfaceSubtle: "#1E2130",
-  surfaceMuted: "#16161E",
+  surfaceSubtle: "#242A38",
+  surfaceMuted: "#111622",
   surfaceOverlay: "rgba(0,0,0,0.55)",
 
   /* ── Feedback / semantic ── */
   dropzoneBg: "#1A2040",
   errorBg: "#3A1A1A",
-  warningBg: "#3A3018",
+  warningBg: "#42320D",
   successBg: "#1B3A25",
   successFg: "#66BB6A",
   successBorder: "#2E7D32",
@@ -165,18 +165,18 @@ const darkColors: ThemeColors = {
   tintYellow: "#2E2A18",
 
   /* ── Text ── */
-  textPrimary: "#E0E0E6",
-  textSecondary: "#B0B0BA",
-  textMuted: "#9FA1AD",
+  textPrimary: "#EEF2F8",
+  textSecondary: "#CBD5E1",
+  textMuted: "#AEB6C6",
   textOnAccent: "#FFFFFF",
 
   /* ── Borders ── */
-  border: "#2E3040",
-  borderSubtle: "#252830",
+  border: "#394253",
+  borderSubtle: "#2A3140",
 
   /* ── Misc ── */
   loadedDot: "#4ADE80",
-  shadow: "rgba(0,0,0,0.40)",
+  shadow: "rgba(0,0,0,0.52)",
 
   /* ── Code / markup ── */
   codeBg: "#1E2030",
