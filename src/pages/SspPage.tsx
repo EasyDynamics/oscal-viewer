@@ -575,8 +575,9 @@ function parseSsp(raw: any): SspParsed {
 
 function loadProviderSspFile(
   file: File,
-  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null) => void,
+  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null, boundLaUuid?: string) => void,
   onError?: (message: string) => void,
+  boundLaUuid?: string,
 ) {
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -584,7 +585,7 @@ function loadProviderSspFile(
       const json = JSON.parse(e.target?.result as string);
       const inner = json["system-security-plan"] ?? json;
       if (!inner.metadata) throw new Error("Not a valid OSCAL SSP — missing metadata.");
-      addLeveragedSsp(json, file.name);
+      addLeveragedSsp(json, file.name, null, boundLaUuid);
       onError?.("");
     } catch (err) {
       onError?.(err instanceof Error ? err.message : "Failed to parse provider SSP JSON");
@@ -1153,6 +1154,32 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "network": return <IcoNetwork size={size} style={st} />;
     default: return <IcoBook size={size} style={st} />;
   }
+}
+
+/** Wraps a nav icon and overlays a small badge in the bottom-right (e.g., a
+ *  green check to indicate a leveraged authorization has a loaded provider SSP). */
+function NavIconWithBadge({ icon, color, badge, size = 14 }: { icon: string; color: string; badge?: "loaded"; size?: number }) {
+  const inner = navIcon(icon, color, size);
+  if (!badge) return <>{inner}</>;
+  return (
+    <span style={{ position: "relative", display: "inline-flex", flexShrink: 0, lineHeight: 0 }}>
+      {inner}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          right: -3,
+          bottom: -3,
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          backgroundColor: colors.darkGreen,
+          border: `1.5px solid ${colors.white}`,
+          boxSizing: "content-box",
+        }}
+      />
+    </span>
+  );
 }
 
 function controlSourceIconKey(hasCurrent: boolean, hasProvider: boolean): string {
@@ -1854,6 +1881,8 @@ interface NavItem {
   childCount?: number;
   attachmentCount?: number;
   title?: string;
+  /** Small overlay badge rendered on top of the main icon (e.g., "loaded"). */
+  iconBadge?: "loaded";
 }
 
 interface ControlNavEntry {
@@ -2841,6 +2870,14 @@ interface LeveragedSystemSummary {
   exportedProvided: number;
   exportedResponsibilities: number;
   offeredFamilies: Record<string, number>;
+  /** UUIDs of `provided` and `responsibility` entries exported by this SSP */
+  exportedUuids: Set<string>;
+  /** UUIDs of `inherited.provided-uuid` / `satisfied.responsibility-uuid` referenced by this SSP */
+  consumedUuids: Set<string>;
+  /** UUIDs of all parties declared in this SSP's metadata */
+  partyUuids: Set<string>;
+  /** Explicit user binding to a leveraged-authorization UUID, if any */
+  boundLaUuid?: string;
 }
 
 interface LeveragedConnection {
@@ -2851,10 +2888,12 @@ interface LeveragedConnection {
   href?: string;
 }
 
-function summarizeSsp(parsed: SspParsed, id: string, fileName: string, sourceUrl?: string | null): LeveragedSystemSummary {
+function summarizeSsp(parsed: SspParsed, id: string, fileName: string, sourceUrl?: string | null, boundLaUuid?: string): LeveragedSystemSummary {
   const offeredFamilies: Record<string, number> = {};
   let exportedProvided = 0;
   let exportedResponsibilities = 0;
+  const exportedUuids = new Set<string>();
+  const consumedUuids = new Set<string>();
   parsed.controlImplementation.implementedRequirements.forEach((ir) => {
     const allByComps = [...ir.byComponents, ...ir.statements.flatMap((st) => st.byComponents)];
     const providedForControl = allByComps.reduce((sum, bc) => sum + (bc.export?.provided.length ?? 0), 0);
@@ -2865,7 +2904,14 @@ function summarizeSsp(parsed: SspParsed, id: string, fileName: string, sourceUrl
       const fam = getFamily(ir.controlId);
       offeredFamilies[fam] = (offeredFamilies[fam] ?? 0) + 1;
     }
+    allByComps.forEach((bc) => {
+      bc.export?.provided.forEach((p) => { if (p.uuid) exportedUuids.add(p.uuid); });
+      bc.export?.responsibilities.forEach((r) => { if (r.uuid) exportedUuids.add(r.uuid); });
+      bc.inherited.forEach((ih) => { if (ih.providedUuid) consumedUuids.add(ih.providedUuid); });
+      bc.satisfied.forEach((sat) => { if (sat.responsibilityUuid) consumedUuids.add(sat.responsibilityUuid); });
+    });
   });
+  const partyUuids = new Set<string>(parsed.metadata.parties.map((p) => p.uuid).filter(Boolean));
 
   return {
     id,
@@ -2883,39 +2929,11 @@ function summarizeSsp(parsed: SspParsed, id: string, fileName: string, sourceUrl
     exportedProvided,
     exportedResponsibilities,
     offeredFamilies,
+    exportedUuids,
+    consumedUuids,
+    partyUuids,
+    boundLaUuid,
   };
-}
-
-function titleMatches(a: string, b: string): boolean {
-  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const ca = clean(a);
-  const cb = clean(b);
-  if (!ca || !cb) return false;
-  if (ca === cb) return true;
-  // Require substring containment of a meaningfully long candidate, not just
-  // any short fragment (e.g. "ed" or "us").
-  if (ca.length >= 8 && cb.includes(ca)) return true;
-  if (cb.length >= 8 && ca.includes(cb)) return true;
-  // Stopwords cover OSCAL document phrasing plus generic government org tokens
-  // that are shared across most federal SSP titles and would otherwise drive
-  // false-positive matches between unrelated systems.
-  const stop = new Set([
-    "system", "security", "plan", "ssp", "authorization", "authorized",
-    "operate", "ato", "provisional", "provider", "services", "service",
-    "the", "and", "for", "to", "of",
-    "department", "education", "office", "agency", "bureau", "administration",
-    "national", "federal", "united", "states", "us", "usa", "gov", "government",
-  ]);
-  const tokens = (s: string) => new Set(s.split(" ").filter((t) => t.length > 2 && !stop.has(t)));
-  const ta = tokens(ca);
-  const tb = tokens(cb);
-  if (ta.size === 0 || tb.size === 0) return false;
-  const overlap = [...tb].filter((t) => ta.has(t)).length;
-  const smaller = Math.min(ta.size, tb.size);
-  // Require at least 2 overlapping distinctive tokens AND that the overlap
-  // covers a majority of the shorter side. This prevents two unrelated SSPs
-  // from matching solely on shared organizational vocabulary.
-  return overlap >= 2 && overlap / smaller >= 0.6;
 }
 
 function resolvePotentialHref(href: string | undefined, sourceUrl: string | null | undefined): string | undefined {
@@ -2927,12 +2945,29 @@ function resolvePotentialHref(href: string | undefined, sourceUrl: string | null
 }
 
 function matchLeveragedSummary(la: LeveragedAuth, from: LeveragedSystemSummary, summaries: LeveragedSystemSummary[]): LeveragedSystemSummary | undefined {
+  // 0. Explicit user binding wins over heuristics.
+  const explicit = summaries.find((s) => s.id !== from.id && s.boundLaUuid === la.uuid);
+  if (explicit) return explicit;
+  const candidates = summaries.filter((s) => s.id !== from.id && !s.boundLaUuid);
   const href = resolvePotentialHref(la.href, from.sourceUrl);
   if (href) {
-    const byUrl = summaries.find((s) => s.sourceUrl === href || s.fileName === fileNameFromUrl(href));
+    const byUrl = candidates.find((s) => s.sourceUrl === href || s.fileName === fileNameFromUrl(href));
     if (byUrl) return byUrl;
   }
-  return summaries.find((s) => s.id !== from.id && (titleMatches(la.title, s.title) || titleMatches(la.title, s.systemName)));
+  // Party-uuid match: the LA's party-uuid is a party in the candidate provider SSP.
+  if (la.partyUuid) {
+    const byParty = candidates.find((s) => s.partyUuids.has(la.partyUuid));
+    if (byParty) return byParty;
+  }
+  // UUID-overlap match: the candidate provider SSP exports at least one
+  // provided/responsibility UUID that the consumer SSP references via
+  // `inherited.provided-uuid` or `satisfied.responsibility-uuid`.
+  for (const s of candidates) {
+    for (const u of s.exportedUuids) {
+      if (from.consumedUuids.has(u)) return s;
+    }
+  }
+  return undefined;
 }
 
 function ImpactPills({ impact }: { impact: SystemCharacteristics["securityImpactLevel"] }) {
@@ -3028,6 +3063,83 @@ function LeveragedSystemsMap({ summaries, connections }: { summaries: LeveragedS
   );
 }
 
+function LeveragedAuthCard({
+  la, index, matched, partyMap, navigate, onLoadFile,
+}: {
+  la: LeveragedAuth;
+  index: number;
+  matched: LeveragedSystemSummary | undefined;
+  partyMap: Record<string, string>;
+  navigate: (id: string) => void;
+  onLoadFile: (file: File) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) onLoadFile(file);
+  };
+  const dropProps = matched ? {} : {
+    onDragOver: (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); },
+    onDragEnter: (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true); },
+    onDragLeave: () => setDragOver(false),
+    onDrop: handleDrop,
+  };
+  return (
+    <div
+      style={{
+        backgroundColor: colors.card,
+        borderRadius: radii.md,
+        padding: "20px 24px",
+        boxShadow: shadows.sm,
+        marginBottom: 16,
+        cursor: "default",
+        border: dragOver ? `2px dashed ${colors.cobalt}` : `2px solid transparent`,
+        backgroundImage: dragOver ? `linear-gradient(${alpha(colors.cobalt, 8)}, ${alpha(colors.cobalt, 8)})` : undefined,
+        transition: "border-color 0.15s, background-color 0.15s",
+      }}
+      {...dropProps}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div onClick={() => navigate(`leveraged-auth-${index}`)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}>
+          <IcoLayers size={15} style={{ color: colors.purple }} />
+          <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{la.title}</h4>
+        </div>
+        {matched ? (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.darkGreen, 10), color: colors.darkGreen }}>
+            SSP loaded
+          </span>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); chooseProviderSspFile(onLoadFile); }}
+            style={{ background: alpha(colors.cobalt, 10), border: `1px solid ${alpha(colors.cobalt, 25)}`, borderRadius: radii.sm, color: colors.cobalt, cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "4px 10px" }}
+          >
+            Load SSP
+          </button>
+        )}
+        <button
+          onClick={() => navigate(`leveraged-auth-${index}`)}
+          style={{ background: "none", border: "none", color: colors.cobalt, cursor: "pointer", fontSize: 11, fontWeight: 600, padding: 0 }}
+        >
+          View &rarr;
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
+        {la.dateAuthorized && <MField label="Authorized" value={fmtDate(la.dateAuthorized)} />}
+        {la.href && <MField label="SSP URL" value={la.href} mono />}
+        {matched && <MField label="Loaded As" value={matched.systemName || matched.title} />}
+      </div>
+      {!matched && (
+        <div style={{ marginTop: 8, fontSize: 11, color: colors.gray, fontStyle: "italic" }}>
+          Drop a provider SSP JSON here, or click "Load SSP" to bind one to this leveraged authorization.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate: (id: string) => void; sourceUrl?: string | null }) {
   const items = ssp.systemImplementation.leveragedAuthorizations;
   const oscal = useOscal();
@@ -3037,7 +3149,7 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
     const list: LeveragedSystemSummary[] = [summarizeSsp(ssp, "current", "Current SSP", sourceUrl)];
     oscal.leveragedSsps.forEach((entry, i) => {
       try {
-        list.push(summarizeSsp(parseSsp(entry.data), `provider-${i}`, entry.fileName, entry.sourceUrl));
+        list.push(summarizeSsp(parseSsp(entry.data), `provider-${i}`, entry.fileName, entry.sourceUrl, entry.boundLaUuid));
       } catch { /* Ignore invalid provider SSPs in graph */ }
     });
     return list;
@@ -3066,8 +3178,55 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
   }, [ssp]);
 
   const loadLeveragedFile = useCallback((file: File) => {
-    loadProviderSspFile(file, oscal.addLeveragedSsp);
-  }, [oscal]);
+    /* Generic drop / file-picker on the LA page: parse the file ourselves so
+       we can run match heuristics against the consumer SSP's LAs and auto-bind
+       the upload to the best-fit LA. This way the user doesn't have to drop
+       the file on the exact LA card — any LA whose party-uuid is referenced in
+       the provider SSP's parties, or whose consumed UUIDs overlap with the
+       provider's exported UUIDs, is auto-bound. */
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        const inner = json["system-security-plan"] ?? json;
+        if (!inner.metadata) throw new Error("Not a valid OSCAL SSP — missing metadata.");
+        let boundLaUuid: string | undefined;
+        try {
+          const parsed = parseSsp(json);
+          const candidate = summarizeSsp(parsed, "candidate", file.name, null);
+          // Prefer party-uuid match: any LA whose partyUuid is a party in the provider SSP.
+          const byParty = items.find((la) => la.partyUuid && candidate.partyUuids.has(la.partyUuid));
+          if (byParty) {
+            boundLaUuid = byParty.uuid;
+          } else {
+            // Fallback: any LA whose href/file matches.
+            const byHref = items.find((la) => {
+              const h = resolvePotentialHref(la.href, sourceUrl);
+              return h && (h === file.name || fileNameFromUrl(h) === file.name);
+            });
+            if (byHref) boundLaUuid = byHref.uuid;
+            else {
+              // Fallback 2: UUID-overlap with consumer's consumed UUIDs.
+              const consumer = currentSummary;
+              if (consumer) {
+                for (const la of items) {
+                  let overlaps = false;
+                  for (const u of candidate.exportedUuids) {
+                    if (consumer.consumedUuids.has(u)) { overlaps = true; break; }
+                  }
+                  if (overlaps) { boundLaUuid = la.uuid; break; }
+                }
+              }
+            }
+          }
+        } catch { /* parsing failed — fall through and add without binding */ }
+        oscal.addLeveragedSsp(json, file.name, null, boundLaUuid);
+      } catch (err) {
+        console.warn("Failed to load provider SSP:", err);
+      }
+    };
+    reader.readAsText(file);
+  }, [oscal, items, currentSummary, sourceUrl]);
 
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -3093,38 +3252,15 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
       {items.map((la, i) => {
         const matched = currentSummary ? matchLeveragedSummary(la, currentSummary, summaries) : undefined;
         return (
-        <Card key={la.uuid} style={{ cursor: "default" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <div onClick={() => navigate(`leveraged-auth-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}>
-              <IcoLayers size={15} style={{ color: colors.purple }} />
-              <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{la.title}</h4>
-            </div>
-            {matched ? (
-              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.darkGreen, 10), color: colors.darkGreen }}>
-                SSP loaded
-              </span>
-            ) : (
-              <button
-                onClick={(e) => { e.stopPropagation(); chooseProviderSspFile(loadLeveragedFile); }}
-                style={{ background: alpha(colors.cobalt, 10), border: `1px solid ${alpha(colors.cobalt, 25)}`, borderRadius: radii.sm, color: colors.cobalt, cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "4px 10px" }}
-              >
-                Load SSP
-              </button>
-            )}
-            <button
-              onClick={() => navigate(`leveraged-auth-${i}`)}
-              style={{ background: "none", border: "none", color: colors.cobalt, cursor: "pointer", fontSize: 11, fontWeight: 600, padding: 0 }}
-            >
-              View &rarr;
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
-            {la.dateAuthorized && <MField label="Authorized" value={fmtDate(la.dateAuthorized)} />}
-            {la.href && <MField label="SSP URL" value={la.href} mono />}
-            {matched && <MField label="Loaded As" value={matched.systemName || matched.title} />}
-          </div>
-        </Card>
+          <LeveragedAuthCard
+            key={la.uuid}
+            la={la}
+            index={i}
+            matched={matched}
+            partyMap={partyMap}
+            navigate={navigate}
+            onLoadFile={(file) => loadProviderSspFile(file, oscal.addLeveragedSsp, undefined, la.uuid)}
+          />
         );
       })}
 
@@ -3204,39 +3340,63 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
 
   const loadedProvider = useMemo(() => {
     const href = resolvePotentialHref(la.href, undefined);
+    const consumerSummary = summarizeSsp(ssp, "current", "Current SSP", undefined);
+    type Candidate = { entry: typeof oscal.leveragedSsps[number]; summary: LeveragedSystemSummary };
+    const candidates: Candidate[] = [];
     for (const entry of oscal.leveragedSsps) {
       try {
         const parsed = parseSsp(entry.data);
-        const summary = summarizeSsp(parsed, entry.fileName, entry.fileName, entry.sourceUrl);
-        if (href && (entry.sourceUrl === href || entry.fileName === fileNameFromUrl(href))) return { entry, summary };
-        if (titleMatches(la.title, summary.title) || titleMatches(la.title, summary.systemName)) return { entry, summary };
+        const summary = summarizeSsp(parsed, entry.fileName, entry.fileName, entry.sourceUrl, entry.boundLaUuid);
+        candidates.push({ entry, summary });
       } catch { /* Ignore invalid provider SSPs */ }
     }
+    // 0. Explicit user binding (set when user dropped the file in this LA's dropzone).
+    const explicit = candidates.find((c) => c.entry.boundLaUuid === la.uuid);
+    if (explicit) return explicit;
+    // Skip entries that are explicitly bound to a different LA.
+    const free = candidates.filter((c) => !c.entry.boundLaUuid);
+    // 1. URL match
+    if (href) {
+      const byUrl = free.find(
+        (c) => c.entry.sourceUrl === href || c.entry.fileName === fileNameFromUrl(href),
+      );
+      if (byUrl) return byUrl;
+    }
+    // 2. Party-uuid match
+    if (la.partyUuid) {
+      const byParty = free.find((c) => c.summary.partyUuids.has(la.partyUuid));
+      if (byParty) return byParty;
+    }
+    // 3. UUID-overlap match: provider SSP exports UUIDs that the consumer
+    //    SSP references via inherited.providedUuid / satisfied.responsibilityUuid.
+    for (const c of free) {
+      for (const u of c.summary.exportedUuids) {
+        if (consumerSummary.consumedUuids.has(u)) return c;
+      }
+    }
     return null;
-  }, [la, oscal.leveragedSsps]);
+  }, [la, oscal.leveragedSsps, ssp]);
 
   const loadLeveragedFile = useCallback((file: File) => {
-    loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError);
-  }, [oscal]);
+    loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError, la.uuid);
+  }, [oscal, la.uuid]);
 
   const replaceLeveragedFile = useCallback((file: File) => {
     if (loadedProvider) oscal.removeLeveragedSsp(loadedProvider.entry.fileName);
-    loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError);
-  }, [loadedProvider, oscal]);
+    loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError, la.uuid);
+  }, [loadedProvider, oscal, la.uuid]);
 
-  /* Match this leveraged authorization to provider exports by title similarity */
+  /* Match this leveraged authorization to provider exports via the bound loadedProvider. */
   const offeredControls = useMemo(() => {
     const result: { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[] = [];
+    if (!loadedProvider) return result;
     for (const [controlId, entries] of leveragedIndex.byControl.entries()) {
-      const matching = entries.filter((e) =>
-        titleMatches(la.title, e.providerSspTitle) ||
-        (!!loadedProvider && e.providerSspTitle === loadedProvider.summary.title),
-      );
+      const matching = entries.filter((e) => e.providerSspTitle === loadedProvider.summary.title);
       if (matching.length > 0) result.push({ controlId, entries: matching });
     }
     result.sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
     return result;
-  }, [la, loadedProvider, leveragedIndex, catalogSort]);
+  }, [loadedProvider, leveragedIndex, catalogSort]);
 
   /* Group offered controls by family */
   const familyGroups = useMemo(() => {
@@ -3340,6 +3500,13 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
               style={{ background: alpha(colors.purple, 10), border: `1px solid ${alpha(colors.purple, 28)}`, borderRadius: radii.sm, color: colors.purple, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 12px" }}
             >
               Replace SSP
+            </button>
+            <button
+              onClick={() => oscal.removeLeveragedSsp(loadedProvider.entry.fileName)}
+              style={{ background: alpha(colors.red, 8), border: `1px solid ${alpha(colors.red, 28)}`, borderRadius: radii.sm, color: colors.red, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 12px" }}
+              title="Remove loaded provider SSP"
+            >
+              Remove
             </button>
           </div>
         ) : (
@@ -5285,17 +5452,61 @@ export default function SspPage() {
     items.push({ id: "sys-impl-inventory", label: "Inventory Items", icon: "box", color: colors.darkGreen, depth: 1, parent: "sys-impl", childCount: si.inventoryItems.length });
     if (si.leveragedAuthorizations.length > 0) {
       items.push({ id: "sys-impl-leveraged", label: "Leveraged Authorizations", icon: "link", color: colors.purple, depth: 1, parent: "sys-impl", childCount: si.leveragedAuthorizations.length });
+
+      /* Determine which leveraged authorizations have a loaded provider SSP
+         so the tree can show a distinct icon. Mirrors LeveragedAuthDetailView's
+         loadedProvider matching: explicit boundLaUuid → URL → party → UUID-overlap. */
+      const consumerSummary = summarizeSsp(ssp, "current", "Current SSP", urlDoc.sourceUrl);
+      const providerSummaries: { entry: typeof oscal.leveragedSsps[number]; summary: LeveragedSystemSummary }[] = [];
+      for (const entry of oscal.leveragedSsps) {
+        try {
+          providerSummaries.push({
+            entry,
+            summary: summarizeSsp(parseSsp(entry.data), entry.fileName, entry.fileName, entry.sourceUrl, entry.boundLaUuid),
+          });
+        } catch { /* ignore invalid provider SSPs */ }
+      }
+      const loadedLaUuids = new Set<string>();
+      for (const la of si.leveragedAuthorizations) {
+        const explicit = providerSummaries.find((c) => c.entry.boundLaUuid === la.uuid);
+        if (explicit) { loadedLaUuids.add(la.uuid); continue; }
+        const free = providerSummaries.filter((c) => !c.entry.boundLaUuid);
+        const href = resolvePotentialHref(la.href, urlDoc.sourceUrl);
+        if (href && free.find((c) => c.entry.sourceUrl === href || c.entry.fileName === fileNameFromUrl(href))) {
+          loadedLaUuids.add(la.uuid); continue;
+        }
+        if (la.partyUuid && free.find((c) => c.summary.partyUuids.has(la.partyUuid))) {
+          loadedLaUuids.add(la.uuid); continue;
+        }
+        const overlapMatch = free.some((c) => {
+          for (const u of c.summary.exportedUuids) if (consumerSummary.consumedUuids.has(u)) return true;
+          return false;
+        });
+        if (overlapMatch) loadedLaUuids.add(la.uuid);
+      }
+
       si.leveragedAuthorizations.forEach((la, i) => {
-        items.push({ id: `leveraged-auth-${i}`, label: trunc(la.title || la.uuid.slice(0, 12), 28), icon: "layers", color: colors.purple, depth: 2, parent: "sys-impl-leveraged" });
+        const loaded = loadedLaUuids.has(la.uuid);
+        items.push({
+          id: `leveraged-auth-${i}`,
+          label: trunc(la.title || la.uuid.slice(0, 12), 28),
+          icon: "layers",
+          color: colors.purple,
+          depth: 2,
+          parent: "sys-impl-leveraged",
+          title: loaded ? "Provider SSP loaded" : "No provider SSP loaded",
+          iconBadge: loaded ? "loaded" : undefined,
+        });
       });
     }
 
     /* Control Implementation — group by family */
     items.push({ id: "ctrl-impl", label: "Control Implementation", icon: "shield", color: colors.orange, depth: 0 });
 
-    /* Build the control family map from the main SSP only. Leveraged SSPs may
-       decorate matching controls as provider-backed, but provider-only controls
-       are intentionally kept out of the navigation tree. */
+    /* Build the control family map from the main SSP and decorate / extend it
+       with controls offered by loaded provider (leveraged) SSPs. Controls that
+       only exist in provider SSPs are added as provider-only entries so users
+       can browse what the leveraged authorization covers. */
     const familyMap: Record<string, ControlNavEntry[]> = {};
     ci.implementedRequirements.forEach((ir) => {
       const fam = getFamily(ir.controlId);
@@ -5309,10 +5520,18 @@ export default function SspPage() {
 
     for (const controlId of leveragedIndex.byControl.keys()) {
       const fam = getFamily(controlId);
-      const entries = familyMap[fam];
-      if (!entries) continue;
+      const entries = (familyMap[fam] ??= []);
       const existing = entries.find((entry) => entry.controlId === controlId);
-      if (existing) existing.hasProvider = true;
+      if (existing) {
+        existing.hasProvider = true;
+      } else {
+        entries.push({
+          controlId,
+          hasCurrent: false,
+          hasProvider: true,
+          attachmentCount: 0,
+        });
+      }
     }
 
     const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => catalogSort.compare(a, b));
@@ -5395,7 +5614,7 @@ export default function SspPage() {
     items.push({ id: "back-matter", label: "Back Matter", icon: "book", color: colors.gray, depth: 0, childCount: ssp.backMatter.length || undefined });
 
     return items;
-  }, [ssp, leveragedIndex, catalogSort, urlDoc.sourceUrl]);
+  }, [ssp, leveragedIndex, catalogSort, urlDoc.sourceUrl, oscal.leveragedSsps]);
 
   /* ── Child counts ── */
   const childCounts = useMemo(() => {
@@ -5531,7 +5750,7 @@ export default function SspPage() {
                 }}
                 title={item.title}
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, cursor: "pointer", minHeight: 48, borderBottom: `1px solid ${colors.bg}` }}>
-                {navIcon(item.icon, item.color)}
+                <NavIconWithBadge icon={item.icon} color={item.color} badge={item.iconBadge} />
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
                 {item.attachmentCount != null && (
                   <span title={attachmentTitle(item.attachmentCount)} style={S.attachmentIndicator}>
@@ -5599,7 +5818,7 @@ export default function SspPage() {
               >
                 {hasChildren && <IcoChev open={!isCollapsed} style={{ marginRight: 4 }} />}
                 {siblingsHaveChildren && <span style={{ width: 16, flexShrink: 0 }} />}
-                {navIcon(item.icon, isActive ? colors.orange : item.color)}
+                <NavIconWithBadge icon={item.icon} color={isActive ? colors.orange : item.color} badge={item.iconBadge} />
                 <span style={{
                   flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>

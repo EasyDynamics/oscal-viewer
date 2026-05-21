@@ -124,6 +124,8 @@ export interface UploadEntry<T> {
   data: T;
   fileName: string;
   sourceUrl?: string | null;
+  /** Optional explicit binding to a leveraged-authorization UUID in the consumer SSP */
+  boundLaUuid?: string;
 }
 
 /* ── Context shape ── */
@@ -162,8 +164,9 @@ export interface OscalContextValue {
 
   /** Leveraged SSPs — provider SSPs loaded for cross-SSP inheritance resolution */
   leveragedSsps: UploadEntry<unknown>[];
-  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
+  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null, boundLaUuid?: string) => void;
   removeLeveragedSsp: (fileName: string) => void;
+  setLeveragedSspBinding: (fileName: string, boundLaUuid: string | undefined) => void;
   clearLeveragedSsps: () => void;
 
   /** Quick lookup — returns true if a given model key has data loaded */
@@ -205,14 +208,26 @@ export function OscalProvider({ children }: { children: ReactNode }) {
   const setPoam = useCallback((data: unknown, fileName: string) => _setPoam({ data, fileName }), []);
   const clearPoam = useCallback(() => _setPoam(null), []);
 
-  const addLeveragedSsp = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => {
+  const addLeveragedSsp = useCallback((data: unknown, fileName: string, sourceUrl?: string | null, boundLaUuid?: string) => {
     _setLeveragedSsps((prev) => {
-      if (prev.some((e) => e.fileName === fileName || (sourceUrl && e.sourceUrl === sourceUrl))) return prev;
-      return [...prev, { data, fileName, sourceUrl }];
+      const existingIdx = prev.findIndex((e) => e.fileName === fileName || (sourceUrl && e.sourceUrl === sourceUrl));
+      if (existingIdx >= 0) {
+        // Already loaded — update binding if provided, otherwise leave as-is.
+        if (boundLaUuid && prev[existingIdx].boundLaUuid !== boundLaUuid) {
+          const next = prev.slice();
+          next[existingIdx] = { ...next[existingIdx], boundLaUuid };
+          return next;
+        }
+        return prev;
+      }
+      return [...prev, { data, fileName, sourceUrl, boundLaUuid }];
     });
   }, []);
   const removeLeveragedSsp = useCallback((fileName: string) => {
     _setLeveragedSsps((prev) => prev.filter((e) => e.fileName !== fileName));
+  }, []);
+  const setLeveragedSspBinding = useCallback((fileName: string, boundLaUuid: string | undefined) => {
+    _setLeveragedSsps((prev) => prev.map((e) => (e.fileName === fileName ? { ...e, boundLaUuid } : e)));
   }, []);
   const clearLeveragedSsps = useCallback(() => _setLeveragedSsps([]), []);
 
@@ -242,7 +257,7 @@ export function OscalProvider({ children }: { children: ReactNode }) {
         assessmentPlan, setAssessmentPlan, clearAssessmentPlan,
         assessmentResults, setAssessmentResults, clearAssessmentResults,
         poam, setPoam, clearPoam,
-        leveragedSsps, addLeveragedSsp, removeLeveragedSsp, clearLeveragedSsps,
+        leveragedSsps, addLeveragedSsp, removeLeveragedSsp, setLeveragedSspBinding, clearLeveragedSsps,
         isLoaded,
       }}
     >

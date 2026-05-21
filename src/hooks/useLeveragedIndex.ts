@@ -108,58 +108,66 @@ function buildMaps(
         allBcs.push(...(st["by-components"] || []));
       }
 
+      // If this provider SSP implements the control at all, surface it in the
+      // control-id index so consumer-side views (sidebar tree, "Controls
+      // Offered" panel, provider-scope buttons) can show every control the
+      // leveraged authorization covers — even when the provider SSP omits
+      // `export.provided` / `export.responsibilities` blocks (common in
+      // FedRAMP and similar provider SSPs).
+      let controlHasAnyEntry = false;
+
       for (const bc of allBcs) {
         const compUuid: string = bc["component-uuid"] || "";
         const compTitle = compMap.get(compUuid) || compUuid.slice(0, 12);
         const exp = bc.export;
-        if (!exp) continue;
 
-        // Build UUID-based index
         const providedEntries: ControlExportEntry["provided"] = [];
         const respEntries: ControlExportEntry["responsibilities"] = [];
 
-        for (const p of exp.provided || []) {
-          if (!p.uuid) continue;
-          const roles = (p["responsible-roles"] || []).map((rr: any) => ({ roleId: rr["role-id"] || "" }));
-          provided.set(p.uuid, {
-            providerSspTitle: sspTitle,
-            providerComponentTitle: compTitle,
-            controlId,
-            description: txt(p.description),
-            responsibleRoles: roles,
-          });
-          providedEntries.push({ uuid: p.uuid, description: txt(p.description), responsibleRoles: roles });
-          contributed = true;
+        if (exp) {
+          for (const p of exp.provided || []) {
+            if (!p.uuid) continue;
+            const roles = (p["responsible-roles"] || []).map((rr: any) => ({ roleId: rr["role-id"] || "" }));
+            provided.set(p.uuid, {
+              providerSspTitle: sspTitle,
+              providerComponentTitle: compTitle,
+              controlId,
+              description: txt(p.description),
+              responsibleRoles: roles,
+            });
+            providedEntries.push({ uuid: p.uuid, description: txt(p.description), responsibleRoles: roles });
+            contributed = true;
+          }
+
+          for (const r of exp.responsibilities || []) {
+            if (!r.uuid) continue;
+            const roles = (r["responsible-roles"] || []).map((rr: any) => ({ roleId: rr["role-id"] || "" }));
+            responsibilities.set(r.uuid, {
+              providerSspTitle: sspTitle,
+              providerComponentTitle: compTitle,
+              controlId,
+              description: txt(r.description),
+              linkedProvidedUuid: r["provided-uuid"],
+              responsibleRoles: roles,
+            });
+            respEntries.push({ uuid: r.uuid, description: txt(r.description), providedUuid: r["provided-uuid"], responsibleRoles: roles });
+            contributed = true;
+          }
         }
 
-        for (const r of exp.responsibilities || []) {
-          if (!r.uuid) continue;
-          const roles = (r["responsible-roles"] || []).map((rr: any) => ({ roleId: rr["role-id"] || "" }));
-          responsibilities.set(r.uuid, {
-            providerSspTitle: sspTitle,
-            providerComponentTitle: compTitle,
-            controlId,
-            description: txt(r.description),
-            linkedProvidedUuid: r["provided-uuid"],
-            responsibleRoles: roles,
-          });
-          respEntries.push({ uuid: r.uuid, description: txt(r.description), providedUuid: r["provided-uuid"], responsibleRoles: roles });
-          contributed = true;
-        }
-
-        // Build control-id-based index
-        if (providedEntries.length > 0 || respEntries.length > 0) {
-          const existing = byControl.get(controlId) || [];
-          existing.push({
-            providerSspTitle: sspTitle,
-            providerComponentTitle: compTitle,
-            description: txt(exp.description),
-            provided: providedEntries,
-            responsibilities: respEntries,
-          });
-          byControl.set(controlId, existing);
-        }
+        const existing = byControl.get(controlId) || [];
+        existing.push({
+          providerSspTitle: sspTitle,
+          providerComponentTitle: compTitle,
+          description: txt(exp?.description),
+          provided: providedEntries,
+          responsibilities: respEntries,
+        });
+        byControl.set(controlId, existing);
+        controlHasAnyEntry = true;
       }
+
+      if (controlHasAnyEntry) contributed = true;
     }
 
     if (contributed) providerCount++;
