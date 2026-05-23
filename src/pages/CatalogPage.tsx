@@ -21,8 +21,9 @@ import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
-import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTag, IcoUpload } from "../components/IconAliases";
+import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
+import { backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import type {
   Catalog,
   Control,
@@ -227,6 +228,15 @@ function sectionIcon(icon: string, size = 16, style?: CSSProperties): ReactNode 
     case "bulb": return <IcoBulb size={size} style={style} />;
     case "check": return <IcoCheck size={size} style={style} />;
     default: return <IcoInfo size={size} style={style} />;
+  }
+}
+
+function resourceIcon(icon: string, size = 14, style?: CSSProperties): ReactNode {
+  switch (icon) {
+    case "cloud": return <IcoCloud size={size} style={style} />;
+    case "code": return <IcoCode size={size} style={style} />;
+    case "target": return <IcoTarget size={size} style={style} />;
+    default: return <IcoBook size={size} style={style} />;
   }
 }
 
@@ -1068,7 +1078,7 @@ function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: 
   const familyCount = groups.length;
 
   // Count withdrawn vs active
-  const withdrawn = allCtrls.filter((c) => (c.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn")).length;
+  const withdrawn = allCtrls.filter((c) => (c.props ?? []).some(isWithdrawnStatusProp)).length;
   const active = allCtrls.length - withdrawn;
 
   return (
@@ -1276,12 +1286,11 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
       )
     : resources;
 
-  // Group resources by definition-type prop if present
+  // Group resources by a shared type prop convention when present.
   const typeGroups = useMemo(() => {
     const map = new Map<string, Resource[]>();
     for (const r of filtered) {
-      const typeProp = (r.props ?? []).find((p) => p.name === "definition-type");
-      const key = typeProp ? typeProp.value : "other";
+      const key = backMatterResourceType(r);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     }
@@ -1327,14 +1336,16 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
               fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1,
               color: colors.gray, marginBottom: 6, marginTop: 12,
             }}>
-              {type === "other" ? "Resources" : type.replace(/-/g, " ")}
+              {backMatterResourceVisual(type).label}
               <span style={{ fontWeight: 400, marginLeft: 6 }}>({items.length})</span>
             </div>
           )}
           <Card>
             {items.map((r, i) => {
-              const defType = (r.props ?? []).find((p) => p.name === "definition-type");
-              const otherProps = (r.props ?? []).filter((p) => p.name !== "definition-type");
+              const type = backMatterResourceType(r);
+              const meta = backMatterResourceVisual(type);
+              const hasType = type !== "other";
+              const otherProps = (r.props ?? []).filter((p) => !isBackMatterResourceTypeProp(p));
               return (
                 <div
                   key={r.uuid}
@@ -1346,17 +1357,17 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <IcoBook size={14} style={{ color: colors.cobalt, flexShrink: 0 }} />
+                    {resourceIcon(meta.iconKey, 14, { color: meta.color, flexShrink: 0 })}
                     <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
                       {r.title ?? "Untitled Resource"}
                     </span>
-                    {defType && (
+                    {hasType && (
                       <span style={{
                         fontSize: 10, padding: "1px 8px", borderRadius: radii.pill,
-                        backgroundColor: alpha(colors.cobalt, 0.12), color: colors.cobalt,
+                        backgroundColor: alpha(meta.color, 12), color: meta.color,
                         fontWeight: 600, textTransform: "capitalize", flexShrink: 0,
                       }}>
-                        {defType.value.replace(/-/g, " ")}
+                        {meta.label}
                       </span>
                     )}
                   </div>
@@ -1581,7 +1592,7 @@ function GroupView({ group, catalog: _catalog, navigate }: { group: Group; catal
         {controls.map((c) => {
           const cLbl = getLabel(c.props);
           const enhCount = (c.controls ?? []).length;
-          const isWithdrawn = (c.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn");
+          const isWithdrawn = (c.props ?? []).some(isWithdrawnStatusProp);
           return (
             <div
               key={c.id}
@@ -1627,7 +1638,7 @@ function ControlView({ control, catalog, navigate }: {
   control: Control; catalog: Catalog; navigate: (id: string) => void;
 }) {
   const lbl = getLabel(control.props);
-  const isWithdrawn = (control.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn");
+  const isWithdrawn = (control.props ?? []).some(isWithdrawnStatusProp);
   const enhancements = control.controls ?? [];
   const params = control.params ?? [];
   const links = control.links ?? [];
@@ -1801,7 +1812,7 @@ function ControlView({ control, catalog, navigate }: {
           <SectionLabel>Control Enhancements ({enhancements.length})</SectionLabel>
           {enhancements.map((enh) => {
             const eLbl = getLabel(enh.props);
-            const eWithdrawn = (enh.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn");
+            const eWithdrawn = (enh.props ?? []).some(isWithdrawnStatusProp);
             return (
               <div key={enh.id} onClick={() => navigate(`ctrl-${enh.id}`)}
                 style={{

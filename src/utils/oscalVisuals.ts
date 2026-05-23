@@ -32,6 +32,14 @@ export function findOscalProp<T extends OscalVisualProp>(props: T[] = [], name: 
   return props.find((p) => p.name === name && isOscalNamespace(p.ns)) ?? props.find((p) => p.name === name);
 }
 
+export function findRequiredOscalProp<T extends OscalVisualProp>(props: T[] = [], name: string): T | undefined {
+  return props.find((p) => p.name === name && isOscalNamespace(p.ns));
+}
+
+export function isWithdrawnStatusProp(prop: OscalVisualProp): boolean {
+  return prop.name === "status" && prop.value === "withdrawn" && isOscalNamespace(prop.ns);
+}
+
 export function propDisplayName(prop: OscalVisualProp): string {
   return prop.class ? `${prop.name} (${prop.class})` : prop.name;
 }
@@ -113,6 +121,13 @@ const PROP_VISUALS: Record<string, VisualMeta & { label: string }> = {
   model: { label: "Model", iconKey: "file-code", color: colors.cobalt },
 };
 
+const BACK_MATTER_RESOURCE_VISUALS: Record<string, VisualMeta & { label: string }> = {
+  "azure-documentation": { label: "Azure Docs", iconKey: "cloud", color: colors.cobalt },
+  standards: { label: "Standards", iconKey: "book", color: colors.navy },
+  "iac-tooling": { label: "IaC Tooling", iconKey: "code", color: colors.mint },
+  "threat-intelligence": { label: "Threat Intel", iconKey: "target", color: colors.red },
+};
+
 export function propVisual(prop: OscalVisualProp): VisualMeta & { label: string } {
   if (prop.name === "asset-type" && isCanonicalAssetType(prop.value)) {
     return { ...assetTypeVisual(prop.value), label: PROP_VISUALS["asset-type"].label };
@@ -124,4 +139,22 @@ export function raisedOscalProps<T extends OscalVisualProp>(props: T[] = []): T[
   const preferred = Object.keys(PROP_VISUALS);
   const csrcProps = oscalNamespaceProps(props);
   return preferred.flatMap((name) => csrcProps.filter((p) => p.name === name));
+}
+
+export function isBackMatterResourceTypeProp(prop: OscalVisualProp): boolean {
+  return prop.name === "type" || prop.name === "definition-type";
+}
+
+export function backMatterResourceType(resource: { props?: OscalVisualProp[] }): string {
+  const props = resource.props ?? [];
+  return props.find((p) => p.name === "type")?.value ?? props.find((p) => p.name === "definition-type")?.value ?? "other";
+}
+
+export function backMatterResourceVisual(resourceOrType: { props?: OscalVisualProp[] } | string): VisualMeta & { label: string } {
+  const type = typeof resourceOrType === "string" ? resourceOrType : backMatterResourceType(resourceOrType);
+  return BACK_MATTER_RESOURCE_VISUALS[type] ?? {
+    label: type === "other" ? "Resources" : type.replace(/-/g, " "),
+    iconKey: "book",
+    color: colors.gray,
+  };
 }

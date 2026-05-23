@@ -61,6 +61,8 @@ import {
   IcoValidation,
 } from "../components/IconAliases";
 import {
+  backMatterResourceType,
+  backMatterResourceVisual,
   componentTypeVisual,
   propDisplayName,
   propVisual,
@@ -191,13 +193,6 @@ const FAMILIES: Record<string, string> = {
   SI: "System and Information Integrity", SR: "Supply Chain Risk Management",
 };
 
-const RES_TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
-  "azure-documentation": { label: "Azure Docs", color: colors.cobalt, icon: "cloud" },
-  standards: { label: "Standards", color: colors.navy, icon: "book" },
-  "iac-tooling": { label: "IaC Tooling", color: colors.mint, icon: "code" },
-  "threat-intelligence": { label: "Threat Intel", color: colors.red, icon: "target" },
-};
-
 function familyOf(id: string) {
   const m = (id || "").match(/^([a-z]{2})-/i);
   return m ? m[1].toUpperCase() : "??";
@@ -223,10 +218,6 @@ function fmtDate(s?: string) {
   } catch {
     return s;
   }
-}
-function resType(res: Resource) {
-  const tp = (res.props ?? []).find((p) => p.name === "type");
-  return tp ? tp.value : "other";
 }
 function trunc(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "\u2026" : s;
@@ -676,7 +667,7 @@ export default function ComponentDefinitionPage() {
     if (bmRes.length > 0) {
       const grouped: Record<string, Resource[]> = {};
       bmRes.forEach((r) => {
-        const t = resType(r);
+        const t = backMatterResourceType(r);
         (grouped[t] ??= []).push(r);
       });
 
@@ -689,12 +680,12 @@ export default function ComponentDefinitionPage() {
       });
 
       Object.entries(grouped).forEach(([type, resources]) => {
-        const meta = RES_TYPE_META[type] ?? { label: type, color: colors.gray, icon: "book" };
+        const meta = backMatterResourceVisual(type);
         const groupId = `res-group-${type}`;
         items.push({
           id: groupId,
           label: `${meta.label} (${resources.length})`,
-          icon: meta.icon,
+          icon: meta.iconKey,
           color: meta.color,
           depth: 1,
           parent: "references",
@@ -705,7 +696,7 @@ export default function ComponentDefinitionPage() {
           items.push({
             id: `res-${r.uuid}`,
             label: trunc(r.title ?? "Untitled", 28),
-            icon: meta.icon,
+            icon: meta.iconKey,
             color: meta.color,
             depth: 2,
             parent: groupId,
@@ -1039,13 +1030,13 @@ function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog, res
   // res-group-*
   if (view.startsWith("res-group-")) {
     const type = view.replace("res-group-", "");
-    const filtered = bmRes.filter((r) => resType(r) === type);
-    const meta = RES_TYPE_META[type];
+    const filtered = bmRes.filter((r) => backMatterResourceType(r) === type);
+    const meta = backMatterResourceVisual(type);
     return (
       <BackMatterView
         resources={filtered}
         navigate={navigate}
-        title={meta?.label ?? type}
+        title={meta.label}
         filtered
       />
     );
@@ -2490,8 +2481,8 @@ function BackMatterView({
     if (filtered) return { [title ?? "Resources"]: resources };
     const m: Record<string, Resource[]> = {};
     resources.forEach((r) => {
-      const t = resType(r);
-      const meta = RES_TYPE_META[t];
+      const t = backMatterResourceType(r);
+      const meta = backMatterResourceVisual(t);
       const key = meta?.label ?? t;
       (m[key] ??= []).push(r);
     });
@@ -2517,8 +2508,7 @@ function BackMatterView({
             {groupLabel} ({items.length})
           </SectionLabel>
           {items.map((r) => {
-            const type = resType(r);
-            const meta = RES_TYPE_META[type];
+            const meta = backMatterResourceVisual(r);
             return (
               <div
                 key={r.uuid}
@@ -2532,7 +2522,7 @@ function BackMatterView({
                   cursor: "pointer",
                 }}
               >
-                {resIcon(meta?.icon ?? "book", 14, {
+                {resIcon(meta.iconKey, 14, {
                   color: meta?.color ?? colors.gray,
                 })}
                 <span
@@ -2564,8 +2554,8 @@ function ResourceView({
   res: Resource;
   navigate: (id: string) => void;
 }) {
-  const type = resType(res);
-  const meta = RES_TYPE_META[type];
+  const type = backMatterResourceType(res);
+  const meta = backMatterResourceVisual(type);
 
   return (
     <div>
@@ -2585,7 +2575,7 @@ function ResourceView({
           marginBottom: 16,
         }}
       >
-        {resIcon(meta?.icon ?? "book", 22, {
+        {resIcon(meta.iconKey, 22, {
           color: meta?.color ?? colors.navy,
         })}
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>

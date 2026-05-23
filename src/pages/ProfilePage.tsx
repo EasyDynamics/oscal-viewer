@@ -26,6 +26,7 @@ import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
+import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2021,7 +2022,7 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
           <SectionLabel>Control Enhancements ({enhancements.length})</SectionLabel>
           {enhancements.map((enh) => {
             const eLbl = getLabel(enh.props);
-            const eWithdrawn = (enh.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn");
+            const eWithdrawn = (enh.props ?? []).some(isWithdrawnStatusProp);
             const enhHasAlter = alterMap.has(enh.id);
             return (
               <div key={enh.id} onClick={() => navigate(`ctrl-${enh.id}`)}
