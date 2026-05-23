@@ -5,9 +5,11 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import type { CSSProperties } from "react";
+import { Link } from "react-router-dom";
+import DocsNav from "../components/DocsNav";
 import { colors, fonts, shadows, radii, alpha } from "../theme/tokens";
 import useIsMobile from "../hooks/useIsMobile";
-import { IcoArrowDown, IcoBook, IcoDatabase, IcoInfo, IcoLayers, IcoLink, IcoShield, IcoSliders } from "../components/IconAliases";
+import { IcoArrowDown, IcoBook, IcoDatabase, IcoInfo, IcoLayers, IcoLink, IcoPaperclip, IcoShield, IcoSliders, IcoStandard, IcoTag, IcoTarget } from "../components/IconAliases";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPONENT
@@ -15,9 +17,19 @@ import { IcoArrowDown, IcoBook, IcoDatabase, IcoInfo, IcoLayers, IcoLink, IcoShi
 
 export default function HowItWorksPage() {
   const isMobile = useIsMobile();
+  const navItems = [
+    { href: "#catalog-source", label: "Catalog source", description: "Why control prose comes from catalogs", color: colors.navy, icon: <IcoDatabase size={16} /> },
+    { href: "#profiles", label: "Profiles", description: "Selection, tailoring, and imports", color: colors.brightBlue, icon: <IcoSliders size={16} /> },
+    { href: "#reference-flow", label: "Reference flow", description: "How OSCAL models connect", color: colors.cobalt, icon: <IcoLink size={16} /> },
+    { href: "#resolution", label: "Resolution", description: "Direct URLs, back matter, and chains", color: colors.darkGreen, icon: <IcoShield size={16} /> },
+    { href: "#viewer-props", label: "Viewer props", description: "Supported oscal.io namespace hints", color: colors.purple, icon: <IcoTag size={16} /> },
+    { href: "#format", label: "Format", description: "JSON support and constraints", color: colors.orange, icon: <IcoInfo size={16} /> },
+  ];
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: isMobile ? "20px 14px" : "36px 24px" }}>
+      <DocsNav />
+
       {/* ── Header ── */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -33,8 +45,54 @@ export default function HowItWorksPage() {
         </p>
       </div>
 
-      {/* ── The Catalog is the Source of Truth ── */}
+      {/* ── Documentation Overview ── */}
       <Card>
+        <SectionHeader icon={<IcoBook size={18} style={{ color: colors.navy }} />} color={colors.navy}>
+          Documentation Overview
+        </SectionHeader>
+        <p style={S.paragraph}>
+          This overview explains shared concepts like catalog enrichment, import resolution,
+          supported formats, and viewer namespace props.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+          <MiniCard title="Shared concepts" color={colors.cobalt}>
+            <p style={{ ...S.paragraph, marginBottom: 0 }}>
+              Reference chains, back-matter resolution, JSON-only support, and producer guidance
+              apply across multiple OSCAL models.
+            </p>
+          </MiniCard>
+          <MiniCard title="SSP viewer guide" color={colors.darkGreen}>
+            <p style={{ ...S.paragraph, marginBottom: 8 }}>
+              The SSP guide covers diagrams, provider SSPs, leveraged authorizations, and control
+              implementation views.
+            </p>
+            <Link to="/docs/ssp" style={{ fontSize: 12, color: colors.brightBlue, fontWeight: 700, textDecoration: "none" }}>
+              Read the SSP viewer guide →
+            </Link>
+          </MiniCard>
+        </div>
+      </Card>
+
+      {/* ── Page Navigation ── */}
+      <Card style={{ padding: isMobile ? "18px 18px" : "20px 24px" }}>
+        <SectionHeader icon={<IcoInfo size={18} style={{ color: colors.cobalt }} />} color={colors.cobalt}>
+          Quick Navigation
+        </SectionHeader>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 10 }}>
+          {navItems.map((item) => (
+            <a key={item.href} href={item.href} style={{ ...S.navCard, borderColor: alpha(item.color, 26), backgroundColor: alpha(item.color, 5) }}>
+              <span style={{ ...S.navIcon, color: item.color, backgroundColor: alpha(item.color, 12) }}>{item.icon}</span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 800, color: item.color }}>{item.label}</span>
+                <span style={{ display: "block", fontSize: 11, color: colors.gray, lineHeight: 1.35 }}>{item.description}</span>
+              </span>
+            </a>
+          ))}
+        </div>
+      </Card>
+
+      {/* ── The Catalog is the Source of Truth ── */}
+      <Card id="catalog-source">
         <SectionHeader icon={<IcoDatabase size={18} style={{ color: colors.navy }} />} color={colors.navy}>
           The Catalog is the Source of Truth
         </SectionHeader>
@@ -60,7 +118,7 @@ export default function HowItWorksPage() {
       </Card>
 
       {/* ── What a Profile Does ── */}
-      <Card>
+      <Card id="profiles">
         <SectionHeader icon={<IcoSliders size={18} style={{ color: colors.brightBlue }} />} color={colors.brightBlue}>
           What a Profile Does (and Doesn't Do)
         </SectionHeader>
@@ -88,7 +146,7 @@ export default function HowItWorksPage() {
       </Card>
 
       {/* ── Reference Flow Diagram ── */}
-      <Card>
+      <Card id="reference-flow">
         <SectionHeader icon={<IcoLink size={18} style={{ color: colors.cobalt }} />} color={colors.cobalt}>
           How References Flow
         </SectionHeader>
@@ -136,7 +194,7 @@ export default function HowItWorksPage() {
       </Card>
 
       {/* ── How the Viewer Resolves a Profile Import ── */}
-      <Card>
+      <Card id="resolution">
         <SectionHeader icon={<IcoLink size={18} style={{ color: colors.orange }} />} color={colors.orange}>
           Resolving Profile Import References
         </SectionHeader>
@@ -247,8 +305,103 @@ export default function HowItWorksPage() {
         </Callout>
       </Card>
 
+      {/* ── OSCAL.io Viewer Namespace Props ── */}
+      <Card id="viewer-props">
+        <SectionHeader icon={<IcoTag size={18} style={{ color: colors.purple }} />} color={colors.purple}>
+          OSCAL.io Namespace Props
+        </SectionHeader>
+        <p style={S.paragraph}>
+          OSCAL allows extensions through <code style={S.code}>props</code>. This viewer intentionally
+          special-cases only a small set of props in the <code style={S.code}>http://oscal.io/ns</code>{" "}
+          namespace. These props are viewer hints for generated or enriched content; they are not
+          replacements for normative OSCAL fields and should not use the CSRC OSCAL namespace.
+        </p>
+        <Callout color={colors.purple}>
+          <strong>Producer rule:</strong> if a prop is meant to trigger viewer-specific behavior,
+          include <code style={S.code}>"ns": "http://oscal.io/ns"</code>. Same-named props in other
+          namespaces are treated as ordinary properties.
+        </Callout>
+
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", marginTop: 16 }}>
+          <MiniCard title="Implemented requirement: llm-generated" color={colors.purple}>
+            <p style={S.paragraph}>
+              Use this on component-definition implemented requirements when an LLM generated the
+              implementation content.
+            </p>
+            <code style={S.codeSm}>{`{
+  "name": "llm-generated",
+  "ns": "http://oscal.io/ns",
+  "value": "yes"
+}`}</code>
+            <ul style={{ ...S.list, marginTop: 10, marginBottom: 0 }}>
+              <li><code style={S.code}>yes</code> shows an <strong>LLM Generated</strong> badge.</li>
+              <li><code style={S.code}>no</code> is hidden by default.</li>
+              <li>Unknown values are ignored.</li>
+            </ul>
+          </MiniCard>
+
+          <MiniCard title="Back-matter resource: type" color={colors.cobalt}>
+            <p style={S.paragraph}>
+              Use this on component-definition back-matter resources to categorize references and
+              attachments in the References tree.
+            </p>
+            <code style={S.codeSm}>{`{
+  "name": "type",
+  "ns": "http://oscal.io/ns",
+  "value": "standards"
+}`}</code>
+            <p style={{ ...S.paragraph, marginTop: 10, marginBottom: 0 }}>
+              The viewer reads the <code style={S.code}>value</code> and groups resources by type.
+            </p>
+          </MiniCard>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: colors.navy, marginBottom: 8 }}>
+            Supported back-matter type values
+          </div>
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)" }}>
+            <TypeRow icon={<IcoStandard size={16} />} color={colors.navy} value="standards" label="Standards" description="Standards, specifications, control references, and authoritative documentation." />
+            <TypeRow icon={<IcoTarget size={16} />} color={colors.red} value="threat-intelligence" label="Threat Intel" description="Threat models, ATT&CK references, adversary notes, or intelligence sources." />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <SectionHeader icon={<IcoPaperclip size={18} style={{ color: colors.orange }} />} color={colors.orange}>
+            Embedded Back-Matter Attachments
+          </SectionHeader>
+          <p style={S.paragraph}>
+            Back-matter resources can also carry embedded artifacts through a resource-level
+            <code style={S.code}>base64</code> object. The viewer turns this into a downloadable
+            attachment. If no recognized <code style={S.code}>type</code> prop is present, the
+            resource is grouped as <strong>Embedded Attachments</strong> with a paperclip icon.
+          </p>
+          <code style={S.codeSm}>{`{
+  "uuid": "11111111-1111-4111-8111-111111111111",
+  "title": "Threat Intelligence Brief",
+  "props": [
+    {
+      "name": "type",
+      "ns": "http://oscal.io/ns",
+      "value": "threat-intelligence"
+    }
+  ],
+  "base64": {
+    "filename": "threat-brief.pdf",
+    "media-type": "application/pdf",
+    "value": "JVBERi0xLjQKJ..."
+  }
+}`}</code>
+          <ul style={{ ...S.list, marginTop: 12, marginBottom: 0 }}>
+            <li>Keep attachment payloads in <code style={S.code}>base64</code>, not in <code style={S.code}>props[].value</code>.</li>
+            <li>Include both <code style={S.code}>type</code> and <code style={S.code}>base64</code> when an embedded artifact should appear in a semantic category.</li>
+            <li>Use <code style={S.code}>filename</code> and <code style={S.code}>media-type</code> so the browser can label and download the artifact correctly.</li>
+          </ul>
+        </div>
+      </Card>
+
       {/* ── Supported Format ── */}
-      <Card>
+      <Card id="format">
         <SectionHeader icon={<IcoInfo size={18} style={{ color: colors.orange }} />} color={colors.orange}>
           Supported Format: JSON Only
         </SectionHeader>
@@ -319,10 +472,27 @@ export default function HowItWorksPage() {
    SUB-COMPONENTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function Card({ children, style }: { children: React.ReactNode; style?: CSSProperties }) {
+function Card({ children, id, style }: { children: React.ReactNode; id?: string; style?: CSSProperties }) {
   return (
-    <div style={{ backgroundColor: colors.card, borderRadius: radii.md, padding: "24px 28px", boxShadow: shadows.sm, marginBottom: 20, ...style }}>
+    <div id={id} style={{ backgroundColor: colors.card, borderRadius: radii.md, padding: "24px 28px", boxShadow: shadows.sm, marginBottom: 20, scrollMarginTop: 96, ...style }}>
       {children}
+    </div>
+  );
+}
+
+function TypeRow({ icon, color, value, label, description }: { icon: React.ReactNode; color: string; value: string; label: string; description: string }) {
+  return (
+    <div style={{ display: "flex", gap: 10, padding: "12px 14px", borderRadius: radii.md, backgroundColor: alpha(color, 5), border: `1px solid ${alpha(color, 18)}` }}>
+      <span style={{ ...S.typeIcon, color, backgroundColor: alpha(color, 12) }}>{icon}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <code style={{ ...S.code, backgroundColor: colors.card }}>{value}</code>
+          <strong style={{ fontSize: 13, color }}>{label}</strong>
+        </span>
+        <span style={{ display: "block", fontSize: 12, lineHeight: 1.5, color: colors.gray, marginTop: 6 }}>
+          {description}
+        </span>
+      </span>
     </div>
   );
 }
@@ -399,6 +569,33 @@ function DiagramArrow({ label }: { label: string }) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const S: Record<string, CSSProperties> = {
+  navCard: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    border: `1px solid ${colors.paleGray}`,
+    borderRadius: radii.md,
+    padding: "12px 14px",
+    textDecoration: "none",
+  },
+  navIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.pill,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  typeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.pill,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
   paragraph: {
     fontSize: 14,
     lineHeight: 1.7,

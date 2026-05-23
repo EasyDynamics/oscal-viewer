@@ -13,6 +13,7 @@ import AssessmentPlanPage from "./pages/AssessmentPlanPage";
 import AssessmentResultsPage from "./pages/AssessmentResultsPage";
 import PoamPage from "./pages/PoamPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
+import DocsSspPage from "./pages/DocsSspPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 
 export default function App() {
@@ -39,6 +40,8 @@ export default function App() {
           <Route path="poam" element={<PoamPage />} />
           <Route path="plans-of-action-and-milestones" element={<PoamPage />} />
           <Route path="how-it-works" element={<HowItWorksPage />} />
+          <Route path="docs" element={<HowItWorksPage />} />
+          <Route path="docs/ssp" element={<DocsSspPage />} />
           <Route path="privacy" element={<PrivacyPolicyPage />} />
         </Route>
       </Routes>

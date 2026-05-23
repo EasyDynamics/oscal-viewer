@@ -22,9 +22,9 @@ import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
-import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
+import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
-import { backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
+import { backMatterBase64Link, backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import type {
   Catalog,
   Control,
@@ -237,6 +237,8 @@ function resourceIcon(icon: string, size = 14, style?: CSSProperties): ReactNode
     case "cloud": return <IcoCloud size={size} style={style} />;
     case "code": return <IcoCode size={size} style={style} />;
     case "target": return <IcoTarget size={size} style={style} />;
+    case "standard": return <IcoStandard size={size} style={style} />;
+    case "paperclip": return <IcoPaperclip size={size} style={style} />;
     default: return <IcoBook size={size} style={style} />;
   }
 }
@@ -1422,6 +1424,9 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
 function ResourceDetailView({ resource: r, navigate }: { resource: Resource; navigate: (id: string) => void }) {
   const rlinks = r.rlinks ?? [];
   const props = r.props ?? [];
+  const type = backMatterResourceType(r);
+  const meta = backMatterResourceVisual(type);
+  const base64Link = backMatterBase64Link(r);
 
   return (
     <div>
@@ -1432,7 +1437,7 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <IcoBook size={22} style={{ color: colors.cobalt }} />
+        {resourceIcon(meta.iconKey, 22, { color: meta.color })}
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{r.title ?? "Untitled Resource"}</h1>
       </div>
 
@@ -1451,9 +1456,25 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
         <SectionLabel>Details</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 16 }}>
           <MField label="UUID" value={r.uuid} mono />
+          <MField label="Type" value={meta.label ?? type} />
           {r.citation && <MField label="Citation" value={r.citation.text} />}
         </div>
       </Card>
+
+      {base64Link && (
+        <Card>
+          <SectionLabel>Embedded Attachment</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <IcoPaperclip size={13} style={{ color: colors.orange }} />
+            <a href={base64Link.href} download={base64Link.filename} style={{ fontSize: 13, color: colors.brightBlue }}>
+              {base64Link.filename}
+            </a>
+            {base64Link.mediaType && (
+              <span style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{base64Link.mediaType}</span>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Properties */}
       {props.length > 0 && (

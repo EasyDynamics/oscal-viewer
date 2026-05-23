@@ -296,6 +296,7 @@ export default function Layout() {
 
       {/* ── Footer ── */}
       <footer style={styles.footer}>
+        <NavLink to="/docs" style={styles.footerLink}>Documentation</NavLink>
         <NavLink to="/privacy" style={styles.footerLink}>Privacy Policy</NavLink>
       </footer>
 

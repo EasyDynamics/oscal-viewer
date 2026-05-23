@@ -19,9 +19,14 @@ export interface ResolvedComponentVisual extends VisualMeta {
 }
 
 export const OSCAL_NAMESPACE = "http://csrc.nist.gov/ns/oscal";
+export const OSCAL_IO_NAMESPACE = "http://oscal.io/ns";
 
 export function isOscalNamespace(ns?: string): boolean {
   return (ns || "").replace(/\/$/, "") === OSCAL_NAMESPACE;
+}
+
+export function isOscalIoNamespace(ns?: string): boolean {
+  return (ns || "").replace(/\/$/, "") === OSCAL_IO_NAMESPACE;
 }
 
 export function oscalNamespaceProps<T extends OscalVisualProp>(props: T[] = []): T[] {
@@ -34,6 +39,16 @@ export function findOscalProp<T extends OscalVisualProp>(props: T[] = [], name: 
 
 export function findRequiredOscalProp<T extends OscalVisualProp>(props: T[] = [], name: string): T | undefined {
   return props.find((p) => p.name === name && isOscalNamespace(p.ns));
+}
+
+export function findOscalIoProp<T extends OscalVisualProp>(props: T[] = [], name: string): T | undefined {
+  return props.find((p) => p.name === name && isOscalIoNamespace(p.ns));
+}
+
+export function llmGeneratedLabel(props: OscalVisualProp[] = []): string | undefined {
+  const prop = findOscalIoProp(props, "llm-generated");
+  if (!prop) return undefined;
+  return prop.value.toLowerCase() === "yes" ? "LLM Generated" : undefined;
 }
 
 export function isWithdrawnStatusProp(prop: OscalVisualProp): boolean {
@@ -122,11 +137,72 @@ const PROP_VISUALS: Record<string, VisualMeta & { label: string }> = {
 };
 
 const BACK_MATTER_RESOURCE_VISUALS: Record<string, VisualMeta & { label: string }> = {
-  "azure-documentation": { label: "Azure Docs", iconKey: "cloud", color: colors.cobalt },
-  standards: { label: "Standards", iconKey: "book", color: colors.navy },
-  "iac-tooling": { label: "IaC Tooling", iconKey: "code", color: colors.mint },
+  standards: { label: "Standards", iconKey: "standard", color: colors.navy },
   "threat-intelligence": { label: "Threat Intel", iconKey: "target", color: colors.red },
+  "embedded-attachment": { label: "Embedded Attachments", iconKey: "paperclip", color: colors.orange },
+  "azure-documentation": { label: "Cloud Documentation", iconKey: "cloud", color: colors.cobalt },
 };
+
+const OSCAL_IO_BACK_MATTER_RESOURCE_TYPES = new Set(["standards", "threat-intelligence"]);
+
+export interface BackMatterBase64Content {
+  filename?: string;
+  mediaType?: string;
+  value: string;
+}
+
+function mediaTypeFromFilename(filename?: string): string | undefined {
+  const lower = filename?.toLowerCase().split(/[?#]/)[0] ?? "";
+  if (!lower) return undefined;
+  if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "text/markdown";
+  if (lower.endsWith(".txt") || lower.endsWith(".log")) return "text/plain";
+  if (lower.endsWith(".json")) return "application/json";
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return undefined;
+}
+
+export function parseBackMatterBase64Content(value: unknown): BackMatterBase64Content | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") return { value };
+  if (typeof value !== "object") return undefined;
+  const obj = value as Record<string, unknown>;
+  const content = String(obj.value ?? obj.data ?? obj.content ?? "");
+  if (!content) return undefined;
+  const filename = typeof obj.filename === "string" ? obj.filename
+    : typeof obj.name === "string" ? obj.name
+    : typeof obj.title === "string" ? obj.title
+    : undefined;
+  const mediaType = typeof obj["media-type"] === "string" ? obj["media-type"]
+    : typeof obj.mediaType === "string" ? obj.mediaType
+    : mediaTypeFromFilename(filename);
+  return { filename, mediaType, value: content };
+}
+
+export function backMatterBase64DataUrl(base64: BackMatterBase64Content, mediaTypeOverride?: string): string {
+  const mediaType = base64.mediaType || mediaTypeOverride || "application/octet-stream";
+  const value = base64.value.replace(/\s+/g, "");
+  if (value.startsWith("data:")) return value;
+  return `data:${mediaType};base64,${value}`;
+}
+
+export function backMatterBase64Link(resource: { title?: string; base64?: unknown }): { href: string; mediaType?: string; filename?: string } | undefined {
+  const base64 = parseBackMatterBase64Content(resource.base64);
+  if (!base64) return undefined;
+  return {
+    href: backMatterBase64DataUrl(base64),
+    mediaType: base64.mediaType,
+    filename: base64.filename || resource.title || "attachment",
+  };
+}
+
+export function hasBackMatterBase64(resource: { base64?: unknown }): boolean {
+  return !!parseBackMatterBase64Content(resource.base64);
+}
 
 export function propVisual(prop: OscalVisualProp): VisualMeta & { label: string } {
   if (prop.name === "asset-type" && isCanonicalAssetType(prop.value)) {
@@ -142,15 +218,18 @@ export function raisedOscalProps<T extends OscalVisualProp>(props: T[] = []): T[
 }
 
 export function isBackMatterResourceTypeProp(prop: OscalVisualProp): boolean {
-  return prop.name === "type" || prop.name === "definition-type";
+  return (prop.name === "type" && isOscalIoNamespace(prop.ns)) || prop.name === "definition-type";
 }
 
-export function backMatterResourceType(resource: { props?: OscalVisualProp[] }): string {
+export function backMatterResourceType(resource: { props?: OscalVisualProp[]; base64?: unknown }): string {
   const props = resource.props ?? [];
-  return props.find((p) => p.name === "type")?.value ?? props.find((p) => p.name === "definition-type")?.value ?? "other";
+  const oscalIoType = findOscalIoProp(props, "type")?.value;
+  return (oscalIoType && OSCAL_IO_BACK_MATTER_RESOURCE_TYPES.has(oscalIoType) ? oscalIoType : undefined)
+    ?? props.find((p) => p.name === "definition-type")?.value
+    ?? (hasBackMatterBase64(resource) ? "embedded-attachment" : "other");
 }
 
-export function backMatterResourceVisual(resourceOrType: { props?: OscalVisualProp[] } | string): VisualMeta & { label: string } {
+export function backMatterResourceVisual(resourceOrType: { props?: OscalVisualProp[]; base64?: unknown } | string): VisualMeta & { label: string } {
   const type = typeof resourceOrType === "string" ? resourceOrType : backMatterResourceType(resourceOrType);
   return BACK_MATTER_RESOURCE_VISUALS[type] ?? {
     label: type === "other" ? "Resources" : type.replace(/-/g, " "),

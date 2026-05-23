@@ -106,6 +106,7 @@ export interface Resource {
   description?: string;
   citation?: { text: string };
   rlinks?: { href: string; "media-type"?: string }[];
+  base64?: unknown;
   props?: OscalProp[];
   remarks?: string;
 }

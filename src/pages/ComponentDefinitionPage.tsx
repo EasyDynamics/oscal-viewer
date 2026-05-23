@@ -32,6 +32,7 @@ import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/
 import {
   IcoBook,
   IcoBox,
+  IcoBulb,
   IcoChev,
   IcoCloud,
   IcoCode,
@@ -46,6 +47,7 @@ import {
   IcoLayers,
   IcoLink,
   IcoNetwork,
+  IcoPaperclip,
   IcoPhysical,
   IcoPlan,
   IcoPolicy,
@@ -62,9 +64,11 @@ import {
   IcoValidation,
 } from "../components/IconAliases";
 import {
+  backMatterBase64Link,
   backMatterResourceType,
   backMatterResourceVisual,
   componentTypeVisual,
+  llmGeneratedLabel,
   propDisplayName,
   propVisual,
   raisedOscalProps,
@@ -170,6 +174,7 @@ interface Resource {
   description?: string | { prose: string };
   props?: OscalProp[];
   rlinks?: { href: string; "media-type"?: string }[];
+  base64?: unknown;
 }
 
 interface ComponentDefinition {
@@ -419,6 +424,8 @@ function resIcon(type: string, size = 13, style?: CSSProperties) {
   if (type === "cloud") return <IcoCloud size={size} style={style} />;
   if (type === "code") return <IcoCode size={size} style={style} />;
   if (type === "target") return <IcoTarget size={size} style={style} />;
+  if (type === "standard") return <IcoStandard size={size} style={style} />;
+  if (type === "paperclip") return <IcoPaperclip size={size} style={style} />;
   return <IcoBook size={size} style={style} />;
 }
 
@@ -1276,6 +1283,27 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function LlmGeneratedBadge() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 11,
+        padding: "2px 8px",
+        borderRadius: radii.pill,
+        backgroundColor: alpha(colors.purple, 12),
+        color: colors.purple,
+        fontWeight: 700,
+      }}
+    >
+      <IcoBulb size={12} />
+      LLM Generated
+    </span>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DROP ZONE  (shown when no file is loaded)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1945,6 +1973,7 @@ function ControlImplView({
             (req.props ?? []).find(
               (p) => p.name === "implementation-status",
             )?.value ?? "unknown";
+          const isLlmGenerated = !!llmGeneratedLabel(req.props);
           return (
             <div
               key={req.uuid}
@@ -1982,6 +2011,7 @@ function ControlImplView({
                 {familyName(req["control-id"])}
               </span>
               <StatusBadge status={status} />
+              {isLlmGenerated && <LlmGeneratedBadge />}
             </div>
           );
         })}
@@ -2277,6 +2307,7 @@ function RequirementView({
           {req.uuid}
         </span>
         <StatusBadge status={status} />
+        {llmGeneratedLabel(req.props) && <LlmGeneratedBadge />}
       </div>
 
       {/* Catalog control details */}
@@ -2558,6 +2589,7 @@ function ResourceView({
 }) {
   const type = backMatterResourceType(res);
   const meta = backMatterResourceVisual(type);
+  const base64Link = backMatterBase64Link(res);
 
   return (
     <div>
@@ -2597,6 +2629,21 @@ function ResourceView({
           <MField label="Type" value={meta?.label ?? type} />
         </div>
       </Card>
+
+      {base64Link && (
+        <Card>
+          <SectionLabel>Embedded Attachment</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <IcoPaperclip size={13} style={{ color: colors.orange }} />
+            <a href={base64Link.href} download={base64Link.filename} style={{ fontSize: 13, color: colors.brightBlue }}>
+              {base64Link.filename}
+            </a>
+            {base64Link.mediaType && (
+              <span style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{base64Link.mediaType}</span>
+            )}
+          </div>
+        </Card>
+      )}
 
       {res.description && (
         <Card>

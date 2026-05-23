@@ -149,15 +149,15 @@ export default function HomePage() {
         })}
       </div>
 
-      {/* Subtle link to How It Works */}
+      {/* Subtle link to Docs */}
       <div style={{ textAlign: "center", marginTop: isMobile ? 20 : 32, paddingBottom: 8 }}>
         <Link
-          to="/how-it-works"
+          to="/docs"
           style={{ fontSize: 12, color: colors.gray, textDecoration: "none", fontFamily: fonts.sans }}
           onMouseEnter={(e) => { (e.target as HTMLElement).style.color = colors.brightBlue; (e.target as HTMLElement).style.textDecoration = "underline"; }}
           onMouseLeave={(e) => { (e.target as HTMLElement).style.color = colors.gray; (e.target as HTMLElement).style.textDecoration = "none"; }}
         >
-          How does the viewer work? →
+          View documentation →
         </Link>
       </div>
     </div>
