@@ -5389,14 +5389,15 @@ export default function SspPage() {
     const bm = rawSspObj["back-matter"] as Record<string, unknown> | undefined;
     return (bm?.resources as BackMatterResource[] | undefined) ?? [];
   }, [rawSspObj]);
-  const importProfileHref = oscal.profile ? null : (ssp?.importProfileHref || null);
+  const sspDependenciesLoaded = !!oscal.profile && !!oscal.catalog;
+  const importProfileHref = sspDependenciesLoaded ? null : (ssp?.importProfileHref || null);
   const chain = useChainResolver(
     importProfileHref,
     sspBackMatter,
     urlDoc.sourceUrl,
     authToken,
     SSP_CHAIN,
-    !!oscal.profile,
+    sspDependenciesLoaded,
   );
   const leveragedResolver = useLeveragedSspResolver(
     raw,

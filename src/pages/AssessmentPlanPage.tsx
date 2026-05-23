@@ -1633,13 +1633,16 @@ export default function AssessmentPlanPage() {
     () => oscal.catalog ? AP_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : AP_CHAIN,
     [oscal.catalog],
   );
+  const apDependenciesLoaded = oscal.catalog
+    ? !!oscal.ssp
+    : !!oscal.ssp && !!oscal.profile && !!oscal.catalog;
   const chain = useChainResolver(
     importSspHref,
     apBackMatter,
     urlDoc.sourceUrl,
     authToken,
     resolverChain,
-    !!oscal.ssp,
+    apDependenciesLoaded,
   );
   const chainStored = useRef(new Set<string>());
   useEffect(() => {

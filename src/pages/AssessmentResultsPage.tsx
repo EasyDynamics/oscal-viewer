@@ -477,13 +477,16 @@ export default function AssessmentResultsPage() {
     () => oscal.catalog ? AR_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : AR_CHAIN,
     [oscal.catalog],
   );
+  const arDependenciesLoaded = oscal.catalog
+    ? !!oscal.assessmentPlan && !!oscal.ssp
+    : !!oscal.assessmentPlan && !!oscal.ssp && !!oscal.profile && !!oscal.catalog;
   const chain = useChainResolver(
     importApHref,
     arBackMatter,
     urlDoc.sourceUrl,
     authToken,
     resolverChain,
-    !!oscal.assessmentPlan,
+    arDependenciesLoaded,
   );
   const chainStored = useRef(new Set<string>());
   useEffect(() => {

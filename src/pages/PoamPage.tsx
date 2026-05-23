@@ -612,13 +612,16 @@ export default function PoamPage() {
     () => oscal.catalog ? POAM_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : POAM_CHAIN,
     [oscal.catalog],
   );
+  const poamDependenciesLoaded = oscal.catalog
+    ? !!oscal.ssp
+    : !!oscal.ssp && !!oscal.profile && !!oscal.catalog;
   const chain = useChainResolver(
     importSspHref,
     poamBackMatter,
     urlDoc.sourceUrl,
     authToken,
     resolverChain,
-    !!oscal.ssp,
+    poamDependenciesLoaded,
   );
   const chainStored = useRef(new Set<string>());
   useEffect(() => {

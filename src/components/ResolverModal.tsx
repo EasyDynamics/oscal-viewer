@@ -145,7 +145,10 @@ export default function ResolverModal({ items, onSkip }: Props) {
   const dismissedKeyRef = useRef<string | null>(null);
 
   const anyNonIdle = items.some((i) => i.status !== "idle");
-  const itemKey = items.map((i) => i.label).sort().join("|");
+  const itemKey = items
+    .map((i) => `${i.label}:${i.resolvedUrl ?? ""}`)
+    .sort()
+    .join("|");
 
   // Latch activated when any item goes non-idle, but not if we just dismissed this set
   useEffect(() => {
@@ -176,14 +179,6 @@ export default function ResolverModal({ items, onSkip }: Props) {
     }
   }, [items, activated]);
 
-  // Deactivate when items becomes empty (e.g., chain reset for new document)
-  useEffect(() => {
-    if (activated && items.length === 0) {
-      setActivated(false);
-      snapshotRef.current = new Map();
-    }
-  }, [activated, items.length]);
-
   // When dismissed, record the key so we don't re-trigger for the same items
   function handleContinue() {
     setDismissed(true);
@@ -194,8 +189,12 @@ export default function ResolverModal({ items, onSkip }: Props) {
 
   if (!activated || dismissed) return null;
 
-  // Use snapshot items for display (fall back to live items)
-  const displayItems = items.map((item) => snapshotRef.current.get(item.label) ?? item);
+  // Use snapshot items for display (fall back to live items).  Chain resolvers
+  // can reset to idle immediately after storing a resolved document in context;
+  // keep the modal content visible until the user clicks Continue.
+  const displayItems = items.length > 0
+    ? items.map((item) => snapshotRef.current.get(item.label) ?? item)
+    : Array.from(snapshotRef.current.values());
 
   const anyLoading = displayItems.some((i) => i.status === "loading");
   const anyError = displayItems.some((i) => i.status === "error");

@@ -130,6 +130,29 @@ function isOscalApiOrigin(url: string): boolean {
   }
 }
 
+function isCrossOrigin(url: string): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    return new URL(url, window.location.href).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function proxyFetch(
+  url: string,
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<Response> {
+  return fetch("/__proxy", {
+    credentials: "include",
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal,
+    body: JSON.stringify({ url, headers }),
+  });
+}
+
 /**
  * Fetch a URL with optional auth.
  *
@@ -155,6 +178,19 @@ export function authFetch(
 ): Promise<Response> {
   const needsCredentials = isOscalApiOrigin(url);
 
+  // In dev, route public cross-origin JSON requests through the Vite
+  // server-side proxy. This avoids browser CORS failures for registry/GitHub
+  // imports while still omitting credentials and Authorization for third-party
+  // hosts. Cookie-only API requests stay direct because the proxy cannot read
+  // browser cookies for api.oscal.io.
+  if (import.meta.env.DEV && isCrossOrigin(url) && (!needsCredentials || token)) {
+    return proxyFetch(
+      url,
+      needsCredentials && token ? { Authorization: `Bearer ${token}` } : {},
+      opts.signal,
+    );
+  }
+
   if (!token) {
     return fetch(url, {
       ...(needsCredentials && { credentials: "include" as const }),
@@ -171,18 +207,7 @@ export function authFetch(
 
   // In dev, route through the server-side proxy to avoid CORS
   // (localhost isn't in the registry's allowed origins)
-  if (import.meta.env.DEV) {
-    return fetch("/__proxy", {
-      credentials: "include",
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: opts.signal,
-      body: JSON.stringify({
-        url,
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-    });
-  }
+  if (import.meta.env.DEV) return proxyFetch(url, { Authorization: `Bearer ${token}` }, opts.signal);
 
   // In production, call the API directly — its CORS policy
   // allows the deployed viewer origin.
