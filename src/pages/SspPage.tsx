@@ -2570,6 +2570,55 @@ function textFromDataUrl(url: string): string {
   return decodeURIComponent(data);
 }
 
+const mermaidDiagramKeywords = [
+  "architecture-beta", "block-beta", "classDiagram", "C4Component", "C4Container", "C4Context", "C4Deployment",
+  "C4Dynamic", "erDiagram", "flowchart", "gantt", "gitGraph", "graph", "journey", "mindmap", "packet-beta",
+  "pie", "quadrantChart", "requirementDiagram", "sankey-beta", "sequenceDiagram", "stateDiagram", "timeline", "xychart-beta",
+];
+
+const mermaidDiagramKeywordPattern = mermaidDiagramKeywords.join("|");
+const mermaidRendererVersion = 3;
+
+function normalizeMermaidSource(source: string): string {
+  let normalized = source.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trim();
+
+  // Some embedded OSCAL resources compact Mermaid frontmatter to `---title: ...` or
+  // `---title: ...---flowchart`. Mermaid requires the YAML delimiters on their own lines.
+  normalized = normalized.replace(/^---\s*(?=[A-Za-z0-9_-]+\s*:)/, "---\n");
+  normalized = normalized.replace(
+    new RegExp(`\\n([^\\n]*?)---\\s*(${mermaidDiagramKeywordPattern})\\b`, "i"),
+    "\n$1\n---\n$2",
+  );
+  normalized = normalized.replace(
+    new RegExp(`^---\\n([\\s\\S]*?)\\n?---\\s*(${mermaidDiagramKeywordPattern})\\b`, "i"),
+    "---\n$1\n---\n$2",
+  );
+
+  return normalized;
+}
+
+function stripMermaidFrontmatter(source: string): string {
+  const normalized = source.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trim();
+  const diagramStart = normalized.match(new RegExp(`\\b(${mermaidDiagramKeywordPattern})\\b`, "i"));
+  if (diagramStart?.index !== undefined && (normalized.startsWith("---") || normalized.slice(0, diagramStart.index).includes("---"))) {
+    return normalized.slice(diagramStart.index).trim();
+  }
+  return normalized;
+}
+
+function mermaidSourceCandidates(source: string): string[] {
+  const normalized = normalizeMermaidSource(source);
+  const stripped = stripMermaidFrontmatter(normalized);
+  return Array.from(new Set([stripped, normalized].filter(Boolean)));
+}
+
+async function fetchDiagramText(url: string): Promise<string> {
+  if (url.startsWith("data:")) return textFromDataUrl(url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.text();
+}
+
 function MermaidDiagram({ url, compact }: { url: string; compact?: boolean }) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
@@ -2581,20 +2630,28 @@ function MermaidDiagram({ url, compact }: { url: string; compact?: boolean }) {
     setError("");
     (async () => {
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        const source = await res.text();
+        const sources = mermaidSourceCandidates(await fetchDiagramText(url));
         const mermaidModule = await import("mermaid");
         const mermaid = mermaidModule.default;
         mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "default" });
-        const rendered = await mermaid.render(renderId, source);
+        let rendered: Awaited<ReturnType<typeof mermaid.render>> | undefined;
+        let renderError: unknown;
+        for (const [index, source] of sources.entries()) {
+          try {
+            rendered = await mermaid.render(`${renderId}-${index}`, source);
+            break;
+          } catch (err) {
+            renderError = err;
+          }
+        }
+        if (!rendered) throw renderError ?? new Error("Unable to render Mermaid diagram");
         if (!cancelled) setSvg(rendered.svg);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Unable to render Mermaid diagram");
       }
     })();
     return () => { cancelled = true; };
-  }, [renderId, url]);
+  }, [renderId, url, mermaidRendererVersion]);
 
   if (error) return <DiagramPlaceholder message={error} />;
   if (!svg) return <DiagramPlaceholder message="Rendering Mermaid diagram…" />;
