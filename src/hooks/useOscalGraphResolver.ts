@@ -91,6 +91,8 @@ const MODEL_LABELS: Record<OscalModelKey, string> = {
   "plan-of-action-and-milestones": "POA&M",
 };
 
+const DEPENDENCY_FETCH_TIMEOUT_MS = 120_000;
+
 function text(v: unknown): string {
   if (!v) return "";
   if (typeof v === "string") return v;
@@ -481,7 +483,7 @@ export function useOscalGraphResolver({
 
         const controller = new AbortController();
         controllersRef.current.push(controller);
-        const timeoutId = setTimeout(() => controller.abort(), 15_000);
+        const timeoutId = setTimeout(() => controller.abort(), DEPENDENCY_FETCH_TIMEOUT_MS);
 
         try {
           const parsed = await fetchJson(url, token, controller.signal, () => {
@@ -517,7 +519,7 @@ export function useOscalGraphResolver({
           upsertNode(id, () => ({
             ...baseNode(),
             status: "error",
-            error: isTimeout ? `Timed out resolving ${target.modelKey} from ${url}` : err instanceof Error ? err.message : `Failed to fetch ${target.modelKey}`,
+            error: isTimeout ? `Timed out resolving ${target.modelKey} from ${url} after ${Math.round(DEPENDENCY_FETCH_TIMEOUT_MS / 1000)} seconds` : err instanceof Error ? err.message : `Failed to fetch ${target.modelKey}`,
             json: null,
             resolvedLabel: null,
             resolvedUrl: url,

@@ -178,7 +178,10 @@ export function authFetch(
 ): Promise<Response> {
   const needsCredentials = isOscalApiOrigin(url);
   const shouldSendAuthHeader = token != null && isOscalAuthOrigin(url);
-  const authHeader: Record<string, string> = shouldSendAuthHeader ? { Authorization: `Bearer ${token}` } : {};
+  const requestHeaders: Record<string, string> = {
+    Accept: "application/json, text/plain;q=0.9, */*;q=0.1",
+    ...(shouldSendAuthHeader ? { Authorization: `Bearer ${token}` } : {}),
+  };
 
   // In dev, route cross-origin JSON requests through the Vite server-side
   // proxy. This avoids browser CORS failures for registry/GitHub imports.
@@ -186,12 +189,13 @@ export function authFetch(
   // cookies for api.oscal.io, but token-authenticated OSCAL requests can go
   // through the proxy with Authorization attached.
   if (import.meta.env.DEV && isCrossOrigin(url) && (!needsCredentials || token)) {
-    return proxyFetch(url, authHeader, opts.signal);
+    return proxyFetch(url, requestHeaders, opts.signal);
   }
 
   if (!token) {
     return fetch(url, {
       ...(needsCredentials && { credentials: "include" as const }),
+      headers: requestHeaders,
       signal: opts.signal,
     });
   }
@@ -200,18 +204,18 @@ export function authFetch(
   // hosts (GitHub, vendor-hosted catalogs, etc.) don't need it and adding it
   // can trigger CORS preflight or leak the user's registry token.
   if (!shouldSendAuthHeader) {
-    return fetch(url, { signal: opts.signal });
+    return fetch(url, { headers: requestHeaders, signal: opts.signal });
   }
 
   // In dev, route through the server-side proxy to avoid CORS
   // (localhost isn't in the registry's allowed origins)
-  if (import.meta.env.DEV) return proxyFetch(url, authHeader, opts.signal);
+  if (import.meta.env.DEV) return proxyFetch(url, requestHeaders, opts.signal);
 
   // In production, call the API directly — its CORS policy
   // allows the deployed viewer origin.
   return fetch(url, {
     ...(needsCredentials && { credentials: "include" as const }),
     signal: opts.signal,
-    headers: authHeader,
+    headers: requestHeaders,
   });
 }

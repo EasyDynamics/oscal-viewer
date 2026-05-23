@@ -12,7 +12,7 @@ import react from '@vitejs/plugin-react'
  *  - Request body limited to 4 KB (just a URL + headers)
  *  - Only proxies JSON-like responses (JSON, text/plain, octet-stream)
  *  - Error messages are generic (no internal stack traces)
- *  - Upstream fetch has a 30-second timeout
+ *  - Upstream fetch has a 120-second timeout
  */
 function corsProxyPlugin(): Plugin {
   return {
@@ -109,15 +109,15 @@ function corsProxyPlugin(): Plugin {
           }
         }
 
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30_000);
+          timeout = setTimeout(() => controller.abort(), 120_000);
 
           const upstream = await fetch(url, {
             headers: safeHeaders,
             signal: controller.signal,
           });
-          clearTimeout(timeout);
 
           const contentType = upstream.headers.get('content-type') || '';
 
@@ -131,6 +131,8 @@ function corsProxyPlugin(): Plugin {
             contentType.includes('octet-stream');
 
           if (!isJsonLike) {
+            clearTimeout(timeout);
+            timeout = undefined;
             res.writeHead(415, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
               error: `Upstream responded with unsupported content type: ${contentType}. Only JSON-like responses are accepted.`,
@@ -139,6 +141,8 @@ function corsProxyPlugin(): Plugin {
           }
 
           const data = await upstream.arrayBuffer();
+          clearTimeout(timeout);
+          timeout = undefined;
 
           res.writeHead(upstream.status, {
             'Content-Type': contentType,
@@ -146,6 +150,7 @@ function corsProxyPlugin(): Plugin {
           });
           res.end(Buffer.from(data));
         } catch {
+          if (timeout) clearTimeout(timeout);
           // Generic error — don't leak internal details
           res.writeHead(502, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Failed to fetch upstream resource' }));
