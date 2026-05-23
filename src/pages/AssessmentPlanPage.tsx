@@ -26,6 +26,7 @@ import type {
 } from "../context/OscalContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useAuth } from "../context/AuthContext";
 import { useChainResolver, AP_CHAIN } from "../hooks/useChainResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
@@ -1525,6 +1526,12 @@ function TaskTreeNavItem({ task, depth, activePage, onNavigate, expandedTasks, o
 
 type PageState = null | { type: "activity"; uuid: string } | { type: "task"; uuid: string } | { type: "controls" };
 
+function pageStateAnalyticsId(page: PageState) {
+  if (!page) return "overview";
+  if (page.type === "controls") return "controls";
+  return `${page.type}-${page.uuid}`;
+}
+
 export default function AssessmentPlanPage() {
   const oscal = useOscal();
   const { token: authToken } = useAuth();
@@ -1540,6 +1547,7 @@ export default function AssessmentPlanPage() {
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  useAnalyticsView("Assessment Plan", pageStateAnalyticsId(page));
 
   const toggleTask = useCallback((uuid: string) => {
     setExpandedTasks((prev) => {

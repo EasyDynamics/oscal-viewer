@@ -21,6 +21,7 @@ import { useOscal } from "../context/OscalContext";
 import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useChainResolver, SSP_CHAIN } from "../hooks/useChainResolver";
 import { useLeveragedSspResolver } from "../hooks/useLeveragedSspResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
@@ -5348,6 +5349,7 @@ export default function SspPage() {
   const isMobile = useIsMobile();
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  useAnalyticsView("System Security Plan", view);
 
   /* ── Leveraged SSP index ── */
   const leveragedIndex = useLeveragedIndex(oscal.leveragedSsps);

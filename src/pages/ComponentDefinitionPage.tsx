@@ -20,6 +20,7 @@ import { useOscal } from "../context/OscalContext";
 import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useImportResolver } from "../hooks/useImportResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
@@ -500,6 +501,7 @@ export default function ComponentDefinitionPage() {
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   const catalogSort = useCatalogSortIndex();
+  useAnalyticsView("Component Definition", view);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();

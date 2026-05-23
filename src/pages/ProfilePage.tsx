@@ -20,6 +20,7 @@ import { useOscal } from "../context/OscalContext";
 import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
 import { useChainResolver, PROFILE_CHAIN, extractCatalogFromProfile } from "../hooks/useChainResolver";
 import type { BackMatterResource } from "../hooks/useImportResolver";
@@ -572,6 +573,7 @@ export default function ProfilePage() {
   const isMobile = useIsMobile();
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  useAnalyticsView("Profile", view);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();

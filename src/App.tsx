@@ -3,6 +3,7 @@ import { OscalProvider } from "./context/OscalContext";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import Layout from "./components/Layout";
+import AnalyticsPageTracker from "./components/AnalyticsPageTracker";
 import HomePage from "./pages/HomePage";
 import CatalogPage from "./pages/CatalogPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -20,6 +21,7 @@ export default function App() {
     <AuthProvider>
     <OscalProvider>
     <BrowserRouter>
+      <AnalyticsPageTracker />
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
