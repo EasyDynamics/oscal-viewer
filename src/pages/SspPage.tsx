@@ -833,6 +833,25 @@ function IcoFolderLayers({ size = 16, style }: IconProps) {
   );
 }
 
+function IcoFolderShieldLayers({ size = 16, style }: IconProps) {
+  const folderColor = style?.color ?? colors.cobalt;
+  const badgeSize = Math.max(10, Math.round(size * 0.78));
+  return (
+    <span style={{ ...style, position: "relative", display: "inline-flex", width: size, height: size, flexShrink: 0 }}>
+      <IcoFolder size={size} style={{ color: folderColor }} />
+      <span style={{
+        position: "absolute", right: -5, bottom: -5,
+        width: badgeSize + 4, height: badgeSize + 4,
+        borderRadius: radii.pill, backgroundColor: colors.card,
+        border: `1px solid ${alpha(colors.orange, 35)}`,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <IcoShieldLayers size={badgeSize} style={{ color: colors.orange }} />
+      </span>
+    </span>
+  );
+}
+
 function IcoTag({ size = 14, style }: IconProps) {
   return (
     <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1210,6 +1229,7 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "box": return <IcoBox size={size} style={st} />;
     case "folder": return <IcoFolder size={size} style={st} />;
     case "folder-layers": return <IcoFolderLayers size={size} style={st} />;
+    case "folder-shield-layers": return <IcoFolderShieldLayers size={size} style={st} />;
     case "tag": return <IcoTag size={size} style={st} />;
     case "this-system": return <IcoThisSystem size={size} style={st} />;
     case "ext-system": return <IcoExternalSystem size={size} style={st} />;
@@ -1398,6 +1418,7 @@ function ImplStatusBadge({ status }: { status: string }) {
 
 const CONTROL_STATUS_ORDER = ["implemented", "satisfied-by-provider", "partial", "planned", "alternative", "not-applicable", "unspecified", "missing"] as const;
 type KnownControlStatus = typeof CONTROL_STATUS_ORDER[number];
+const SATISFIED_CONTROL_STATUSES = new Set(["implemented", "satisfied-by-provider"]);
 
 interface StatusBucket {
   status: string;
@@ -1450,6 +1471,10 @@ function statusSortValue(status: string): number {
   if (idx >= 0) return idx;
   if (status.toLowerCase() === "unspecified") return 999;
   return 100;
+}
+
+function isSatisfiedControlStatus(status: string): boolean {
+  return SATISFIED_CONTROL_STATUSES.has(status.trim().toLowerCase());
 }
 
 function buildStatusBuckets(counts: Record<string, number>): StatusBucket[] {
@@ -1584,10 +1609,10 @@ function StatusDonut({ buckets, total, label = "Controls" }: { buckets: StatusBu
 }
 
 function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusDashboardSummary; navigate: (id: string) => void }) {
-  const missing = summary.controlBuckets.find((bucket) => bucket.status === "missing")?.count ?? 0;
-  const satisfied = summary.totalControls - missing;
+  const satisfied = summary.controlBuckets.reduce((sum, bucket) => sum + (isSatisfiedControlStatus(bucket.status) ? bucket.count : 0), 0);
+  const notSatisfied = summary.totalControls - satisfied;
   const implementationRate = summary.totalControls > 0 ? Math.round((satisfied / summary.totalControls) * 100) : 0;
-  const progressColor = missing > 0 ? colors.orange : colors.darkGreen;
+  const progressColor = notSatisfied > 0 ? colors.orange : colors.darkGreen;
   const controlScopeLabel = summary.isProfileScoped ? "Profile Controls" : "SSP Controls";
 
   return (
@@ -1602,7 +1627,7 @@ function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusD
             <p style={{ fontSize: 12, color: colors.gray, lineHeight: 1.6, margin: "8px 0 0" }}>
               {summary.isProfileScoped
                 ? `The ${summary.totalControls} total is the resolved profile requirement set. The current SSP contains ${summary.totalSspControls} implemented-requirement record${summary.totalSspControls === 1 ? "" : "s"}.`
-                : "Rollup status is based on the current SSP implemented-requirement controls."} Missing controls reduce progress unless satisfied by a loaded leveraged authorization.
+                : "Rollup status is based on the current SSP implemented-requirement controls."} Only fully implemented controls and controls satisfied by a loaded leveraged authorization count as satisfied.
             </p>
           </div>
         </div>
@@ -3403,28 +3428,14 @@ function LeveragedSystemsMap({ summaries, connections }: { summaries: LeveragedS
 }
 
 function LeveragedAuthCard({
-  la, index, matched, partyMap, navigate, onLoadFile,
+  la, index, matched, partyMap, navigate,
 }: {
   la: LeveragedAuth;
   index: number;
   matched: LeveragedSystemSummary | undefined;
   partyMap: Record<string, string>;
   navigate: (id: string) => void;
-  onLoadFile: (file: File) => void;
 }) {
-  const [dragOver, setDragOver] = useState(false);
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) onLoadFile(file);
-  };
-  const dropProps = matched ? {} : {
-    onDragOver: (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); },
-    onDragEnter: (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true); },
-    onDragLeave: () => setDragOver(false),
-    onDrop: handleDrop,
-  };
   return (
     <div
       style={{
@@ -3434,11 +3445,9 @@ function LeveragedAuthCard({
         boxShadow: shadows.sm,
         marginBottom: 16,
         cursor: "default",
-        border: dragOver ? `2px dashed ${colors.cobalt}` : `2px solid transparent`,
-        backgroundImage: dragOver ? `linear-gradient(${alpha(colors.cobalt, 8)}, ${alpha(colors.cobalt, 8)})` : undefined,
+        border: `2px solid transparent`,
         transition: "border-color 0.15s, background-color 0.15s",
       }}
-      {...dropProps}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <div onClick={() => navigate(`leveraged-auth-${index}`)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}>
@@ -3451,10 +3460,10 @@ function LeveragedAuthCard({
           </span>
         ) : (
           <button
-            onClick={(e) => { e.stopPropagation(); chooseProviderSspFile(onLoadFile); }}
+            onClick={(e) => { e.stopPropagation(); navigate(`leveraged-auth-${index}`); }}
             style={{ background: alpha(colors.cobalt, 10), border: `1px solid ${alpha(colors.cobalt, 25)}`, borderRadius: radii.sm, color: colors.cobalt, cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "4px 10px" }}
           >
-            Load SSP
+            Link SSP
           </button>
         )}
         <button
@@ -3472,7 +3481,7 @@ function LeveragedAuthCard({
       </div>
       {!matched && (
         <div style={{ marginTop: 8, fontSize: 11, color: colors.gray, fontStyle: "italic" }}>
-          Drop a provider SSP JSON here, or click "Load SSP" to bind one to this leveraged authorization.
+          Open this authorization to link a provider SSP directly to this leveraged authorization instance.
         </div>
       )}
     </div>
@@ -3483,7 +3492,6 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
   const items = ssp.systemImplementation.leveragedAuthorizations;
   const oscal = useOscal();
   const leveragedIndex = useLeveragedIndex(oscal.leveragedSsps);
-  const [dragOver, setDragOver] = useState(false);
   const summaries = useMemo(() => {
     const list: LeveragedSystemSummary[] = [summarizeSsp(ssp, "current", "Current SSP", sourceUrl)];
     oscal.leveragedSsps.forEach((entry, i) => {
@@ -3493,7 +3501,6 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
     });
     return list;
   }, [ssp, oscal.leveragedSsps, sourceUrl]);
-  const currentSummary = summaries[0];
   const connections = useMemo(() => {
     const result: LeveragedConnection[] = [];
     summaries.forEach((summary) => {
@@ -3515,69 +3522,16 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
     ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
     return m;
   }, [ssp]);
-
-  const loadLeveragedFile = useCallback((file: File) => {
-    /* Generic drop / file-picker on the LA page: parse the file ourselves so
-       we can run match heuristics against the consumer SSP's LAs and auto-bind
-       the upload to the best-fit LA. This way the user doesn't have to drop
-       the file on the exact LA card — any LA whose party-uuid is referenced in
-       the provider SSP's parties, or whose consumed UUIDs overlap with the
-       provider's exported UUIDs, is auto-bound. */
-    const reader = new FileReader();
-    reader.onload = (e) => {
+  const boundProviderByLaUuid = useMemo(() => {
+    const map = new Map<string, LeveragedSystemSummary>();
+    oscal.leveragedSsps.forEach((entry, i) => {
+      if (!entry.boundLaUuid) return;
       try {
-        const json = JSON.parse(e.target?.result as string);
-        const inner = json["system-security-plan"] ?? json;
-        if (!inner.metadata) throw new Error("Not a valid OSCAL SSP — missing metadata.");
-        let boundLaUuid: string | undefined;
-        try {
-          const parsed = parseSsp(json);
-          const candidate = summarizeSsp(parsed, "candidate", file.name, null);
-          // Prefer party-uuid match: any LA whose partyUuid is a party in the provider SSP.
-          const byParty = items.find((la) => la.partyUuid && candidate.partyUuids.has(la.partyUuid));
-          if (byParty) {
-            boundLaUuid = byParty.uuid;
-          } else {
-            // Fallback: any LA whose href/file matches.
-            const byHref = items.find((la) => {
-              const h = resolvePotentialHref(la.href, sourceUrl);
-              return h && (h === file.name || fileNameFromUrl(h) === file.name);
-            });
-            if (byHref) boundLaUuid = byHref.uuid;
-            else {
-              // Fallback 2: UUID-overlap with consumer's consumed UUIDs.
-              const consumer = currentSummary;
-              if (consumer) {
-                for (const la of items) {
-                  let overlaps = false;
-                  for (const u of candidate.exportedUuids) {
-                    if (consumer.consumedUuids.has(u)) { overlaps = true; break; }
-                  }
-                  if (overlaps) { boundLaUuid = la.uuid; break; }
-                }
-              }
-            }
-          }
-        } catch { /* parsing failed — fall through and add without binding */ }
-        oscal.addLeveragedSsp(json, file.name, null, boundLaUuid);
-      } catch (err) {
-        console.warn("Failed to load provider SSP:", err);
-      }
-    };
-    reader.readAsText(file);
-  }, [oscal, items, currentSummary, sourceUrl]);
-
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) loadLeveragedFile(file);
-  }, [loadLeveragedFile]);
-
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) loadLeveragedFile(file);
-    e.target.value = "";
-  }, [loadLeveragedFile]);
+        map.set(entry.boundLaUuid, summarizeSsp(parseSsp(entry.data), `provider-${i}`, entry.fileName, entry.sourceUrl, entry.boundLaUuid));
+      } catch { /* Ignore invalid provider SSPs */ }
+    });
+    return map;
+  }, [oscal.leveragedSsps]);
 
   return (
     <>
@@ -3589,7 +3543,7 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
       </Card>
       <LeveragedSystemsMap summaries={summaries} connections={connections} />
       {items.map((la, i) => {
-        const matched = currentSummary ? matchLeveragedSummary(la, currentSummary, summaries) : undefined;
+        const matched = boundProviderByLaUuid.get(la.uuid);
         return (
           <LeveragedAuthCard
             key={la.uuid}
@@ -3598,36 +3552,16 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
             matched={matched}
             partyMap={partyMap}
             navigate={navigate}
-            onLoadFile={(file) => loadProviderSspFile(file, oscal.addLeveragedSsp, undefined, la.uuid)}
           />
         );
       })}
 
       {/* Provider SSP upload section */}
       <Card>
-        <SectionLabel>Load Provider SSPs</SectionLabel>
-        <p style={{ fontSize: 12, color: colors.gray, margin: "0 0 10px" }}>
-          Upload the provider system&apos;s SSP to resolve <em>inherited</em> and <em>satisfied</em> UUID references across controls.
+        <SectionLabel>Provider SSP Linking</SectionLabel>
+        <p style={{ fontSize: 12, color: colors.gray, margin: 0 }}>
+          Provider SSPs must be linked from an individual leveraged authorization. Select a leveraged authorization in the tree, then load or replace that authorization&apos;s provider SSP there.
         </p>
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => { handleDrop(e); setDragOver(false); }}
-          style={{
-            border: `2px dashed ${dragOver ? colors.cobalt : colors.paleGray}`,
-            borderRadius: radii.md, padding: "16px 20px",
-            textAlign: "center", cursor: "pointer",
-            backgroundColor: dragOver ? alpha(colors.cobalt, 10) : alpha(colors.cobalt, 3),
-            transition: "border-color 0.15s, background-color 0.15s",
-            transform: dragOver ? "scale(1.01)" : "scale(1)",
-          }}
-          onClick={() => document.getElementById("leveraged-ssp-input")?.click()}
-        >
-          <IcoUpload size={20} style={{ color: colors.cobalt, marginBottom: 4 }} />
-          <div style={{ fontSize: 12, color: colors.gray }}>Drop a provider SSP JSON file here, or click to browse</div>
-          <input id="leveraged-ssp-input" type="file" accept=".json" style={{ display: "none" }} onChange={handleFileInput} />
-        </div>
 
         {/* Loaded provider SSPs */}
         {oscal.leveragedSsps.length > 0 && (
@@ -3678,43 +3612,18 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
   }, [ssp]);
 
   const loadedProvider = useMemo(() => {
-    const href = resolvePotentialHref(la.href, undefined);
-    const consumerSummary = summarizeSsp(ssp, "current", "Current SSP", undefined);
     type Candidate = { entry: typeof oscal.leveragedSsps[number]; summary: LeveragedSystemSummary };
     const candidates: Candidate[] = [];
     for (const entry of oscal.leveragedSsps) {
+      if (entry.boundLaUuid !== la.uuid) continue;
       try {
         const parsed = parseSsp(entry.data);
         const summary = summarizeSsp(parsed, entry.fileName, entry.fileName, entry.sourceUrl, entry.boundLaUuid);
         candidates.push({ entry, summary });
       } catch { /* Ignore invalid provider SSPs */ }
     }
-    // 0. Explicit user binding (set when user dropped the file in this LA's dropzone).
-    const explicit = candidates.find((c) => c.entry.boundLaUuid === la.uuid);
-    if (explicit) return explicit;
-    // Skip entries that are explicitly bound to a different LA.
-    const free = candidates.filter((c) => !c.entry.boundLaUuid);
-    // 1. URL match
-    if (href) {
-      const byUrl = free.find(
-        (c) => c.entry.sourceUrl === href || c.entry.fileName === fileNameFromUrl(href),
-      );
-      if (byUrl) return byUrl;
-    }
-    // 2. Party-uuid match
-    if (la.partyUuid) {
-      const byParty = free.find((c) => c.summary.partyUuids.has(la.partyUuid));
-      if (byParty) return byParty;
-    }
-    // 3. UUID-overlap match: provider SSP exports UUIDs that the consumer
-    //    SSP references via inherited.providedUuid / satisfied.responsibilityUuid.
-    for (const c of free) {
-      for (const u of c.summary.exportedUuids) {
-        if (consumerSummary.consumedUuids.has(u)) return c;
-      }
-    }
-    return null;
-  }, [la, oscal.leveragedSsps, ssp]);
+    return candidates[0] ?? null;
+  }, [la.uuid, oscal.leveragedSsps]);
 
   const loadLeveragedFile = useCallback((file: File) => {
     loadProviderSspFile(file, oscal.addLeveragedSsp, setProviderLoadError, la.uuid);
@@ -4105,6 +4014,10 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
     () => buildControlEntries(ssp, leveragedIndex, profileControlIds),
     [ssp, leveragedIndex, profileControlIds],
   );
+  const irById = useMemo(
+    () => new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir])),
+    [ssp],
+  );
   /* Group by family */
   const families = useMemo(() => {
     const map: Record<string, ControlNavEntry[]> = {};
@@ -4116,7 +4029,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
     return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
   }, [controlEntries, catalogSort]);
 
-  const satisfiedCount = controlEntries.filter((entry) => entry.hasCurrent || entry.hasProvider).length;
+  const satisfiedCount = controlEntries.filter((entry) => isSatisfiedControlStatus(dashboardStatusForEntry(entry, irById.get(entry.controlId)))).length;
   const missingCount = controlEntries.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length;
 
   const providerScopes = useMemo(() => {
@@ -4317,7 +4230,7 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <StatChip value={familyControls.length} label="Controls" color={colors.orange} />
-          <StatChip value={familyControls.filter((entry) => entry.hasCurrent || entry.hasProvider).length} label="Satisfied" color={colors.darkGreen} />
+          <StatChip value={familyControls.filter((entry) => isSatisfiedControlStatus(dashboardStatusForEntry(entry, irById.get(entry.controlId)))).length} label="Satisfied" color={colors.darkGreen} />
           <StatChip value={familyControls.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length} label="Missing" color={colors.red} />
           <StatChip value={familyControls.reduce((n, entry) => n + (irById.get(entry.controlId)?.statements.length ?? 0), 0)} label="Statements" color={colors.cobalt} />
         </div>
@@ -5945,45 +5858,15 @@ export default function SspPage() {
     if (si.leveragedAuthorizations.length > 0) {
       items.push({ id: "sys-impl-leveraged", label: "Leveraged Authorizations", icon: "link", color: colors.purple, depth: 1, parent: "sys-impl", childCount: si.leveragedAuthorizations.length });
 
-      /* Determine which leveraged authorizations have a loaded provider SSP
-         so the tree can show a distinct icon. Mirrors LeveragedAuthDetailView's
-         loadedProvider matching: explicit boundLaUuid → URL → party → UUID-overlap. */
-      const consumerSummary = summarizeSsp(ssp, "current", "Current SSP", urlDoc.sourceUrl);
-      const providerSummaries: { entry: typeof oscal.leveragedSsps[number]; summary: LeveragedSystemSummary }[] = [];
-      for (const entry of oscal.leveragedSsps) {
-        try {
-          providerSummaries.push({
-            entry,
-            summary: summarizeSsp(parseSsp(entry.data), entry.fileName, entry.fileName, entry.sourceUrl, entry.boundLaUuid),
-          });
-        } catch { /* ignore invalid provider SSPs */ }
-      }
-      const loadedLaUuids = new Set<string>();
-      for (const la of si.leveragedAuthorizations) {
-        const explicit = providerSummaries.find((c) => c.entry.boundLaUuid === la.uuid);
-        if (explicit) { loadedLaUuids.add(la.uuid); continue; }
-        const free = providerSummaries.filter((c) => !c.entry.boundLaUuid);
-        const href = resolvePotentialHref(la.href, urlDoc.sourceUrl);
-        if (href && free.find((c) => c.entry.sourceUrl === href || c.entry.fileName === fileNameFromUrl(href))) {
-          loadedLaUuids.add(la.uuid); continue;
-        }
-        if (la.partyUuid && free.find((c) => c.summary.partyUuids.has(la.partyUuid))) {
-          loadedLaUuids.add(la.uuid); continue;
-        }
-        const overlapMatch = free.some((c) => {
-          for (const u of c.summary.exportedUuids) if (consumerSummary.consumedUuids.has(u)) return true;
-          return false;
-        });
-        if (overlapMatch) loadedLaUuids.add(la.uuid);
-      }
+      const loadedLaUuids = new Set(oscal.leveragedSsps.map((entry) => entry.boundLaUuid).filter(Boolean));
 
       si.leveragedAuthorizations.forEach((la, i) => {
         const loaded = loadedLaUuids.has(la.uuid);
         items.push({
           id: `leveraged-auth-${i}`,
           label: trunc(la.title || la.uuid.slice(0, 12), 28),
-          icon: "layers",
-          color: colors.purple,
+          icon: loaded ? "layers" : "link",
+          color: loaded ? colors.purple : colors.blueGray,
           depth: 2,
           parent: "sys-impl-leveraged",
           title: loaded ? "Provider SSP loaded" : "No provider SSP loaded",
@@ -6029,20 +5912,23 @@ export default function SspPage() {
       baseEntries.sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
       Object.values(enhancementMap).forEach((arr) => arr.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
 
-      const allProviderOnly = entries.length > 0 && entries.every((entry) => !entry.hasCurrent && entry.hasProvider);
+      const providerCount = entries.filter((entry) => entry.hasProvider).length;
+      const allLeveraged = entries.length > 0 && providerCount === entries.length;
+      const mixedLeveraged = providerCount > 0 && !allLeveraged;
       const allMissing = entries.length > 0 && entries.every((entry) => !entry.hasCurrent && !entry.hasProvider);
 
       items.push({
         id: famId,
         label: `${fam.toUpperCase()} — ${FAMILY_NAMES[fam] || fam}`,
-        icon: allProviderOnly ? "folder-layers" : allMissing ? "missing-control" : "folder",
-        color: allProviderOnly ? colors.purple : allMissing ? colors.red : colors.cobalt,
+        icon: allLeveraged ? "folder-layers" : mixedLeveraged ? "folder-shield-layers" : allMissing ? "missing-control" : "folder",
+        color: allLeveraged ? colors.purple : mixedLeveraged ? colors.cobalt : allMissing ? colors.red : colors.cobalt,
         depth: 1,
         parent: "ctrl-impl",
         childCount: baseEntries.length,
         attachmentCount: familyAttachmentCount || undefined,
         title: [
-          allProviderOnly ? "All controls in this family are offered by loaded provider SSPs" : undefined,
+          allLeveraged ? "All controls in this family are offered by loaded provider SSPs" : undefined,
+          mixedLeveraged ? `${providerCount} of ${entries.length} controls in this family are offered by loaded provider SSPs` : undefined,
           allMissing ? "Controls in this family are missing implementation statements" : undefined,
           familyAttachmentCount ? attachmentTitle(familyAttachmentCount) : undefined,
         ].filter(Boolean).join(" · ") || undefined,
