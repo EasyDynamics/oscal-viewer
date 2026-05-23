@@ -22,9 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
-import { useChainResolver, SSP_CHAIN } from "../hooks/useChainResolver";
-import { useLeveragedSspResolver } from "../hooks/useLeveragedSspResolver";
-import type { BackMatterResource } from "../hooks/useImportResolver";
+import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
@@ -5378,47 +5376,31 @@ export default function SspPage() {
     catch { return null; }
   }, [raw]);
 
-  /* ── Auto-resolve import-profile reference ── */
-  const rawSspObj = useMemo(() => {
-    if (!raw) return null;
-    const r = raw as Record<string, unknown>;
-    return (r["system-security-plan"] ?? r) as Record<string, unknown>;
-  }, [raw]);
-  const sspBackMatter = useMemo<BackMatterResource[]>(() => {
-    if (!rawSspObj) return [];
-    const bm = rawSspObj["back-matter"] as Record<string, unknown> | undefined;
-    return (bm?.resources as BackMatterResource[] | undefined) ?? [];
-  }, [rawSspObj]);
-  const sspDependenciesLoaded = !!oscal.profile && !!oscal.catalog;
-  const importProfileHref = sspDependenciesLoaded ? null : (ssp?.importProfileHref || null);
-  const chain = useChainResolver(
-    importProfileHref,
-    sspBackMatter,
-    urlDoc.sourceUrl,
-    authToken,
-    SSP_CHAIN,
-    sspDependenciesLoaded,
-  );
-  const leveragedResolver = useLeveragedSspResolver(
-    raw,
-    urlDoc.sourceUrl,
-    authToken,
-    oscal.leveragedSsps,
-    oscal.addLeveragedSsp,
-  );
-  const chainStored = useRef(new Set<string>());
-  useEffect(() => {
-    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
-    for (const step of chain.steps) {
-      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
-        chainStored.current.add(step.modelKey);
-        const raw = step.json as Record<string, unknown>;
-        const data = raw[step.modelKey] ?? raw;
-        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
-        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
-      }
+  /* ── Auto-resolve SSP dependency graph ── */
+  const storedResolved = useRef(new Set<string>());
+  const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
+    const key = `${doc.modelKey}:${doc.url}`;
+    if (storedResolved.current.has(key)) return;
+    storedResolved.current.add(key);
+    if (doc.modelKey === "profile" && !oscal.profile && !storedResolved.current.has("slot:profile")) {
+      storedResolved.current.add("slot:profile");
+      oscal.setProfile(doc.data, doc.label, doc.url);
     }
-  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (doc.modelKey === "catalog" && !oscal.catalog && !storedResolved.current.has("slot:catalog")) {
+      storedResolved.current.add("slot:catalog");
+      oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
+    }
+    if (doc.modelKey === "system-security-plan" && doc.relation === "leveraged authorization") {
+      oscal.addLeveragedSsp(doc.json, doc.label, doc.url);
+    }
+  }, [oscal]);
+  const graphResolver = useOscalGraphResolver({
+    root: raw,
+    rootModelKey: "system-security-plan",
+    rootBaseUrl: urlDoc.sourceUrl,
+    token: authToken,
+    onResolved: handleResolved,
+  });
 
   /* ── Load file ── */
   const loadFile = useCallback((file: File) => {
@@ -5707,8 +5689,8 @@ export default function SspPage() {
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
     <ResolverModal
-      items={[...chain.items, ...leveragedResolver.items]}
-      onSkip={() => { chain.cancel(); leveragedResolver.cancel(); }}
+      items={graphResolver.items}
+      onSkip={graphResolver.cancel}
     />
   );
 

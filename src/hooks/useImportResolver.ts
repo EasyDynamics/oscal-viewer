@@ -155,7 +155,7 @@ function resolveRelativeUrl(
  * @param href          The import href (direct URL or #uuid back-matter ref)
  * @param backMatter    Array of back-matter resources for #uuid resolution
  * @param baseUrl       The source URL of the parent document (for relative URL resolution)
- * @param token         Auth JWT token (or null)
+ * @param token         Auth bearer token (or null)
  * @param modelKey      The expected OSCAL wrapper key (e.g. "catalog", "profile", "system-security-plan")
  *                      Used to unwrap and validate the fetched JSON.
  * @param skip          Set to true to skip fetching (e.g. when data is already loaded)

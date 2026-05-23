@@ -134,33 +134,33 @@ export interface UploadEntry<T> {
 export interface OscalContextValue {
   /* Catalog */
   catalog: UploadEntry<Catalog> | null;
-  setCatalog: (data: Catalog, fileName: string) => void;
+  setCatalog: (data: Catalog, fileName: string, sourceUrl?: string | null) => void;
   clearCatalog: () => void;
 
   /* Component Definition (generic payload — typed by consumer) */
   componentDefinition: UploadEntry<unknown> | null;
-  setComponentDefinition: (data: unknown, fileName: string) => void;
+  setComponentDefinition: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
   clearComponentDefinition: () => void;
 
   /* Future model slots — add as pages get built */
   profile: UploadEntry<unknown> | null;
-  setProfile: (data: unknown, fileName: string) => void;
+  setProfile: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
   clearProfile: () => void;
 
   ssp: UploadEntry<unknown> | null;
-  setSsp: (data: unknown, fileName: string) => void;
+  setSsp: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
   clearSsp: () => void;
 
   assessmentPlan: UploadEntry<unknown> | null;
-  setAssessmentPlan: (data: unknown, fileName: string) => void;
+  setAssessmentPlan: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
   clearAssessmentPlan: () => void;
 
   assessmentResults: UploadEntry<unknown> | null;
-  setAssessmentResults: (data: unknown, fileName: string) => void;
+  setAssessmentResults: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
   clearAssessmentResults: () => void;
 
   poam: UploadEntry<unknown> | null;
-  setPoam: (data: unknown, fileName: string) => void;
+  setPoam: (data: unknown, fileName: string, sourceUrl?: string | null) => void;
   clearPoam: () => void;
 
   /** Leveraged SSPs — provider SSPs loaded for cross-SSP inheritance resolution */
@@ -188,25 +188,25 @@ export function OscalProvider({ children }: { children: ReactNode }) {
   const [poam, _setPoam] = useState<UploadEntry<unknown> | null>(null);
   const [leveragedSsps, _setLeveragedSsps] = useState<UploadEntry<unknown>[]>([]);
 
-  const setCatalog = useCallback((data: Catalog, fileName: string) => _setCatalog({ data, fileName }), []);
+  const setCatalog = useCallback((data: Catalog, fileName: string, sourceUrl?: string | null) => _setCatalog({ data, fileName, sourceUrl }), []);
   const clearCatalog = useCallback(() => _setCatalog(null), []);
 
-  const setComponentDefinition = useCallback((data: unknown, fileName: string) => _setComponentDefinition({ data, fileName }), []);
+  const setComponentDefinition = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => _setComponentDefinition({ data, fileName, sourceUrl }), []);
   const clearComponentDefinition = useCallback(() => _setComponentDefinition(null), []);
 
-  const setProfile = useCallback((data: unknown, fileName: string) => _setProfile({ data, fileName }), []);
+  const setProfile = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => _setProfile({ data, fileName, sourceUrl }), []);
   const clearProfile = useCallback(() => _setProfile(null), []);
 
-  const setSsp = useCallback((data: unknown, fileName: string) => _setSsp({ data, fileName }), []);
+  const setSsp = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => _setSsp({ data, fileName, sourceUrl }), []);
   const clearSsp = useCallback(() => _setSsp(null), []);
 
-  const setAssessmentPlan = useCallback((data: unknown, fileName: string) => _setAssessmentPlan({ data, fileName }), []);
+  const setAssessmentPlan = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => _setAssessmentPlan({ data, fileName, sourceUrl }), []);
   const clearAssessmentPlan = useCallback(() => _setAssessmentPlan(null), []);
 
-  const setAssessmentResults = useCallback((data: unknown, fileName: string) => _setAssessmentResults({ data, fileName }), []);
+  const setAssessmentResults = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => _setAssessmentResults({ data, fileName, sourceUrl }), []);
   const clearAssessmentResults = useCallback(() => _setAssessmentResults(null), []);
 
-  const setPoam = useCallback((data: unknown, fileName: string) => _setPoam({ data, fileName }), []);
+  const setPoam = useCallback((data: unknown, fileName: string, sourceUrl?: string | null) => _setPoam({ data, fileName, sourceUrl }), []);
   const clearPoam = useCallback(() => _setPoam(null), []);
 
   const addLeveragedSsp = useCallback((data: unknown, fileName: string, sourceUrl?: string | null, boundLaUuid?: string) => {

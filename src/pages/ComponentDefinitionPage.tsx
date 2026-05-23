@@ -21,8 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
-import { useImportResolver } from "../hooks/useImportResolver";
-import type { BackMatterResource } from "../hooks/useImportResolver";
+import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
@@ -586,37 +585,24 @@ export default function ComponentDefinitionPage() {
     return m;
   }, [bmRes]);
 
-  /* ── Auto-resolve source catalog from control-implementation sources ── */
-  const firstSource = useMemo(() => {
-    if (!cdef) return null;
-    const comps = cdef.components ?? [];
-    for (const comp of comps) {
-      for (const ci of comp["control-implementations"] ?? []) {
-        if (ci.source) return ci.source;
-      }
+  /* ── Auto-resolve imported component definitions and catalog sources ── */
+  const storedResolved = useRef(new Set<string>());
+  const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
+    const key = `${doc.modelKey}:${doc.url}`;
+    if (storedResolved.current.has(key)) return;
+    storedResolved.current.add(key);
+    if (doc.modelKey === "catalog" && !oscal.catalog && !storedResolved.current.has("slot:catalog")) {
+      storedResolved.current.add("slot:catalog");
+      oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
     }
-    return null;
-  }, [cdef]);
-  const catalogResolver = useImportResolver(
-    firstSource,
-    bmRes as unknown as BackMatterResource[],
-    urlDoc.sourceUrl,
-    authToken,
-    "catalog",
-    !!oscal.catalog,
-  );
-  useEffect(() => {
-    if (catalogResolver.status === "success" && catalogResolver.json && !oscal.catalog) {
-      const obj = catalogResolver.json as Record<string, unknown>;
-      const inner = obj["catalog"] ?? obj;
-      if ((inner as Record<string, unknown>).metadata) {
-        oscal.setCatalog(
-          inner as import("../context/OscalContext").Catalog,
-          catalogResolver.label ?? "Resolved Catalog",
-        );
-      }
-    }
-  }, [catalogResolver.status, catalogResolver.json, catalogResolver.label]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [oscal]);
+  const graphResolver = useOscalGraphResolver({
+    root: cdef,
+    rootModelKey: "component-definition",
+    rootBaseUrl: urlDoc.sourceUrl,
+    token: authToken,
+    onResolved: handleResolved,
+  });
 
   /** Title from the resolved catalog, used to replace GUID/filename in nav labels */
   const resolvedCatalogTitle = useMemo(() => {
@@ -626,8 +612,11 @@ export default function ComponentDefinitionPage() {
 
   /** Look up a resolved title for a control-implementation source */
   const resolvedTitleForSource = useCallback(
-    (source: string) => (source === firstSource ? resolvedCatalogTitle : null),
-    [firstSource, resolvedCatalogTitle],
+    (source: string) => {
+      const match = graphResolver.nodes.find((node) => node.status === "success" && node.modelKey === "catalog" && (node.resolvedUrl === source || node.resolvedUrl?.endsWith(source)));
+      return match?.resolvedLabel ?? resolvedCatalogTitle;
+    },
+    [graphResolver.nodes, resolvedCatalogTitle],
   );
 
   /* ── Build navigation tree ── */
@@ -763,7 +752,7 @@ export default function ComponentDefinitionPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={[{ label: "Catalog", status: catalogResolver.status, resolvedUrl: catalogResolver.resolvedUrl, error: catalogResolver.error, resolvedLabel: catalogResolver.label }]} />
+    <ResolverModal items={graphResolver.items} onSkip={graphResolver.cancel} />
   );
 
   /* ── If no file loaded, show drop zone ── */

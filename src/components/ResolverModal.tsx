@@ -16,8 +16,16 @@ import type { ResolveStatus } from "../hooks/useImportResolver";
 /* ── Types ── */
 
 export interface ResolverItem {
+  id?: string;
+  parentId?: string | null;
   /** Human label, e.g. "Catalog", "Profile", "SSP" */
   label: string;
+  /** OSCAL model wrapper key, e.g. "catalog" */
+  modelKey?: string;
+  /** Relationship from parent, e.g. "import-profile" */
+  relation?: string;
+  /** Tree depth for graph display */
+  depth?: number;
   /** Live status of this dependency */
   status: ResolveStatus;
   /** Error text when status is "error" */
@@ -50,6 +58,42 @@ const MODEL_COLORS: Record<string, string> = {
 
 function modelColor(label: string): string {
   return MODEL_COLORS[label.toLowerCase()] ?? colors.cobalt;
+}
+
+function resolverItemKey(item: ResolverItem): string {
+  return item.id ?? `${item.label}:${item.resolvedUrl ?? ""}`;
+}
+
+function displayUrlName(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    return segments[segments.length - 1] || parsed.hostname;
+  } catch {
+    return url;
+  }
+}
+
+function orderByTree(items: ResolverItem[]): ResolverItem[] {
+  const byId = new Map(items.filter((item) => item.id).map((item) => [item.id!, item]));
+  const children = new Map<string, ResolverItem[]>();
+  const roots: ResolverItem[] = [];
+
+  for (const item of items) {
+    if (item.parentId && byId.has(item.parentId)) {
+      children.set(item.parentId, [...(children.get(item.parentId) ?? []), item]);
+    } else {
+      roots.push(item);
+    }
+  }
+
+  const ordered: ResolverItem[] = [];
+  const visit = (item: ResolverItem) => {
+    ordered.push(item);
+    for (const child of children.get(item.id ?? "") ?? []) visit(child);
+  };
+  roots.forEach(visit);
+  return ordered;
 }
 
 /* ── Source detection ── */
@@ -145,19 +189,19 @@ export default function ResolverModal({ items, onSkip }: Props) {
   const dismissedKeyRef = useRef<string | null>(null);
 
   const anyNonIdle = items.some((i) => i.status !== "idle");
-  const itemKey = items
-    .map((i) => `${i.label}:${i.resolvedUrl ?? ""}`)
+  const resolutionKey = items
+    .map((i) => `${i.id ?? i.label}:${i.resolvedUrl ?? ""}`)
     .sort()
     .join("|");
 
   // Latch activated when any item goes non-idle, but not if we just dismissed this set
   useEffect(() => {
-    if (anyNonIdle && !activated && !dismissed && dismissedKeyRef.current !== itemKey) {
+    if (anyNonIdle && !activated && !dismissed && dismissedKeyRef.current !== resolutionKey) {
       setActivated(true);
       setDismissed(false);
       snapshotRef.current = new Map();
     }
-  }, [anyNonIdle, activated, dismissed, itemKey]);
+  }, [anyNonIdle, activated, dismissed, resolutionKey]);
 
   // Reset dismissed flag when items go back to all-idle (new document load)
   useEffect(() => {
@@ -170,11 +214,11 @@ export default function ResolverModal({ items, onSkip }: Props) {
   // Update snapshots: keep the most "advanced" state per item
   useEffect(() => {
     if (!activated) return;
-    const ORDER: Record<ResolveStatus, number> = { idle: 0, loading: 1, error: 2, success: 3 };
+    const ORDER: Record<ResolveStatus, number> = { idle: 0, loading: 1, success: 2, error: 3 };
     for (const item of items) {
-      const existing = snapshotRef.current.get(item.label);
+      const existing = snapshotRef.current.get(resolverItemKey(item));
       if (!existing || ORDER[item.status] > ORDER[existing.status]) {
-        snapshotRef.current.set(item.label, { ...item });
+        snapshotRef.current.set(resolverItemKey(item), { ...item });
       }
     }
   }, [items, activated]);
@@ -183,7 +227,7 @@ export default function ResolverModal({ items, onSkip }: Props) {
   function handleContinue() {
     setDismissed(true);
     setActivated(false);
-    dismissedKeyRef.current = itemKey;
+    dismissedKeyRef.current = resolutionKey;
     snapshotRef.current = new Map();
   }
 
@@ -192,9 +236,9 @@ export default function ResolverModal({ items, onSkip }: Props) {
   // Use snapshot items for display (fall back to live items).  Chain resolvers
   // can reset to idle immediately after storing a resolved document in context;
   // keep the modal content visible until the user clicks Continue.
-  const displayItems = items.length > 0
-    ? items.map((item) => snapshotRef.current.get(item.label) ?? item)
-    : Array.from(snapshotRef.current.values());
+  const displayItems = orderByTree(items.length > 0
+    ? items.map((item) => snapshotRef.current.get(resolverItemKey(item)) ?? item)
+    : Array.from(snapshotRef.current.values()));
 
   const anyLoading = displayItems.some((i) => i.status === "loading");
   const anyError = displayItems.some((i) => i.status === "error");
@@ -247,9 +291,11 @@ export default function ResolverModal({ items, onSkip }: Props) {
         {/* Item list */}
         <div style={S.itemList}>
           {displayItems.map((item, i) => {
-            const mc = modelColor(item.label);
+            const mc = modelColor(item.modelKey ?? item.label);
+            const depth = Math.min(item.depth ?? 0, 5);
             return (
-              <div key={i} style={{ ...S.item, borderLeft: `3px solid ${mc}` }}>
+              <div key={resolverItemKey(item) || i} style={{ ...S.item, borderLeft: `3px solid ${mc}`, marginLeft: depth * 18 }}>
+                {depth > 0 && <div style={S.treeStem} />}
                 {/* Status icon */}
                 <div style={S.itemIcon}>
                   {item.status === "idle" && <WaitingDots />}
@@ -272,14 +318,29 @@ export default function ResolverModal({ items, onSkip }: Props) {
                     {item.status === "error" && `${item.label} failed`}
                     {item.status === "idle" && `${item.label}`}
                   </div>
+                  {(item.modelKey || item.relation) && (
+                    <div style={S.metaText}>
+                      {[item.modelKey, item.relation].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
 
-                  {/* Full source URL with source icon */}
+                  {/* Source document, with full URL available via link/title */}
                   {item.resolvedUrl && (
                     <div style={S.urlRow}>
                       <span style={{ color: colors.gray }}>
                         <SourceIcon url={item.resolvedUrl} />
                       </span>
-                      <span style={S.urlText}>{item.resolvedUrl}</span>
+                      <span style={S.urlText} title={item.resolvedUrl}>{displayUrlName(item.resolvedUrl)}</span>
+                      <a
+                        href={item.resolvedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Open ${item.resolvedUrl}`}
+                        style={S.urlLink}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Open
+                      </a>
                     </div>
                   )}
 
@@ -342,11 +403,14 @@ const S: Record<string, CSSProperties> = {
   modal: {
     position: "relative",
     overflow: "hidden",
+    display: "flex",
+    flexDirection: "column" as const,
     backgroundColor: colors.card,
     borderRadius: radii.lg,
     boxShadow: shadows.lg,
     width: "100%",
-    maxWidth: 520,
+    maxWidth: 680,
+    maxHeight: "calc(100vh - 32px)",
     margin: "0 16px",
     animation: "resolver-modal-fade-in 0.3s ease-out",
   },
@@ -400,14 +464,27 @@ const S: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column" as const,
     gap: 8,
+    overflowY: "auto" as const,
+    minHeight: 0,
   },
   item: {
+    position: "relative",
     display: "flex",
     alignItems: "flex-start",
     gap: 10,
     padding: "10px 12px",
     backgroundColor: alpha(colors.gray, 5),
     borderRadius: radii.sm,
+  },
+  treeStem: {
+    position: "absolute",
+    left: -12,
+    top: 0,
+    bottom: "50%",
+    width: 12,
+    borderLeft: `1px solid ${alpha(colors.gray, 30)}`,
+    borderBottom: `1px solid ${alpha(colors.gray, 30)}`,
+    borderBottomLeftRadius: 6,
   },
   itemIcon: {
     flexShrink: 0,
@@ -422,6 +499,14 @@ const S: Record<string, CSSProperties> = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap" as const,
   },
+  metaText: {
+    fontSize: 10.5,
+    color: colors.blueGray,
+    fontFamily: fonts.mono,
+    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
   urlRow: {
     display: "flex",
     alignItems: "center",
@@ -432,9 +517,18 @@ const S: Record<string, CSSProperties> = {
     fontSize: 10.5,
     fontFamily: fonts.mono,
     color: colors.gray,
-    wordBreak: "break-all" as const,
     flex: 1,
     minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap" as const,
+  },
+  urlLink: {
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: colors.cobalt,
+    textDecoration: "none",
+    flexShrink: 0,
   },
   errorText: {
     fontSize: 11,

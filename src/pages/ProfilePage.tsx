@@ -22,8 +22,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
-import { useChainResolver, PROFILE_CHAIN, extractCatalogFromProfile } from "../hooks/useChainResolver";
-import type { BackMatterResource } from "../hooks/useImportResolver";
+import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
@@ -592,37 +591,24 @@ export default function ProfilePage() {
     }
   }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Auto-resolve catalog from profile import hrefs ── */
-  const profileBackMatter = useMemo<BackMatterResource[]>(() => {
-    if (!profile) return [];
-    return (profile["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
-  }, [profile]);
-  const importCatalogHref = useMemo(() => {
-    if (oscal.catalog) return null;
-    if (!profile) return null;
-    const { href } = extractCatalogFromProfile(profile);
-    return href;
-  }, [profile, oscal.catalog]);
-  const chain = useChainResolver(
-    importCatalogHref,
-    profileBackMatter,
-    urlDoc.sourceUrl,
-    authToken,
-    PROFILE_CHAIN,
-    !!oscal.catalog,
-  );
-  const chainStored = useRef(new Set<string>());
-  useEffect(() => {
-    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
-    for (const step of chain.steps) {
-      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
-        chainStored.current.add(step.modelKey);
-        const raw = step.json as Record<string, unknown>;
-        const data = raw[step.modelKey] ?? raw;
-        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
-      }
+  /* ── Auto-resolve all catalog imports from profile ── */
+  const storedResolved = useRef(new Set<string>());
+  const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
+    const key = `${doc.modelKey}:${doc.url}`;
+    if (storedResolved.current.has(key)) return;
+    storedResolved.current.add(key);
+    if (doc.modelKey === "catalog" && !oscal.catalog && !storedResolved.current.has("slot:catalog")) {
+      storedResolved.current.add("slot:catalog");
+      oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
     }
-  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [oscal]);
+  const graphResolver = useOscalGraphResolver({
+    root: profile,
+    rootModelKey: "profile",
+    rootBaseUrl: urlDoc.sourceUrl,
+    token: authToken,
+    onResolved: handleResolved,
+  });
 
   const navigate = useCallback((id: string) => {
     setView(id);
@@ -760,7 +746,7 @@ export default function ProfilePage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} onSkip={chain.cancel} />
+    <ResolverModal items={graphResolver.items} onSkip={graphResolver.cancel} />
   );
 
   /* ── If no file loaded, show drop zone ── */

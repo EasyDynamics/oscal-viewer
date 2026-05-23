@@ -28,8 +28,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useAuth } from "../context/AuthContext";
-import { useChainResolver, AP_CHAIN } from "../hooks/useChainResolver";
-import type { BackMatterResource } from "../hooks/useImportResolver";
+import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import useIsMobile from "../hooks/useIsMobile";
@@ -1613,51 +1612,33 @@ export default function AssessmentPlanPage() {
     setExpandedTasks(new Set());
   }, [oscal]);
 
-  /* ── Auto-resolve import-ssp reference ── */
-  const rawApObj = useMemo(() => {
-    if (!raw) return null;
-    const r = raw as Record<string, unknown>;
-    return (r["assessment-plan"] ?? r) as Record<string, unknown>;
-  }, [raw]);
-  const apBackMatter = useMemo<BackMatterResource[]>(() => {
-    if (!rawApObj) return [];
-    const bm = rawApObj["back-matter"] as Record<string, unknown> | undefined;
-    return (bm?.resources as BackMatterResource[] | undefined) ?? [];
-  }, [rawApObj]);
-  const importSspHref = useMemo(() => {
-    if (!rawApObj) return null;
-    const imp = rawApObj["import-ssp"] as Record<string, unknown> | undefined;
-    return (imp?.href as string) ?? null;
-  }, [rawApObj]);
-  const resolverChain = useMemo(
-    () => oscal.catalog ? AP_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : AP_CHAIN,
-    [oscal.catalog],
-  );
-  const apDependenciesLoaded = oscal.catalog
-    ? !!oscal.ssp
-    : !!oscal.ssp && !!oscal.profile && !!oscal.catalog;
-  const chain = useChainResolver(
-    importSspHref,
-    apBackMatter,
-    urlDoc.sourceUrl,
-    authToken,
-    resolverChain,
-    apDependenciesLoaded,
-  );
-  const chainStored = useRef(new Set<string>());
-  useEffect(() => {
-    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
-    for (const step of chain.steps) {
-      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
-        chainStored.current.add(step.modelKey);
-        const raw = step.json as Record<string, unknown>;
-        const data = raw[step.modelKey] ?? raw;
-        if (step.modelKey === "system-security-plan") oscal.setSsp(data, step.resolvedLabel ?? "Resolved SSP");
-        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
-        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
-      }
+  /* ── Auto-resolve AP dependency graph ── */
+  const storedResolved = useRef(new Set<string>());
+  const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
+    const key = `${doc.modelKey}:${doc.url}`;
+    if (storedResolved.current.has(key)) return;
+    storedResolved.current.add(key);
+    if (doc.modelKey === "system-security-plan" && doc.relation !== "leveraged authorization" && !oscal.ssp && !storedResolved.current.has("slot:ssp")) {
+      storedResolved.current.add("slot:ssp");
+      oscal.setSsp(doc.data, doc.label, doc.url);
     }
-  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (doc.modelKey === "profile" && !oscal.profile && !storedResolved.current.has("slot:profile")) {
+      storedResolved.current.add("slot:profile");
+      oscal.setProfile(doc.data, doc.label, doc.url);
+    }
+    if (doc.modelKey === "catalog" && !oscal.catalog && !storedResolved.current.has("slot:catalog")) {
+      storedResolved.current.add("slot:catalog");
+      oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
+    }
+    if (doc.modelKey === "system-security-plan" && doc.relation === "leveraged authorization") oscal.addLeveragedSsp(doc.json, doc.label, doc.url);
+  }, [oscal]);
+  const graphResolver = useOscalGraphResolver({
+    root: raw,
+    rootModelKey: "assessment-plan",
+    rootBaseUrl: urlDoc.sourceUrl,
+    token: authToken,
+    onResolved: handleResolved,
+  });
 
   /* ── Derived data ── */
   const allActivities = useMemo(() => {
@@ -1732,7 +1713,7 @@ export default function AssessmentPlanPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} onSkip={chain.cancel} />
+    <ResolverModal items={graphResolver.items} onSkip={graphResolver.cancel} />
   );
 
   /* ── No data — show drop zone ── */

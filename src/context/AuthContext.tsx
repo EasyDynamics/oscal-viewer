@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   AuthContext — stores a JWT in sessionStorage so authenticated requests
+  AuthContext — stores a bearer token in sessionStorage so authenticated requests
    can attach it as a Bearer token.
 
    • Token persists across in-tab navigation but clears when the tab closes.
@@ -19,33 +19,25 @@ import {
 const STORAGE_KEY = "oscal_jwt";
 
 /**
- * JWT format check supporting both JWS and JWE tokens:
- *  - JWS: 3 Base64URL segments (header.payload.signature)
- *  - JWE: 5 Base64URL segments (header.encryptedKey.iv.ciphertext.tag)
- *        The encryptedKey segment may be empty for "dir" key agreement.
- * Does NOT verify signatures — just ensures the shape is plausible so we
- * don't store arbitrary strings (XSS payloads, HTML, etc.).
+ * Bearer token format check. Supports JWT/JWE and opaque API tokens that
+ * use the RFC 6750 b64token character set. This intentionally does not
+ * verify signatures; it only rejects empty/control-character input and
+ * obvious non-token text.
  */
-export function isValidJwtFormat(value: string): boolean {
-  const parts = value.split(".");
-  if (parts.length !== 3 && parts.length !== 5) return false;
-  const base64urlRe = /^[A-Za-z0-9_-]*$/; // allow empty for JWE encrypted-key
-  if (!parts.every((p) => base64urlRe.test(p))) return false;
-  // At minimum the first segment (header) must be non-empty
-  if (parts[0].length === 0) return false;
-  // For JWS: all 3 parts must be non-empty
-  if (parts.length === 3) return parts.every((p) => p.length > 0);
-  // For JWE: header, iv, ciphertext, and tag must be non-empty
-  //          encryptedKey (parts[1]) may be empty ("dir" algorithm)
-  return parts[0].length > 0 && parts[2].length > 0 && parts[3].length > 0 && parts[4].length > 0;
+export function isValidBearerTokenFormat(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 8192) return false;
+  return /^[A-Za-z0-9\-._~+/]+=*$/.test(trimmed);
 }
 
+export const isValidJwtFormat = isValidBearerTokenFormat;
+
 export interface AuthContextValue {
-  /** The current JWT, or null if not set */
+  /** The current bearer token, or null if not set */
   token: string | null;
-  /** Store a JWT in the session */
+  /** Store a bearer token in the session */
   setToken: (jwt: string) => void;
-  /** Remove the JWT from the session */
+  /** Remove the bearer token from the session */
   clearToken: () => void;
   /** Convenience flag — true when a non-empty token is present */
   isAuthenticated: boolean;
@@ -59,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, _setToken] = useState<string | null>(() => {
     try {
       const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (stored && isValidJwtFormat(stored)) return stored;
+      if (stored && isValidBearerTokenFormat(stored)) return stored;
       if (stored) sessionStorage.removeItem(STORAGE_KEY); // corrupted — discard
       return null;
     } catch {
@@ -70,8 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setToken = useCallback((jwt: string) => {
     const trimmed = jwt.trim();
     if (!trimmed) return;
-    if (!isValidJwtFormat(trimmed)) {
-      console.warn("AuthContext: rejected token — not a valid JWT format (expected header.payload.signature)");
+    if (!isValidBearerTokenFormat(trimmed)) {
+      console.warn("AuthContext: rejected token — not a valid bearer token format");
       return;
     }
     try {
@@ -110,7 +102,7 @@ export function useAuth(): AuthContextValue {
 
 /**
  * Build a headers object that includes the Authorization bearer token
- * when a JWT is available. Merge with any extra headers you need.
+ * when an access token is available. Merge with any extra headers you need.
  */
 export function authHeaders(token: string | null): Record<string, string> {
   if (!token) return {};
@@ -118,13 +110,22 @@ export function authHeaders(token: string | null): Record<string, string> {
 }
 
 /**
- * Returns true when the URL targets the OSCAL API backend where
- * cookie-based and token-based authentication are accepted.
- * Public registries / third-party hosts don't need credentials.
+ * Returns true when the URL targets the OSCAL API backend where cookie-based
+ * authentication is accepted.
  */
 function isOscalApiOrigin(url: string): boolean {
   try {
     return new URL(url).hostname === "api.oscal.io";
+  } catch {
+    return false;
+  }
+}
+
+/** Returns true for OSCAL hosts that should receive the configured bearer token. */
+function isOscalAuthOrigin(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === "api.oscal.io" || hostname === "registry.oscal.io";
   } catch {
     return false;
   }
@@ -163,10 +164,9 @@ function proxyFetch(
  *   The registry's CORS policy already allows `viewer.oscal.io`.
  *
  * Credentials (`credentials: "include"`) are only sent to the API origin
- * (`api.oscal.io`). Sending credentials to third-party hosts (e.g.
- * registry.oscal.io, GitHub) would break CORS because those servers
- * respond with `Access-Control-Allow-Origin: *` which is incompatible
- * with credentialed requests.
+ * (`api.oscal.io`). Bearer tokens are sent only to OSCAL auth origins
+ * (`api.oscal.io` and `registry.oscal.io`) and are never forwarded to
+ * third-party imports such as GitHub raw URLs.
  *
  * Without a token, it does a normal `fetch()` (with credentials for
  * the API origin to support cookie-based auth).
@@ -177,18 +177,16 @@ export function authFetch(
   opts: { signal?: AbortSignal } = {},
 ): Promise<Response> {
   const needsCredentials = isOscalApiOrigin(url);
+  const shouldSendAuthHeader = token != null && isOscalAuthOrigin(url);
+  const authHeader: Record<string, string> = shouldSendAuthHeader ? { Authorization: `Bearer ${token}` } : {};
 
-  // In dev, route public cross-origin JSON requests through the Vite
-  // server-side proxy. This avoids browser CORS failures for registry/GitHub
-  // imports while still omitting credentials and Authorization for third-party
-  // hosts. Cookie-only API requests stay direct because the proxy cannot read
-  // browser cookies for api.oscal.io.
+  // In dev, route cross-origin JSON requests through the Vite server-side
+  // proxy. This avoids browser CORS failures for registry/GitHub imports.
+  // Cookie-only API requests stay direct because the proxy cannot read browser
+  // cookies for api.oscal.io, but token-authenticated OSCAL requests can go
+  // through the proxy with Authorization attached.
   if (import.meta.env.DEV && isCrossOrigin(url) && (!needsCredentials || token)) {
-    return proxyFetch(
-      url,
-      needsCredentials && token ? { Authorization: `Bearer ${token}` } : {},
-      opts.signal,
-    );
+    return proxyFetch(url, authHeader, opts.signal);
   }
 
   if (!token) {
@@ -198,22 +196,22 @@ export function authFetch(
     });
   }
 
-  // Only send the Authorization header to the API backend.
-  // Third-party hosts (registry catalogs, GitHub, etc.) don't need it
-  // and adding it triggers CORS preflight that those servers may not handle.
-  if (!needsCredentials) {
+  // Only send the Authorization header to OSCAL auth origins. Third-party
+  // hosts (GitHub, vendor-hosted catalogs, etc.) don't need it and adding it
+  // can trigger CORS preflight or leak the user's registry token.
+  if (!shouldSendAuthHeader) {
     return fetch(url, { signal: opts.signal });
   }
 
   // In dev, route through the server-side proxy to avoid CORS
   // (localhost isn't in the registry's allowed origins)
-  if (import.meta.env.DEV) return proxyFetch(url, { Authorization: `Bearer ${token}` }, opts.signal);
+  if (import.meta.env.DEV) return proxyFetch(url, authHeader, opts.signal);
 
   // In production, call the API directly — its CORS policy
   // allows the deployed viewer origin.
   return fetch(url, {
-    credentials: "include",
+    ...(needsCredentials && { credentials: "include" as const }),
     signal: opts.signal,
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeader,
   });
 }
