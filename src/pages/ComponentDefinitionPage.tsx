@@ -27,6 +27,46 @@ import useIsMobile from "../hooks/useIsMobile";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
+import {
+  IcoBook,
+  IcoBox,
+  IcoChev,
+  IcoCloud,
+  IcoCode,
+  IcoCube,
+  IcoDatabase,
+  IcoFileCode,
+  IcoGuidance,
+  IcoHardware,
+  IcoHome,
+  IcoInfo,
+  IcoInterconnection,
+  IcoLayers,
+  IcoLink,
+  IcoNetwork,
+  IcoPhysical,
+  IcoPlan,
+  IcoPolicy,
+  IcoProcessProcedure,
+  IcoServer,
+  IcoService,
+  IcoShield,
+  IcoShieldLayers,
+  IcoSoftware,
+  IcoStandard,
+  IcoTag,
+  IcoTarget,
+  IcoUpload,
+  IcoValidation,
+} from "../components/IconAliases";
+import {
+  componentTypeVisual,
+  propDisplayName,
+  propVisual,
+  raisedOscalProps,
+  resolveComponentVisual,
+} from "../utils/oscalVisuals";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -183,10 +223,6 @@ function fmtDate(s?: string) {
   } catch {
     return s;
   }
-}
-function partyName(uuid: string, parties: Party[]) {
-  const p = parties.find((x) => x.uuid === uuid);
-  return p ? p.name : uuid ? uuid.slice(0, 8) : "Unknown";
 }
 function resType(res: Resource) {
   const tp = (res.props ?? []).find((p) => p.name === "type");
@@ -387,137 +423,6 @@ function CollapsibleRemarks({ value, compact }: { value: unknown; compact?: bool
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   INLINE SVG ICONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-interface IconProps {
-  size?: number;
-  style?: CSSProperties;
-}
-
-function IcoUpload({ size = 20, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
-function IcoShield({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  );
-}
-function IcoChev({ open, style }: { open: boolean; style?: CSSProperties }) {
-  return (
-    <svg
-      style={{
-        ...style,
-        transform: open ? "rotate(90deg)" : "rotate(0)",
-        transition: "transform .15s",
-        flexShrink: 0,
-      }}
-      width={12}
-      height={12}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-function IcoBook({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-    </svg>
-  );
-}
-function IcoCube({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-      <line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  );
-}
-function IcoLayers({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </svg>
-  );
-}
-function IcoHome({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-function IcoInfo({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="16" x2="12" y2="12" />
-      <line x1="12" y1="8" x2="12.01" y2="8" />
-    </svg>
-  );
-}
-function IcoLink({ size = 14, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-    </svg>
-  );
-}
-function IcoTag({ size = 14, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
-      <line x1="7" y1="7" x2="7.01" y2="7" />
-    </svg>
-  );
-}
-function IcoTarget({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  );
-}
-function IcoCode({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="16 18 22 12 16 6" />
-      <polyline points="8 6 2 12 8 18" />
-    </svg>
-  );
-}
-function IcoCloud({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
-    </svg>
-  );
-}
-
 function resIcon(type: string, size = 13, style?: CSSProperties) {
   if (type === "cloud") return <IcoCloud size={size} style={style} />;
   if (type === "code") return <IcoCode size={size} style={style} />;
@@ -525,125 +430,12 @@ function resIcon(type: string, size = 13, style?: CSSProperties) {
   return <IcoBook size={size} style={style} />;
 }
 
-/* ── Component-type icons ── */
-function IcoInterconnection({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-    </svg>
-  );
-}
-function IcoSoftware({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-    </svg>
-  );
-}
-function IcoHardware({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
-    </svg>
-  );
-}
-function IcoService({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
-    </svg>
-  );
-}
-function IcoPolicy({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="M12 18v-6" /><path d="M9 15h6" />
-    </svg>
-  );
-}
-function IcoPhysical({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
-    </svg>
-  );
-}
-function IcoProcessProcedure({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-    </svg>
-  );
-}
-function IcoPlan({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-function IcoGuidance({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  );
-}
-function IcoStandard({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />
-    </svg>
-  );
-}
-function IcoValidation({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-    </svg>
-  );
-}
-
-/** Map a component type string to its nav icon key */
-function cdefComponentTypeNavKey(type: string): string {
-  switch (type) {
-    case "interconnection": return "interconnection";
-    case "software": return "software";
-    case "hardware": return "hardware";
-    case "service": return "service";
-    case "policy": return "policy";
-    case "physical": return "physical";
-    case "process-procedure": return "process-procedure";
-    case "plan": return "plan";
-    case "guidance": return "guidance";
-    case "standard": return "standard";
-    case "validation": return "validation";
-    default: return "cube";
-  }
-}
-
-/** Component-type color mapping */
-function cdefComponentTypeColor(type: string): string {
-  switch (type) {
-    case "interconnection": return colors.purple;
-    case "software": return colors.brightBlue;
-    case "hardware": return colors.blueGray;
-    case "service": return colors.mint;
-    case "policy": return colors.orange;
-    case "physical": return colors.darkGreen;
-    case "process-procedure": return colors.cobalt;
-    case "plan": return colors.brightBlue;
-    case "guidance": return colors.yellow;
-    case "standard": return colors.red;
-    case "validation": return colors.darkGreen;
-    default: return colors.cobalt;
-  }
-}
-
 /** Render the correct icon for a component type (standalone, usable outside the main component) */
 function cdefComponentTypeIcon(type: string, size = 16, color?: string): ReactNode {
   const st: CSSProperties = { color: color ?? colors.cobalt, flexShrink: 0 };
   switch (type) {
+    case "this-system": return <IcoHome size={size} style={st} />;
+    case "system": return <IcoServer size={size} style={st} />;
     case "interconnection": return <IcoInterconnection size={size} style={st} />;
     case "software": return <IcoSoftware size={size} style={st} />;
     case "hardware": return <IcoHardware size={size} style={st} />;
@@ -655,7 +447,34 @@ function cdefComponentTypeIcon(type: string, size = 16, color?: string): ReactNo
     case "guidance": return <IcoGuidance size={size} style={st} />;
     case "standard": return <IcoStandard size={size} style={st} />;
     case "validation": return <IcoValidation size={size} style={st} />;
+    case "network": return <IcoCloud size={size} style={st} />;
+    case "box": return <IcoBox size={size} style={st} />;
     default: return <IcoCube size={size} style={st} />;
+  }
+}
+
+function cdefVisualIcon(iconKey: string, size = 16, color?: string): ReactNode {
+  const st: CSSProperties = { color: color ?? colors.cobalt, flexShrink: 0 };
+  switch (iconKey) {
+    case "home": return <IcoHome size={size} style={st} />;
+    case "info": return <IcoInfo size={size} style={st} />;
+    case "cube": return <IcoCube size={size} style={st} />;
+    case "server": return <IcoServer size={size} style={st} />;
+    case "ext-system": return <IcoServer size={size} style={st} />;
+    case "box": return <IcoBox size={size} style={st} />;
+    case "layers": return <IcoLayers size={size} style={st} />;
+    case "shield-layers": return <IcoShieldLayers size={size} style={st} />;
+    case "shield": return <IcoShield size={size} style={st} />;
+    case "book": return <IcoBook size={size} style={st} />;
+    case "link": return <IcoLink size={size} style={st} />;
+    case "tag": return <IcoTag size={size} style={st} />;
+    case "cloud": return <IcoCloud size={size} style={st} />;
+    case "code": return <IcoCode size={size} style={st} />;
+    case "database": return <IcoDatabase size={size} style={st} />;
+    case "file-code": return <IcoFileCode size={size} style={st} />;
+    case "target": return <IcoTarget size={size} style={st} />;
+    case "network": return <IcoNetwork size={size} style={st} />;
+    default: return cdefComponentTypeIcon(iconKey, size, color);
   }
 }
 
@@ -822,7 +641,8 @@ export default function ComponentDefinitionPage() {
     const comps = cdef.components ?? [];
     comps.forEach((comp, ci) => {
       const compId = `comp-${ci}`;
-      items.push({ id: compId, label: comp.title, icon: cdefComponentTypeNavKey(comp.type), color: cdefComponentTypeColor(comp.type), depth: 0 });
+      const visual = resolveComponentVisual(comp);
+      items.push({ id: compId, label: comp.title, icon: visual.iconKey, color: visual.color, depth: 0 });
 
       const impls = comp["control-implementations"] ?? [];
       impls.forEach((impl, ii) => {
@@ -961,51 +781,7 @@ export default function ComponentDefinitionPage() {
 
   /* ── Nav icon resolver ── */
   function navIcon(icon: string, color: string, size = 14): ReactNode {
-    const st: CSSProperties = { color, flexShrink: 0 };
-    switch (icon) {
-      case "home":
-        return <IcoHome size={size} style={st} />;
-      case "info":
-        return <IcoInfo size={size} style={st} />;
-      case "cube":
-        return <IcoCube size={size} style={st} />;
-      case "layers":
-        return <IcoLayers size={size} style={st} />;
-      case "shield":
-        return <IcoShield size={size} style={st} />;
-      case "book":
-        return <IcoBook size={size} style={st} />;
-      case "cloud":
-        return <IcoCloud size={size} style={st} />;
-      case "code":
-        return <IcoCode size={size} style={st} />;
-      case "target":
-        return <IcoTarget size={size} style={st} />;
-      case "interconnection":
-        return <IcoInterconnection size={size} style={st} />;
-      case "software":
-        return <IcoSoftware size={size} style={st} />;
-      case "hardware":
-        return <IcoHardware size={size} style={st} />;
-      case "service":
-        return <IcoService size={size} style={st} />;
-      case "policy":
-        return <IcoPolicy size={size} style={st} />;
-      case "physical":
-        return <IcoPhysical size={size} style={st} />;
-      case "process-procedure":
-        return <IcoProcessProcedure size={size} style={st} />;
-      case "plan":
-        return <IcoPlan size={size} style={st} />;
-      case "guidance":
-        return <IcoGuidance size={size} style={st} />;
-      case "standard":
-        return <IcoStandard size={size} style={st} />;
-      case "validation":
-        return <IcoValidation size={size} style={st} />;
-      default:
-        return <IcoBook size={size} style={st} />;
-    }
+    return cdefVisualIcon(icon, size, color);
   }
 
   const parties = cdef.metadata.parties ?? [];
@@ -1407,6 +1183,59 @@ function MField({
   );
 }
 
+function VisualSummaryField({
+  label,
+  value,
+  icon,
+  color,
+  mono,
+}: {
+  label: string;
+  value: string;
+  icon: string;
+  color: string;
+  mono?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        minHeight: 78,
+        padding: "12px 14px",
+        borderRadius: radii.md,
+        backgroundColor: alpha(color, 7),
+        border: `1px solid ${alpha(color, 22)}`,
+      }}
+    >
+      <span
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: radii.md,
+          backgroundColor: alpha(color, 14),
+          color,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {cdefVisualIcon(icon, 22, color)}
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          {label}
+        </span>
+        <span style={{ display: "block", fontSize: 13, fontWeight: 650, color: colors.black, marginTop: 4, fontFamily: mono ? fonts.mono : fonts.sans, overflow: "hidden", textOverflow: "ellipsis", overflowWrap: "anywhere" }}>
+          {value || "—"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function PropPill({ name, value }: { name: string; value: string }) {
   return (
     <span
@@ -1700,7 +1529,9 @@ function OverviewView({
       {/* Components quick nav */}
       <Card>
         <SectionLabel>Components</SectionLabel>
-        {comps.map((comp, i) => (
+        {comps.map((comp, i) => {
+          const visual = resolveComponentVisual(comp);
+          return (
           <div
             key={comp.uuid}
             onClick={() => navigate(`comp-${i}`)}
@@ -1714,7 +1545,7 @@ function OverviewView({
               cursor: "pointer",
             }}
           >
-            <IcoCube size={16} style={{ color: colors.cobalt }} />
+            {cdefVisualIcon(visual.iconKey, 16, visual.color)}
             <div>
               <div
                 style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}
@@ -1723,6 +1554,7 @@ function OverviewView({
               </div>
               <div style={{ fontSize: 12, color: colors.gray }}>
                 Type: {comp.type} ·{" "}
+                {visual.assetType ? `Asset: ${visual.assetType} · ` : ""}
                 {(comp["control-implementations"] ?? []).reduce(
                   (s, ci) => s + ci["implemented-requirements"].length,
                   0,
@@ -1731,7 +1563,8 @@ function OverviewView({
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </Card>
     </div>
   );
@@ -1785,32 +1618,7 @@ function MetadataView({
       {parties.length > 0 && (
         <Card>
           <SectionLabel>Parties</SectionLabel>
-          {parties.map((p) => (
-            <div
-              key={p.uuid}
-              style={{
-                padding: "8px 0",
-                borderBottom: `1px solid ${colors.bg}`,
-              }}
-            >
-              <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
-                {p.name}
-              </div>
-              <div style={{ fontSize: 12, color: colors.gray }}>
-                {p.type}
-                {p["short-name"] ? ` · ${p["short-name"]}` : ""}
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: colors.gray,
-                  fontFamily: fonts.mono,
-                }}
-              >
-                {p.uuid}
-              </div>
-            </div>
-          ))}
+          <PartyCardGrid parties={parties} />
         </Card>
       )}
 
@@ -1840,25 +1648,7 @@ function MetadataView({
       {rps.length > 0 && (
         <Card>
           <SectionLabel>Responsible Parties</SectionLabel>
-          {rps.map((rp, i) => (
-            <div key={i} style={{ padding: "6px 0" }}>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: colors.brightBlue,
-                }}
-              >
-                {rp["role-id"]}
-              </span>
-              <span style={{ fontSize: 12, color: colors.gray }}> → </span>
-              {rp["party-uuids"].map((pu) => (
-                <span key={pu} style={{ fontSize: 12, color: colors.black }}>
-                  {partyName(pu, parties)}
-                </span>
-              ))}
-            </div>
-          ))}
+          <ResponsiblePartiesList responsibleParties={rps} parties={parties} roles={roles} />
         </Card>
       )}
     </div>
@@ -1882,10 +1672,17 @@ function ComponentView({
   navigate: (id: string) => void;
   resolvedTitleForSource: (source: string) => string | null;
 }) {
+  void _parties;
   const catalogSort = useCatalogSortIndex();
   const impls = comp["control-implementations"] ?? [];
   const allReqs = impls.flatMap((ci) => ci["implemented-requirements"]);
   const familySet = new Set(allReqs.map((r) => familyOf(r["control-id"])));
+  const visual = resolveComponentVisual(comp);
+  const raisedProps = raisedOscalProps(comp.props ?? []);
+  const raisedPropKeys = new Set(raisedProps.map((p) => `${p.name}\u0000${p.value}\u0000${p.ns ?? ""}\u0000${p.class ?? ""}`));
+  const otherProps = (comp.props ?? []).filter((p) => !raisedPropKeys.has(`${p.name}\u0000${p.value}\u0000${p.ns ?? ""}\u0000${p.class ?? ""}`));
+  const firstClassProps = raisedProps.filter((p) => p.name !== "label" && p.name !== "asset-type");
+  const typeVisual = componentTypeVisual(comp.type);
 
   return (
     <div>
@@ -1904,7 +1701,7 @@ function ComponentView({
           marginBottom: 16,
         }}
       >
-        {cdefComponentTypeIcon(comp.type, 22, cdefComponentTypeColor(comp.type))}
+        {cdefVisualIcon(visual.iconKey, 22, visual.color)}
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
           {comp.title}
         </h1>
@@ -1914,17 +1711,27 @@ function ComponentView({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))",
-            gap: 16,
+            gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+            gap: 10,
           }}
         >
-          <MField label="Type" value={comp.type} />
-          <MField label="UUID" value={comp.uuid} mono />
-          <MField
+          <VisualSummaryField label="Type" value={comp.type} icon={typeVisual.iconKey} color={typeVisual.color} />
+          {(visual.assetType || visual.localAssetType) && (
+            <VisualSummaryField label="Asset Type" value={visual.assetType ?? visual.localAssetType ?? ""} icon={visual.iconKey} color={visual.color} />
+          )}
+          {firstClassProps.map((p, i) => {
+            const propMeta = propVisual(p);
+            return (
+              <VisualSummaryField key={`${p.name}-${i}`} label={propMeta.label} value={p.value} icon={propMeta.iconKey} color={propMeta.color} mono={p.name === "model"} />
+            );
+          })}
+          <VisualSummaryField
             label="Control Implementations"
             value={String(impls.length)}
+            icon="layers"
+            color={colors.brightBlue}
           />
-          <MField label="Total Requirements" value={String(allReqs.length)} />
+          <VisualSummaryField label="Total Requirements" value={String(allReqs.length)} icon="shield" color={colors.orange} />
         </div>
       </Card>
 
@@ -1942,12 +1749,12 @@ function ComponentView({
         </Card>
       )}
 
-      {comp.props && comp.props.length > 0 && (
+      {otherProps.length > 0 && (
         <Card>
-          <SectionLabel>Properties</SectionLabel>
+          <SectionLabel>{raisedProps.length > 0 ? "Other Properties" : "Properties"}</SectionLabel>
           <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {comp.props.map((p, i) => (
-              <PropPill key={i} name={p.name} value={p.value} />
+            {otherProps.map((p, i) => (
+              <PropPill key={i} name={propDisplayName(p)} value={p.value} />
             ))}
           </div>
         </Card>
@@ -2048,6 +1855,8 @@ function ControlImplView({
   resMap: Record<string, Resource>;
   resolvedTitleForSource: (source: string) => string | null;
 }) {
+  void _parties;
+  void _resMap;
   const catalogSort = useCatalogSortIndex();
   const reqs = impl["implemented-requirements"];
   const familySet = new Set(reqs.map((r) => familyOf(r["control-id"])));
@@ -2401,6 +2210,7 @@ function RequirementView({
     "unknown";
   const statements = req.statements ?? [];
   const links = req.links ?? [];
+  const partyByUuid = useMemo(() => new Map(parties.map((party) => [party.uuid, party])), [parties]);
 
   // Catalog enrichment
   const catalogControl = useMemo(
@@ -2591,27 +2401,27 @@ function RequirementView({
         req["responsible-roles"].length > 0 && (
           <Card>
             <SectionLabel>Responsible Roles</SectionLabel>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "grid", gap: 8 }}>
               {req["responsible-roles"].map((rr, i) => (
-                <span
+                <div
                   key={i}
                   style={{
-                    fontSize: 12,
-                    padding: "4px 12px",
-                    borderRadius: radii.pill,
-                    backgroundColor: colors.navy,
-                    color: colors.white,
-                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    padding: "8px 10px",
+                    borderRadius: radii.md,
+                    backgroundColor: colors.surfaceSubtle,
+                    border: `1px solid ${colors.paleGray}`,
                   }}
                 >
-                  {rr["role-id"]}
+                  <span style={{ fontSize: 12, color: colors.navy, fontWeight: 800, fontFamily: fonts.mono }}>
+                    {rr["role-id"]}
+                  </span>
                   {(rr["party-uuids"] ?? [])
-                    .map((pu) => {
-                      const name = partyName(pu, parties);
-                      return name !== pu.slice(0, 8) ? ` (${name})` : "";
-                    })
-                    .join("")}
-                </span>
+                    .map((pu) => <PartyChip key={pu} party={partyByUuid.get(pu)} fallbackUuid={pu} />)}
+                </div>
               ))}
             </div>
           </Card>

@@ -9,6 +9,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { useState, useEffect, useRef, type CSSProperties } from "react";
+import { CheckCircle2, Ellipsis, ExternalLink, GitFork, Link2, LoaderCircle, Settings, XCircle } from "lucide-react";
 import { colors, fonts, radii, shadows, alpha } from "../theme/tokens";
 import type { ResolveStatus } from "../hooks/useImportResolver";
 
@@ -92,74 +93,31 @@ function injectKeyframes() {
 /* ── Icon helpers ── */
 
 function Spinner({ size = 18, color }: { size?: number; color: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      style={{ animation: "resolver-modal-spin 0.8s linear infinite", flexShrink: 0 }}>
-      <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" />
-    </svg>
-  );
+  return <LoaderCircle size={size} color={color} style={{ animation: "resolver-modal-spin 0.8s linear infinite", flexShrink: 0 }} />;
 }
 
 function CheckCircle({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      style={{ animation: "resolver-modal-check-pop 0.35s ease-out", color: colors.successFg }}>
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-      <polyline points="8 12 11 15 16 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
-  );
+  return <CheckCircle2 size={size} style={{ animation: "resolver-modal-check-pop 0.35s ease-out", color: colors.successFg }} />;
 }
 
 function ErrorCircle({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ color: colors.dangerFg }}>
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-      <line x1="15" y1="9" x2="9" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="9" y1="9" x2="15" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
+  return <XCircle size={size} style={{ color: colors.dangerFg }} />;
 }
 
 function WaitingDots({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ color: colors.gray }}>
-      <circle cx="6" cy="12" r="2" fill="currentColor" opacity="0.4" />
-      <circle cx="12" cy="12" r="2" fill="currentColor" opacity="0.4" />
-      <circle cx="18" cy="12" r="2" fill="currentColor" opacity="0.4" />
-    </svg>
-  );
+  return <Ellipsis size={size} style={{ color: colors.gray }} />;
 }
 
-/* GitHub logo (Octicon mark) */
 function GitHubIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-      <path d="M12 .5C5.37.5 0 5.78 0 12.292c0 5.211 3.438 9.63 8.205 11.188.6.111.82-.254.82-.567 0-.28-.01-1.022-.015-2.005-3.338.711-4.042-1.582-4.042-1.582-.546-1.361-1.333-1.723-1.333-1.723-1.089-.73.083-.716.083-.716 1.205.083 1.838 1.215 1.838 1.215 1.07 1.802 2.807 1.281 3.492.98.109-.762.418-1.281.762-1.576-2.665-.297-5.466-1.309-5.466-5.827 0-1.287.465-2.339 1.228-3.164-.123-.298-.532-1.497.117-3.12 0 0 1.001-.314 3.28 1.209A11.51 11.51 0 0112 6.844c1.02.005 2.047.135 3.006.397 2.277-1.523 3.276-1.209 3.276-1.209.65 1.623.241 2.822.118 3.12.764.825 1.226 1.877 1.226 3.164 0 4.53-2.805 5.527-5.475 5.818.43.364.814 1.084.814 2.184 0 1.576-.014 2.846-.014 3.232 0 .316.216.683.825.567C20.565 21.917 24 17.5 24 12.292 24 5.78 18.627.5 12 .5z"/>
-    </svg>
-  );
+  return <GitFork size={size} style={{ flexShrink: 0 }} />;
 }
 
-/* OSCAL.io gear icon (from favicon-oscalio.svg) */
 function OscalIoIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 37.76 37.835" fill="none" style={{ flexShrink: 0 }}>
-      <g transform="translate(0.5 -2.708)">
-        <path d="M14.6,3.24V7.31a14.477,14.477,0,0,0-3.8,1.37L8.06,5.94,2.71,11.3l2.55,2.55a14.386,14.386,0,0,0-1.71,3.98H0V25.4H3.64a14.047,14.047,0,0,0,1.75,3.86L2.71,31.94l5.35,5.35,2.97-2.97a14.561,14.561,0,0,0,3.57,1.26V40h3.3V32.31a10.863,10.863,0,0,1,0-21.68V3.24H14.6Z" fill="#00bde3" stroke="#00bde3" strokeWidth="1"/>
-        <path d="M36.76,21.63A18.178,18.178,0,0,0,20.44,3.26v7.49a10.872,10.872,0,0,1,0,21.44v7.79A18.487,18.487,0,0,0,36.76,21.64Z" fill="currentColor" stroke="#00bde3" strokeWidth="1"/>
-      </g>
-    </svg>
-  );
+  return <Settings size={size} style={{ flexShrink: 0 }} />;
 }
 
-/* Generic external link icon */
 function ExternalIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  );
+  return <ExternalLink size={size} style={{ flexShrink: 0 }} />;
 }
 
 function SourceIcon({ url }: { url: string }) {
@@ -255,10 +213,7 @@ export default function ResolverModal({ items, onSkip }: Props) {
         {/* Header */}
         <div style={S.header}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: radii.md, backgroundColor: alpha(colors.navy, 10), color: colors.navy, flexShrink: 0 }}>
-            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-            </svg>
+            <Link2 size={22} />
           </div>
           <div>
             <h2 style={S.title}>Resolving OSCAL Dependencies</h2>

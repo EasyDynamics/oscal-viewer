@@ -30,6 +30,55 @@ import LinkChips from "../components/LinkChips";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
+import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
+import {
+  IcoAlertTriangle,
+  IcoBook,
+  IcoBox,
+  IcoChev,
+  IcoClipboard,
+  IcoCode,
+  IcoCube,
+  IcoDatabase,
+  IcoExternalSystem,
+  IcoFileCode,
+  IcoFolder,
+  IcoFolderLayers,
+  IcoFolderShieldLayers,
+  IcoGuidance,
+  IcoHardware,
+  IcoHome,
+  IcoInfo,
+  IcoInterconnection,
+  IcoLayers,
+  IcoLink,
+  IcoNetwork,
+  IcoPaperclip,
+  IcoPhysical,
+  IcoPlan,
+  IcoPolicy,
+  IcoProcessProcedure,
+  IcoServer,
+  IcoService,
+  IcoShield,
+  IcoShieldLayers,
+  IcoSoftware,
+  IcoStandard,
+  IcoTag,
+  IcoThisSystem,
+  IcoUpload,
+  IcoUsers,
+  IcoValidation,
+} from "../components/IconAliases";
+import {
+  assetTypeVisual,
+  componentTypeVisual,
+  findOscalProp,
+  isCanonicalAssetType,
+  oscalNamespaceProps as sharedOscalNamespaceProps,
+  propDisplayName as sharedPropDisplayName,
+  resolveComponentVisual,
+} from "../utils/oscalVisuals";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -52,7 +101,7 @@ interface SspMetadata {
   oscalVersion: string;
   lastModified: string;
   published: string;
-  parties: { uuid: string; name: string; type?: string }[];
+  parties: { uuid: string; name: string; type?: string; "short-name"?: string; links?: SspLink[] }[];
   roles: { id: string; title: string }[];
   responsibleParties: { roleId: string; partyUuids: string[] }[];
 }
@@ -440,7 +489,7 @@ function parseSsp(raw: any): SspParsed {
     lastModified: md["last-modified"] || "",
     published: md.published || "",
     parties: (md.parties || []).map((p: any) => ({
-      uuid: p.uuid, name: p.name || "", type: p.type || "",
+      uuid: p.uuid, name: p.name || "", type: p.type || "", "short-name": p["short-name"], links: p.links,
     })),
     roles: (md.roles || []).map((r: any) => ({ id: r.id, title: r.title || r.id })),
     responsibleParties: (md["responsible-parties"] || []).map((rp: any) => ({
@@ -674,376 +723,14 @@ function CollapsibleRemarks({ value, compact }: { value: unknown; compact?: bool
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   ICONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-interface IconProps { size?: number; style?: CSSProperties }
-
-function IcoUpload({ size = 20, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
-function IcoShield({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  );
-}
-function IcoChev({ open, style }: { open: boolean; style?: CSSProperties }) {
-  return (
-    <svg style={{ ...style, transform: open ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s", flexShrink: 0 }} width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-function IcoHome({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-function IcoInfo({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
-    </svg>
-  );
-}
-function IcoServer({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" />
-    </svg>
-  );
-}
-function IcoCube({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  );
-}
-function IcoLayers({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" />
-    </svg>
-  );
-}
-function IcoShieldLayers({ size = 16, style }: IconProps) {
-  const shieldColor = style?.color ?? colors.orange;
-  const badgeSize = Math.max(9, Math.round(size * 0.72));
-  return (
-    <span style={{ ...style, position: "relative", display: "inline-flex", width: size, height: size, flexShrink: 0 }}>
-      <IcoShield size={size} style={{ color: shieldColor }} />
-      <span style={{
-        position: "absolute", right: -4, bottom: -4,
-        width: badgeSize + 3, height: badgeSize + 3,
-        borderRadius: radii.pill, backgroundColor: colors.card,
-        border: `1px solid ${alpha(colors.purple, 35)}`,
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <IcoLayers size={badgeSize} style={{ color: colors.purple }} />
-      </span>
-    </span>
-  );
-}
-function IcoUsers({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
-    </svg>
-  );
-}
-function IcoClipboard({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
-      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-    </svg>
-  );
-}
-function IcoBook({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-    </svg>
-  );
-}
-function IcoCode({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-    </svg>
-  );
-}
-function IcoLink({ size = 14, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-    </svg>
-  );
-}
-function IcoPaperclip({ size = 14, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-    </svg>
-  );
-}
-function IcoBox({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-    </svg>
-  );
-}
-
-function IcoFolder({ size = 16, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-    </svg>
-  );
-}
-
-function IcoFolderLayers({ size = 16, style }: IconProps) {
-  const folderColor = style?.color ?? colors.purple;
-  const badgeSize = Math.max(9, Math.round(size * 0.72));
-  return (
-    <span style={{ ...style, position: "relative", display: "inline-flex", width: size, height: size, flexShrink: 0 }}>
-      <IcoFolder size={size} style={{ color: folderColor }} />
-      <span style={{
-        position: "absolute", right: -4, bottom: -4,
-        width: badgeSize + 3, height: badgeSize + 3,
-        borderRadius: radii.pill, backgroundColor: colors.card,
-        border: `1px solid ${alpha(colors.purple, 35)}`,
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <IcoLayers size={badgeSize} style={{ color: colors.purple }} />
-      </span>
-    </span>
-  );
-}
-
-function IcoFolderShieldLayers({ size = 16, style }: IconProps) {
-  const folderColor = style?.color ?? colors.cobalt;
-  const badgeSize = Math.max(10, Math.round(size * 0.78));
-  return (
-    <span style={{ ...style, position: "relative", display: "inline-flex", width: size, height: size, flexShrink: 0 }}>
-      <IcoFolder size={size} style={{ color: folderColor }} />
-      <span style={{
-        position: "absolute", right: -5, bottom: -5,
-        width: badgeSize + 4, height: badgeSize + 4,
-        borderRadius: radii.pill, backgroundColor: colors.card,
-        border: `1px solid ${alpha(colors.orange, 35)}`,
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <IcoShieldLayers size={badgeSize} style={{ color: colors.orange }} />
-      </span>
-    </span>
-  );
-}
-
-function IcoTag({ size = 14, style }: IconProps) {
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
-      <line x1="7" y1="7" x2="7.01" y2="7" />
-    </svg>
-  );
-}
-
-/* ── Component-type icons ── */
-function IcoThisSystem({ size = 16, style }: IconProps) {
-  /* Shield with inner monitor — "this system" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      <rect x="8" y="8" width="8" height="6" rx="1" /><line x1="10" y1="17" x2="14" y2="17" /><line x1="12" y1="14" x2="12" y2="17" />
-    </svg>
-  );
-}
-function IcoExternalSystem({ size = 16, style }: IconProps) {
-  /* Server with outbound arrow — "external system" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="20" height="8" rx="2" /><line x1="6" y1="6" x2="6.01" y2="6" />
-      <path d="M15 16h6m0 0l-3-3m3 3l-3 3" /><rect x="2" y="14" width="10" height="8" rx="2" /><line x1="6" y1="18" x2="6.01" y2="18" />
-    </svg>
-  );
-}
-function IcoInterconnection({ size = 16, style }: IconProps) {
-  /* Two nodes with bidirectional link — "interconnection" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="7" width="7" height="10" rx="1.5" /><rect x="16" y="7" width="7" height="10" rx="1.5" />
-      <line x1="8" y1="12" x2="16" y2="12" /><polyline points="13 9 16 12 13 15" /><polyline points="11 9 8 12 11 15" />
-    </svg>
-  );
-}
-function IcoSoftware({ size = 16, style }: IconProps) {
-  /* Application window with code inside — "software" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="3" width="20" height="18" rx="2" /><line x1="2" y1="8" x2="22" y2="8" />
-      <circle cx="5.5" cy="5.5" r="0.75" fill="currentColor" /><circle cx="8.5" cy="5.5" r="0.75" fill="currentColor" />
-      <polyline points="8 13 6 16 8 19" /><polyline points="16 13 18 16 16 19" /><line x1="13" y1="12" x2="11" y2="20" />
-    </svg>
-  );
-}
-function IcoHardware({ size = 16, style }: IconProps) {
-  /* CPU/chip — "hardware" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" />
-      <line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" />
-      <line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" />
-      <line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" />
-      <line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
-    </svg>
-  );
-}
-function IcoService({ size = 16, style }: IconProps) {
-  /* Cloud with gear — "service / API" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
-      <circle cx="14" cy="15" r="2" /><path d="M14 11v1.5" /><path d="M14 17v1.5" /><path d="M10.5 14.5L11.6 14" /><path d="M16.4 16l1.1-.5" />
-    </svg>
-  );
-}
-function IcoPolicy({ size = 16, style }: IconProps) {
-  /* Document with gavel/seal — "policy" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
-      <circle cx="12" cy="15" r="3" /><line x1="12" y1="15" x2="12" y2="13" />
-    </svg>
-  );
-}
-function IcoPhysical({ size = 16, style }: IconProps) {
-  /* Building/facility — "physical" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="2" width="16" height="20" rx="1" /><line x1="4" y1="22" x2="20" y2="22" />
-      <rect x="8" y="6" width="3" height="3" /><rect x="13" y="6" width="3" height="3" />
-      <rect x="8" y="12" width="3" height="3" /><rect x="13" y="12" width="3" height="3" />
-      <rect x="10" y="18" width="4" height="4" />
-    </svg>
-  );
-}
-function IcoProcessProcedure({ size = 16, style }: IconProps) {
-  /* Flowchart steps — "process/procedure" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="5" rx="1" /><rect x="14" y="9" width="7" height="5" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" />
-      <path d="M10 5.5h2a2 2 0 012 2V11" /><path d="M14 12h-2a2 2 0 00-2 2v2.5" />
-    </svg>
-  );
-}
-function IcoPlan({ size = 16, style }: IconProps) {
-  /* Calendar with checkmark — "plan" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-      <path d="M9 16l2 2 4-4" />
-    </svg>
-  );
-}
-function IcoGuidance({ size = 16, style }: IconProps) {
-  /* Compass — "guidance" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-    </svg>
-  );
-}
-function IcoStandard({ size = 16, style }: IconProps) {
-  /* Award/ribbon — "standard" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="6" /><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
-    </svg>
-  );
-}
-function IcoValidation({ size = 16, style }: IconProps) {
-  /* Shield with checkmark — "validation" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      <path d="M9 12l2 2 4-4" />
-    </svg>
-  );
-}
-function IcoAlertTriangle({ size = 16, style }: IconProps) {
-  /* Warning triangle — missing / incomplete */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  );
-}
-function IcoNetwork({ size = 16, style }: IconProps) {
-  /* Globe with connections — "network" */
-  return (
-    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
-      <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-    </svg>
-  );
-}
-
 /** Map a component type string to its nav icon key */
 function componentTypeNavKey(type: string): string {
-  switch (type) {
-    case "this-system": return "this-system";
-    case "system": return "ext-system";
-    case "interconnection": return "interconnection";
-    case "software": return "software";
-    case "hardware": return "hardware";
-    case "service": return "service";
-    case "policy": return "policy";
-    case "physical": return "physical";
-    case "process-procedure": return "process-procedure";
-    case "plan": return "plan";
-    case "guidance": return "guidance";
-    case "standard": return "standard";
-    case "validation": return "validation";
-    case "network": return "network";
-    default: return "cube";
-  }
+  return componentTypeVisual(type).iconKey;
 }
 
 /** Component-type color mapping */
 function componentTypeColor(type: string): string {
-  switch (type) {
-    case "this-system": return colors.navy;
-    case "system": return colors.cobalt;
-    case "interconnection": return colors.purple;
-    case "software": return colors.brightBlue;
-    case "hardware": return colors.blueGray;
-    case "service": return colors.mint;
-    case "policy": return colors.orange;
-    case "physical": return colors.darkGreen;
-    case "process-procedure": return colors.cobalt;
-    case "plan": return colors.brightBlue;
-    case "guidance": return colors.yellow;
-    case "standard": return colors.red;
-    case "validation": return colors.darkGreen;
-    case "network": return colors.purple;
-    default: return colors.cobalt;
-  }
+  return componentTypeVisual(type).color;
 }
 
 function componentStatusIconKey(status: string): string {
@@ -1064,20 +751,16 @@ function componentStatusColor(status: string): string {
 
 const OSCAL_NAMESPACE = "http://csrc.nist.gov/ns/oscal";
 
-function isOscalNamespace(ns?: string): boolean {
-  return (ns || "").replace(/\/$/, "") === OSCAL_NAMESPACE;
-}
-
 function oscalNamespaceProps(props: OscalProp[]): OscalProp[] {
-  return props.filter((p) => isOscalNamespace(p.ns));
+  return sharedOscalNamespaceProps(props);
 }
 
 function findProp(props: OscalProp[], name: string): OscalProp | undefined {
-  return props.find((p) => p.name === name && isOscalNamespace(p.ns)) ?? props.find((p) => p.name === name);
+  return findOscalProp(props, name);
 }
 
 function propDisplayName(prop: OscalProp): string {
-  return prop.class ? `${prop.name} (${prop.class})` : prop.name;
+  return sharedPropDisplayName(prop);
 }
 
 function riskColor(value: string): string {
@@ -1088,67 +771,9 @@ function riskColor(value: string): string {
   return colors.cobalt;
 }
 
-/** Map an inventory-item asset-type prop to the best icon key */
-const CANONICAL_ASSET_TYPES = new Set([
-  "operating-system",
-  "database",
-  "web-server",
-  "dns-server",
-  "email-server",
-  "directory-server",
-  "pbx",
-  "firewall",
-  "router",
-  "switch",
-  "storage-array",
-  "appliance",
-]);
-
-function isCanonicalAssetType(assetType?: string): assetType is string {
-  return !!assetType && CANONICAL_ASSET_TYPES.has(assetType.toLowerCase());
-}
-
-function assetTypeIconKey(assetType: string): string {
-  switch (assetType.toLowerCase()) {
-    case "operating-system": return "software";
-    case "database": return "server";
-    case "web-server": return "software";
-    case "dns-server": return "network";
-    case "email-server": return "service";
-    case "directory-server": return "service";
-    case "pbx": return "hardware";
-    case "firewall": case "router": case "switch": return "network";
-    case "storage-array": return "box";
-    case "appliance": return "hardware";
-    default: return "box";
-  }
-}
-
-/** Map an inventory-item asset-type prop to a color */
-function assetTypeColor(assetType: string): string {
-  switch (assetType.toLowerCase()) {
-    case "operating-system": return colors.brightBlue;
-    case "database": return colors.cobalt;
-    case "web-server": return colors.brightBlue;
-    case "dns-server": return colors.purple;
-    case "email-server": return colors.mint;
-    case "directory-server": return colors.mint;
-    case "pbx": return colors.blueGray;
-    case "firewall": return colors.red;
-    case "router": case "switch": return colors.purple;
-    case "storage-array": return colors.darkGreen;
-    case "appliance": return colors.blueGray;
-    default: return colors.darkGreen;
-  }
-}
-
 /** Resolve the best icon key and color for a component, checking OSCAL asset-type first. */
 function componentIcon(comp: Pick<SspComponent, "type"> & { props?: OscalProp[] }): { iconKey: string; color: string; assetType?: string; localAssetType?: string } {
-  const assetType = findProp(comp.props ?? [], "asset-type")?.value;
-  if (isCanonicalAssetType(assetType)) {
-    return { iconKey: assetTypeIconKey(assetType), color: assetTypeColor(assetType), assetType };
-  }
-  return { iconKey: componentTypeNavKey(comp.type), color: componentTypeColor(comp.type), localAssetType: assetType };
+  return resolveComponentVisual(comp);
 }
 
 /** Resolve the best icon key and color for an inventory item, checking asset-type then component type */
@@ -1158,7 +783,8 @@ function inventoryItemIcon(
 ): { iconKey: string; color: string } {
   const assetType = findProp(ii.props, "asset-type")?.value;
   if (isCanonicalAssetType(assetType)) {
-    return { iconKey: assetTypeIconKey(assetType), color: assetTypeColor(assetType) };
+    const visual = assetTypeVisual(assetType);
+    return { iconKey: visual.iconKey, color: visual.color };
   }
   // Fall back to the first implemented-component's type
   for (const ic of ii.implementedComponents) {
@@ -1227,6 +853,8 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "book": return <IcoBook size={size} style={st} />;
     case "link": return <IcoLink size={size} style={st} />;
     case "box": return <IcoBox size={size} style={st} />;
+    case "database": return <IcoDatabase size={size} style={st} />;
+    case "file-code": return <IcoFileCode size={size} style={st} />;
     case "folder": return <IcoFolder size={size} style={st} />;
     case "folder-layers": return <IcoFolderLayers size={size} style={st} />;
     case "folder-shield-layers": return <IcoFolderShieldLayers size={size} style={st} />;
@@ -2364,6 +1992,7 @@ function OverviewView({ ssp, leveragedIndex, navigate }: {
 
 function MetadataView({ ssp }: { ssp: SspParsed }) {
   const md = ssp.metadata;
+  const responsibleParties = md.responsibleParties.map((rp) => ({ "role-id": rp.roleId, "party-uuids": rp.partyUuids }));
   return (
     <>
       <Card>
@@ -2396,12 +2025,14 @@ function MetadataView({ ssp }: { ssp: SspParsed }) {
       {md.parties.length > 0 && (
         <Card>
           <SectionLabel>Parties ({md.parties.length})</SectionLabel>
-          {md.parties.map((p) => (
-            <div key={p.uuid} style={{ fontSize: 13, marginBottom: 4 }}>
-              <strong style={{ color: colors.navy }}>{p.name}</strong>
-              {p.type && <span style={{ fontSize: 11, color: colors.gray, marginLeft: 8 }}>{p.type}</span>}
-            </div>
-          ))}
+          <PartyCardGrid parties={md.parties} />
+        </Card>
+      )}
+
+      {responsibleParties.length > 0 && (
+        <Card>
+          <SectionLabel>Responsible Parties</SectionLabel>
+          <ResponsiblePartiesList responsibleParties={responsibleParties} parties={md.parties} roles={md.roles} />
         </Card>
       )}
     </>
@@ -3485,14 +3116,15 @@ function LeveragedSystemsMap({ summaries, connections }: { summaries: LeveragedS
 }
 
 function LeveragedAuthCard({
-  la, index, matched, partyMap, navigate,
+  la, index, matched, partyByUuid, navigate,
 }: {
   la: LeveragedAuth;
   index: number;
   matched: LeveragedSystemSummary | undefined;
-  partyMap: Record<string, string>;
+  partyByUuid: Map<string, SspMetadata["parties"][number]>;
   navigate: (id: string) => void;
 }) {
+  const providerParty = partyByUuid.get(la.partyUuid);
   return (
     <div
       style={{
@@ -3531,7 +3163,10 @@ function LeveragedAuthCard({
         </button>
       </div>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.gray, marginBottom: 4 }}>Provider</div>
+          <PartyChip party={providerParty} fallbackUuid={la.partyUuid} />
+        </div>
         {la.dateAuthorized && <MField label="Authorized" value={fmtDate(la.dateAuthorized)} />}
         {la.href && <MField label="SSP URL" value={la.href} mono />}
         {matched && <MField label="Loaded As" value={matched.systemName || matched.title} />}
@@ -3574,11 +3209,7 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
     });
     return result;
   }, [summaries]);
-  const partyMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
-    return m;
-  }, [ssp]);
+  const partyByUuid = useMemo(() => new Map(ssp.metadata.parties.map((party) => [party.uuid, party])), [ssp]);
   const boundProviderByLaUuid = useMemo(() => {
     const map = new Map<string, LeveragedSystemSummary>();
     oscal.leveragedSsps.forEach((entry, i) => {
@@ -3607,7 +3238,7 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
             la={la}
             index={i}
             matched={matched}
-            partyMap={partyMap}
+            partyByUuid={partyByUuid}
             navigate={navigate}
           />
         );
@@ -3662,11 +3293,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
   const [providerDragOver, setProviderDragOver] = useState(false);
   const [providerLoadError, setProviderLoadError] = useState("");
   const [offeredView, setOfferedView] = useState<"control" | "component">("control");
-  const partyMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    ssp.metadata.parties.forEach((p) => { m[p.uuid] = p.name; });
-    return m;
-  }, [ssp]);
+  const partyByUuid = useMemo(() => new Map(ssp.metadata.parties.map((party) => [party.uuid, party])), [ssp]);
 
   const loadedProvider = useMemo(() => {
     type Candidate = { entry: typeof oscal.leveragedSsps[number]; summary: LeveragedSystemSummary };
@@ -3781,7 +3408,10 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
         <SectionLabel>Leveraged Authorization</SectionLabel>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: "0 0 12px" }}>{la.title}</h3>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <MField label="Provider" value={partyMap[la.partyUuid] || la.partyUuid.slice(0, 12)} />
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.gray, marginBottom: 4 }}>Provider</div>
+            <PartyChip party={partyByUuid.get(la.partyUuid)} fallbackUuid={la.partyUuid} />
+          </div>
           {la.dateAuthorized && <MField label="Date Authorized" value={fmtDate(la.dateAuthorized)} />}
           {la.href && <MField label="SSP URL" value={la.href} mono />}
           <MField label="UUID" value={la.uuid} mono />
@@ -4729,6 +4359,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
     ssp.systemImplementation.components.forEach((c) => { m[c.uuid] = c.title || c.uuid.slice(0, 8); });
     return m;
   }, [ssp]);
+  const partyByUuid = useMemo(() => new Map(ssp.metadata.parties.map((party) => [party.uuid, party])), [ssp]);
 
   /* Catalog enrichment */
   const catalogControl = useMemo(
@@ -5153,22 +4784,16 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
       {ir.responsibleRoles.length > 0 && (
         <Card>
           <SectionLabel>Responsible Roles</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "grid", gap: 8 }}>
             {ir.responsibleRoles.map((rr, i) => (
-              <span key={i} style={{
-                fontSize: 12, padding: "4px 12px", borderRadius: radii.pill,
-                backgroundColor: colors.navy, color: colors.white, fontWeight: 500,
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+                padding: "8px 10px", borderRadius: radii.md,
+                backgroundColor: colors.surfaceSubtle, border: `1px solid ${colors.paleGray}`,
               }}>
-                {rr.roleId}
-                {rr.partyUuids.length > 0 && (() => {
-                  const partyMap: Record<string, string> = {};
-                  ssp.metadata.parties.forEach((p) => { partyMap[p.uuid] = p.name; });
-                  return rr.partyUuids.map((pu) => {
-                    const name = partyMap[pu];
-                    return name ? ` (${name})` : "";
-                  }).join("");
-                })()}
-              </span>
+                <span style={{ fontSize: 12, color: colors.navy, fontWeight: 800, fontFamily: fonts.mono }}>{rr.roleId}</span>
+                {rr.partyUuids.map((pu) => <PartyChip key={pu} party={partyByUuid.get(pu)} fallbackUuid={pu} />)}
+              </div>
             ))}
           </div>
         </Card>

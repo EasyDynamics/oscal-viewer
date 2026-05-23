@@ -33,6 +33,9 @@ import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import useIsMobile from "../hooks/useIsMobile";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
+import { IcoAct, IcoHome, IcoRight, IcoSearch, IcoShield, IcoTask, IcoUpload } from "../components/IconAliases";
+import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
+import { partyDisplayName, type PartyLike, type ResponsiblePartyLike, type RoleLike } from "../utils/partyDisplay";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -76,7 +79,9 @@ interface PlanParsed {
   oscalVersion: string;
   lastModified: string;
   published: string;
-  parties: string[];
+  parties: PartyLike[];
+  roles: RoleLike[];
+  responsibleParties: ResponsiblePartyLike[];
   activities: ActivityParsed[];
   tasks: TaskParsed[];
 }
@@ -290,7 +295,17 @@ function parseAssessmentPlan(raw: any): PlanParsed {
     oscalVersion: md["oscal-version"] || "",
     lastModified: md["last-modified"] || "",
     published: md.published || "",
-    parties: (md.parties || []).map((p: any) => p.name).filter(Boolean),
+    parties: (md.parties || [])
+      .map((p: any) => ({
+        uuid: String(p.uuid ?? p.name ?? ""),
+        type: p.type,
+        name: p.name,
+        "short-name": p["short-name"],
+        links: p.links,
+      }))
+      .filter((p: PartyLike) => p.uuid),
+    roles: (md.roles || []).map((role: any) => ({ id: String(role.id ?? ""), title: role.title })).filter((role: RoleLike) => role.id),
+    responsibleParties: md["responsible-parties"] || [],
     activities,
     tasks,
   };
@@ -347,71 +362,6 @@ function countAllTasks(tasks: TaskParsed[]): number {
   let count = tasks.length;
   for (const t of tasks) count += countAllTasks(t.tasks);
   return count;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   ICONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-interface IconProps { size?: number; style?: CSSProperties }
-
-function IcoUpload({ size = 20, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
-function IcoShield({ size = 14, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}>
-      <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm0 2.18l7 3.82v4c0 4.52-3.08 8.74-7 9.93-3.92-1.19-7-5.41-7-9.93V8l7-3.82z" />
-    </svg>
-  );
-}
-function IcoSearch({ size = 16, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-function IcoAct({ size = 16, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-    </svg>
-  );
-}
-function IcoTask({ size = 16, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-    </svg>
-  );
-}
-function IcoHome({ size = 16, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-function IcoRight({ size = 14, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1029,6 +979,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
 }) {
   const catalogSort = useCatalogSortIndex();
   const hasTasks = plan.tasks.length > 0;
+  const partyNames = plan.parties.map(partyDisplayName).join(", ");
   return (
     <>
       {/* Metadata header */}
@@ -1041,7 +992,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
           {plan.oscalVersion && <span>OSCAL: <strong style={{ color: colors.black }}>{plan.oscalVersion}</strong></span>}
           {plan.lastModified && <span>Modified: <strong style={{ color: colors.black }}>{fmtDate(plan.lastModified)}</strong></span>}
           {plan.published && <span>Published: <strong style={{ color: colors.black }}>{fmtDate(plan.published)}</strong></span>}
-          {plan.parties.length > 0 && <span>Author: <strong style={{ color: colors.black }}>{plan.parties.join(", ")}</strong></span>}
+          {partyNames && <span>Author: <strong style={{ color: colors.black }}>{partyNames}</strong></span>}
         </div>
 
         {/* Stats chips */}
@@ -1059,6 +1010,20 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
           ))}
         </div>
       </Card>
+
+      {plan.parties.length > 0 && (
+        <Card>
+          <SectionLabel>Parties ({plan.parties.length})</SectionLabel>
+          <PartyCardGrid parties={plan.parties} />
+        </Card>
+      )}
+
+      {plan.responsibleParties.length > 0 && (
+        <Card>
+          <SectionLabel>Responsible Parties</SectionLabel>
+          <ResponsiblePartiesList responsibleParties={plan.responsibleParties} parties={plan.parties} roles={plan.roles} />
+        </Card>
+      )}
 
       {/* Task cards (when tasks exist) */}
       {hasTasks && plan.tasks.map((t) => {
@@ -1831,7 +1796,7 @@ export default function AssessmentPlanPage() {
             {plan.oscalVersion && <span>OSCAL: <strong style={{ color: colors.black }}>{plan.oscalVersion}</strong></span>}
             {plan.lastModified && <span>Modified: <strong style={{ color: colors.black }}>{fmtDate(plan.lastModified)}</strong></span>}
             {plan.published && <span>Published: <strong style={{ color: colors.black }}>{fmtDate(plan.published)}</strong></span>}
-            {plan.parties.length > 0 && <span>Author: <strong style={{ color: colors.black }}>{plan.parties.join(", ")}</strong></span>}
+            {plan.parties.length > 0 && <span>Author: <strong style={{ color: colors.black }}>{plan.parties.map(partyDisplayName).join(", ")}</strong></span>}
           </div>
 
           {/* Search */}
@@ -1919,7 +1884,7 @@ export default function AssessmentPlanPage() {
               {plan.oscalVersion && <span>OSCAL: <strong style={{ color: colors.black }}>{plan.oscalVersion}</strong></span>}
               {plan.lastModified && <span>Modified: <strong style={{ color: colors.black }}>{fmtDate(plan.lastModified)}</strong></span>}
               {plan.published && <span>Published: <strong style={{ color: colors.black }}>{fmtDate(plan.published)}</strong></span>}
-              {plan.parties.length > 0 && <span>Author: <strong style={{ color: colors.black }}>{plan.parties.join(", ")}</strong></span>}
+              {plan.parties.length > 0 && <span>Author: <strong style={{ color: colors.black }}>{plan.parties.map(partyDisplayName).join(", ")}</strong></span>}
             </div>
 
             {/* Search */}

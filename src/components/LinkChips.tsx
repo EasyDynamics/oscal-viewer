@@ -6,6 +6,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { colors, fonts } from "../theme/tokens";
+import { IcoLink } from "./IconAliases";
 
 /* ── Category color map ── */
 
@@ -81,25 +82,8 @@ interface LinkChipsProps {
   style?: CSSProperties;
 }
 
-/* ── SVG icon (inline so the component has zero deps beyond tokens) ── */
-
 function IcoLinkSmall() {
-  return (
-    <svg
-      width={10}
-      height={10}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ flexShrink: 0 }}
-    >
-      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-    </svg>
-  );
+  return <IcoLink size={10} style={{ flexShrink: 0 }} />;
 }
 
 /* ── Component ── */

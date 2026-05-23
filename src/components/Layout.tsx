@@ -11,7 +11,7 @@ import { colors, fonts, oscalModels, shadows, radii, brand, alpha } from "../the
 import { useOscal } from "../context/OscalContext";
 import { useAuth, isValidJwtFormat } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { IconSun, IconMoon, IconLock, IconUnlock } from "./Icons";
+import { Lock, Moon, Sun, Unlock } from "lucide-react";
 import useIsMobile from "../hooks/useIsMobile";
 import CookieBanner from "./CookieBanner";
 
@@ -113,7 +113,7 @@ export default function Layout() {
                     background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
                   }}
                 >
-                  {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                  {isAuthenticated ? <Lock size={16} /> : <Unlock size={16} />}
                 </button>
                 {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
               </div>
@@ -123,7 +123,7 @@ export default function Layout() {
                 title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                 style={styles.themeToggle}
               >
-                {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+                {resolvedMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <a href="https://oscal.io/" target="_blank" rel="noopener noreferrer">
                 <img src={brand.logoUrl} alt={brand.tagline} style={{ height: 20 }} />
@@ -141,7 +141,7 @@ export default function Layout() {
                     background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
                   }}
                 >
-                  {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                  {isAuthenticated ? <Lock size={16} /> : <Unlock size={16} />}
                 </button>
                 {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
               </div>
@@ -151,7 +151,7 @@ export default function Layout() {
                 title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                 style={styles.themeToggle}
               >
-                {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+                {resolvedMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <span style={styles.tagline}>{brand.tagline}</span>
             </div>
@@ -169,7 +169,7 @@ export default function Layout() {
                   background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
                 }}
               >
-                {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                {isAuthenticated ? <Lock size={16} /> : <Unlock size={16} />}
               </button>
               {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
             </div>
@@ -179,7 +179,7 @@ export default function Layout() {
               title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               style={styles.themeToggle}
             >
-              {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+              {resolvedMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
         )}
