@@ -965,6 +965,16 @@ function IcoValidation({ size = 16, style }: IconProps) {
     </svg>
   );
 }
+function IcoAlertTriangle({ size = 16, style }: IconProps) {
+  /* Warning triangle — missing / incomplete */
+  return (
+    <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
 function IcoNetwork({ size = 16, style }: IconProps) {
   /* Globe with connections — "network" */
   return (
@@ -1017,28 +1027,80 @@ function componentTypeColor(type: string): string {
   }
 }
 
+function componentStatusIconKey(status: string): string {
+  const lower = status.toLowerCase();
+  if (lower === "operational") return "validation";
+  if (lower === "under-development") return "plan";
+  if (lower === "disposition") return "missing-control";
+  return "info";
+}
+
+function componentStatusColor(status: string): string {
+  const lower = status.toLowerCase();
+  if (lower === "operational") return colors.darkGreen;
+  if (lower === "under-development") return colors.orange;
+  if (lower === "disposition") return colors.red;
+  return colors.gray;
+}
+
+const OSCAL_NAMESPACE = "http://csrc.nist.gov/ns/oscal";
+
+function isOscalNamespace(ns?: string): boolean {
+  return (ns || "").replace(/\/$/, "") === OSCAL_NAMESPACE;
+}
+
+function oscalNamespaceProps(props: OscalProp[]): OscalProp[] {
+  return props.filter((p) => isOscalNamespace(p.ns));
+}
+
+function findProp(props: OscalProp[], name: string): OscalProp | undefined {
+  return props.find((p) => p.name === name && isOscalNamespace(p.ns)) ?? props.find((p) => p.name === name);
+}
+
+function propDisplayName(prop: OscalProp): string {
+  return prop.class ? `${prop.name} (${prop.class})` : prop.name;
+}
+
+function riskColor(value: string): string {
+  const lower = value.toLowerCase();
+  if (lower.includes("high")) return colors.red;
+  if (lower.includes("moderate") || lower.includes("medium")) return colors.orange;
+  if (lower.includes("low")) return colors.darkGreen;
+  return colors.cobalt;
+}
+
 /** Map an inventory-item asset-type prop to the best icon key */
+const CANONICAL_ASSET_TYPES = new Set([
+  "operating-system",
+  "database",
+  "web-server",
+  "dns-server",
+  "email-server",
+  "directory-server",
+  "pbx",
+  "firewall",
+  "router",
+  "switch",
+  "storage-array",
+  "appliance",
+]);
+
+function isCanonicalAssetType(assetType?: string): assetType is string {
+  return !!assetType && CANONICAL_ASSET_TYPES.has(assetType.toLowerCase());
+}
+
 function assetTypeIconKey(assetType: string): string {
   switch (assetType.toLowerCase()) {
-    case "os": return "software";
-    case "database": return "software";
-    case "web-server": case "application": return "software";
+    case "operating-system": return "software";
+    case "database": return "server";
+    case "web-server": return "software";
+    case "dns-server": return "network";
+    case "email-server": return "service";
+    case "directory-server": return "service";
+    case "pbx": return "hardware";
+    case "firewall": case "router": case "switch": return "network";
+    case "storage-array": return "box";
     case "appliance": return "hardware";
-    case "network": case "switch": case "router": case "firewall": return "network";
-    case "storage": return "hardware";
-    case "virtual": case "virtual-machine": case "compute": return "ext-system";
-    case "software": return "software";
-    case "hardware": return "hardware";
-    case "service": return "service";
-    case "this-system": return "this-system";
-    case "interconnection": return "interconnection";
-    case "policy": return "policy";
-    case "physical": return "physical";
-    case "process-procedure": return "process-procedure";
-    case "plan": return "plan";
-    case "guidance": return "guidance";
-    case "standard": return "standard";
-    case "validation": return "validation";
     default: return "box";
   }
 }
@@ -1046,18 +1108,28 @@ function assetTypeIconKey(assetType: string): string {
 /** Map an inventory-item asset-type prop to a color */
 function assetTypeColor(assetType: string): string {
   switch (assetType.toLowerCase()) {
-    case "os": return colors.brightBlue;
+    case "operating-system": return colors.brightBlue;
     case "database": return colors.cobalt;
-    case "web-server": case "application": return colors.brightBlue;
+    case "web-server": return colors.brightBlue;
+    case "dns-server": return colors.purple;
+    case "email-server": return colors.mint;
+    case "directory-server": return colors.mint;
+    case "pbx": return colors.blueGray;
+    case "firewall": return colors.red;
+    case "router": case "switch": return colors.purple;
+    case "storage-array": return colors.darkGreen;
     case "appliance": return colors.blueGray;
-    case "network": case "switch": case "router": case "firewall": return colors.purple;
-    case "storage": return colors.blueGray;
-    case "virtual": case "virtual-machine": case "compute": return colors.cobalt;
-    case "software": return colors.brightBlue;
-    case "hardware": return colors.blueGray;
-    case "service": return colors.mint;
     default: return colors.darkGreen;
   }
+}
+
+/** Resolve the best icon key and color for a component, checking OSCAL asset-type first. */
+function componentIcon(comp: Pick<SspComponent, "type"> & { props?: OscalProp[] }): { iconKey: string; color: string; assetType?: string; localAssetType?: string } {
+  const assetType = findProp(comp.props ?? [], "asset-type")?.value;
+  if (isCanonicalAssetType(assetType)) {
+    return { iconKey: assetTypeIconKey(assetType), color: assetTypeColor(assetType), assetType };
+  }
+  return { iconKey: componentTypeNavKey(comp.type), color: componentTypeColor(comp.type), localAssetType: assetType };
 }
 
 /** Resolve the best icon key and color for an inventory item, checking asset-type then component type */
@@ -1065,15 +1137,16 @@ function inventoryItemIcon(
   ii: InventoryItem,
   components: SspComponent[],
 ): { iconKey: string; color: string } {
-  const assetType = ii.props.find((p) => p.name === "asset-type")?.value;
-  if (assetType) {
+  const assetType = findProp(ii.props, "asset-type")?.value;
+  if (isCanonicalAssetType(assetType)) {
     return { iconKey: assetTypeIconKey(assetType), color: assetTypeColor(assetType) };
   }
   // Fall back to the first implemented-component's type
   for (const ic of ii.implementedComponents) {
     const comp = components.find((c) => c.uuid === ic.componentUuid);
-    if (comp?.type) {
-      return { iconKey: componentTypeNavKey(comp.type), color: componentTypeColor(comp.type) };
+    if (comp) {
+      const { iconKey, color } = componentIcon(comp);
+      return { iconKey, color };
     }
   }
   return { iconKey: "box", color: colors.darkGreen };
@@ -1151,6 +1224,7 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "guidance": return <IcoGuidance size={size} style={st} />;
     case "standard": return <IcoStandard size={size} style={st} />;
     case "validation": return <IcoValidation size={size} style={st} />;
+    case "missing-control": return <IcoAlertTriangle size={size} style={st} />;
     case "network": return <IcoNetwork size={size} style={st} />;
     default: return <IcoBook size={size} style={st} />;
   }
@@ -1185,19 +1259,21 @@ function NavIconWithBadge({ icon, color, badge, size = 14 }: { icon: string; col
 function controlSourceIconKey(hasCurrent: boolean, hasProvider: boolean): string {
   if (hasCurrent && hasProvider) return "shield-layers";
   if (hasProvider) return "layers";
-  return "shield";
+  if (hasCurrent) return "shield";
+  return "missing-control";
 }
 
 function controlSourceColor(hasCurrent: boolean, hasProvider: boolean): string {
   if (hasCurrent) return colors.orange;
   if (hasProvider) return colors.purple;
-  return colors.gray;
+  return colors.red;
 }
 
 function controlSourceTitle(hasCurrent: boolean, hasProvider: boolean): string {
   if (hasCurrent && hasProvider) return "Implemented by the current SSP and offered by a loaded provider SSP";
   if (hasProvider) return "Offered by a loaded provider SSP";
-  return "Implemented by the current SSP";
+  if (hasCurrent) return "Implemented by the current SSP";
+  return "Missing implementation statements in the current SSP";
 }
 
 function ControlSourceIcon({ hasCurrent, hasProvider, size = 14 }: { hasCurrent: boolean; hasProvider: boolean; size?: number }) {
@@ -1236,6 +1312,32 @@ function MField({ label, value, mono }: { label: string; value: string; mono?: b
     <div>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.gray, marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 13, color: colors.black, fontFamily: mono ? fonts.mono : fonts.sans, wordBreak: "break-all" }}>{value}</div>
+    </div>
+  );
+}
+
+function VisualField({
+  label, value, icon, color, mono, iconSize = 19, iconBoxSize = 34, minHeight = 70, valueSize = 14,
+}: {
+  label: string; value: string | number; icon: string; color: string; mono?: boolean; iconSize?: number; iconBoxSize?: number; minHeight?: number; valueSize?: number;
+}) {
+  if (value === "" || value == null) return null;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+      borderRadius: radii.md, backgroundColor: alpha(color, 7), border: `1px solid ${alpha(color, 22)}`,
+      minHeight,
+    }}>
+      <div style={{
+        width: iconBoxSize, height: iconBoxSize, borderRadius: radii.sm, display: "inline-flex", alignItems: "center", justifyContent: "center",
+        backgroundColor: alpha(color, 12), color,
+      }}>
+        {navIcon(icon, color, iconSize)}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: colors.gray, marginBottom: 3 }}>{label}</div>
+        <div style={{ fontSize: valueSize, color: colors.navy, fontWeight: 800, fontFamily: mono ? fonts.mono : fonts.sans, wordBreak: "break-word" }}>{value}</div>
+      </div>
     </div>
   );
 }
@@ -1294,7 +1396,7 @@ function ImplStatusBadge({ status }: { status: string }) {
   );
 }
 
-const CONTROL_STATUS_ORDER = ["implemented", "partial", "planned", "alternative", "not-applicable"] as const;
+const CONTROL_STATUS_ORDER = ["implemented", "satisfied-by-provider", "partial", "planned", "alternative", "not-applicable", "unspecified", "missing"] as const;
 type KnownControlStatus = typeof CONTROL_STATUS_ORDER[number];
 
 interface StatusBucket {
@@ -1315,9 +1417,11 @@ interface FamilyStatusSummary {
 
 interface ControlStatusDashboardSummary {
   totalControls: number;
+  totalSspControls: number;
   totalComponents: number;
   totalStatements: number;
   totalByComponentEntries: number;
+  isProfileScoped: boolean;
   controlBuckets: StatusBucket[];
   componentBuckets: StatusBucket[];
   familySummaries: FamilyStatusSummary[];
@@ -1331,10 +1435,12 @@ function statusLabel(status: string): string {
 function controlStatusMeta(status: string): { color: string; background: string; description: string } {
   const lower = status.toLowerCase();
   if (lower === "implemented") return { color: colors.darkGreen, background: colors.successBg, description: "The control is fully implemented." };
+  if (lower === "satisfied-by-provider") return { color: colors.purple, background: alpha(colors.purple, 10), description: "The control is satisfied by a loaded leveraged authorization." };
   if (lower === "partial") return { color: colors.orange, background: colors.warningBg, description: "The control is partially implemented." };
   if (lower === "planned") return { color: colors.brightBlue, background: alpha(colors.brightBlue, 10), description: "A plan exists for implementing the control." };
   if (lower === "alternative") return { color: colors.cobalt, background: alpha(colors.cobalt, 10), description: "An alternative implementation is described." };
   if (lower === "not-applicable") return { color: colors.blueGray, background: colors.surfaceSubtle, description: "The control is justified as not applicable." };
+  if (lower === "missing") return { color: colors.red, background: alpha(colors.red, 10), description: "The profile requires this control, but the SSP has no implementation statements." };
   if (lower === "unspecified") return { color: colors.gray, background: colors.surfaceSubtle, description: "No implementation status was found." };
   return { color: colors.purple, background: alpha(colors.purple, 10), description: "Locally defined implementation status." };
 }
@@ -1383,20 +1489,35 @@ function incrementCount(counts: Record<string, number>, key: string) {
   counts[key] = (counts[key] ?? 0) + 1;
 }
 
-function buildControlStatusDashboard(ssp: SspParsed, catalogSort: ReturnType<typeof useCatalogSortIndex>): ControlStatusDashboardSummary {
+function dashboardStatusForEntry(entry: ControlNavEntry, ir?: ImplementedRequirement): string {
+  if (entry.hasCurrent && ir) return rollupControlStatus(ir);
+  if (entry.hasProvider) return "satisfied-by-provider";
+  return "missing";
+}
+
+function buildControlStatusDashboard(
+  ssp: SspParsed,
+  catalogSort: ReturnType<typeof useCatalogSortIndex>,
+  leveragedIndex: LeveragedIndex,
+  profileControlIds: string[],
+): ControlStatusDashboardSummary {
   const controlCounts: Record<string, number> = {};
   const componentCounts: Record<string, number> = {};
   const familyCounts: Record<string, Record<string, number>> = {};
   let totalStatements = 0;
   let totalByComponentEntries = 0;
+  const irById = new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir]));
 
-  ssp.controlImplementation.implementedRequirements.forEach((ir) => {
-    const controlStatus = rollupControlStatus(ir);
+  buildControlEntries(ssp, leveragedIndex, profileControlIds).forEach((entry) => {
+    const ir = irById.get(entry.controlId);
+    const controlStatus = dashboardStatusForEntry(entry, ir);
     incrementCount(controlCounts, controlStatus);
-    const family = getFamily(ir.controlId);
+    const family = getFamily(entry.controlId);
     familyCounts[family] ??= {};
     incrementCount(familyCounts[family], controlStatus);
+  });
 
+  ssp.controlImplementation.implementedRequirements.forEach((ir) => {
     totalStatements += ir.statements.length;
     const statuses = collectImplementationStatuses(ir);
     totalByComponentEntries += ir.byComponents.length + ir.statements.reduce((sum, st) => sum + st.byComponents.length, 0);
@@ -1414,10 +1535,12 @@ function buildControlStatusDashboard(ssp: SspParsed, catalogSort: ReturnType<typ
     .sort((a, b) => catalogSort.compare(a.family, b.family));
 
   return {
-    totalControls: ssp.controlImplementation.implementedRequirements.length,
+    totalControls: Object.values(controlCounts).reduce((sum, count) => sum + count, 0),
+    totalSspControls: ssp.controlImplementation.implementedRequirements.length,
     totalComponents: ssp.systemImplementation.components.length,
     totalStatements,
     totalByComponentEntries,
+    isProfileScoped: profileControlIds.length > 0,
     controlBuckets: buildStatusBuckets(controlCounts),
     componentBuckets: buildStatusBuckets(componentCounts),
     familySummaries,
@@ -1439,7 +1562,7 @@ function StatusDistributionBar({ buckets, total, height = 12 }: { buckets: Statu
   );
 }
 
-function StatusDonut({ buckets, total }: { buckets: StatusBucket[]; total: number }) {
+function StatusDonut({ buckets, total, label = "Controls" }: { buckets: StatusBucket[]; total: number; label?: string }) {
   let cursor = 0;
   const segments = total > 0
     ? buckets.map((bucket) => {
@@ -1454,27 +1577,32 @@ function StatusDonut({ buckets, total }: { buckets: StatusBucket[]; total: numbe
       <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: total > 0 ? `conic-gradient(${segments})` : colors.surfaceSubtle, boxShadow: shadows.sm }} />
       <div style={{ position: "absolute", inset: 26, borderRadius: "50%", backgroundColor: colors.card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: `inset 0 0 0 1px ${colors.paleGray}` }}>
         <div style={{ fontSize: 34, fontWeight: 800, color: colors.navy, lineHeight: 1 }}>{total}</div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.8 }}>Controls</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.8, textAlign: "center" }}>{label}</div>
       </div>
     </div>
   );
 }
 
 function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusDashboardSummary; navigate: (id: string) => void }) {
-  const implemented = summary.controlBuckets.find((bucket) => bucket.status === "implemented")?.count ?? 0;
-  const implementationRate = summary.totalControls > 0 ? Math.round((implemented / summary.totalControls) * 100) : 0;
+  const missing = summary.controlBuckets.find((bucket) => bucket.status === "missing")?.count ?? 0;
+  const satisfied = summary.totalControls - missing;
+  const implementationRate = summary.totalControls > 0 ? Math.round((satisfied / summary.totalControls) * 100) : 0;
+  const progressColor = missing > 0 ? colors.orange : colors.darkGreen;
+  const controlScopeLabel = summary.isProfileScoped ? "Profile Controls" : "SSP Controls";
 
   return (
     <Card>
       <SectionLabel>SSP Dashboard</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 22, alignItems: "center" }}>
         <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
-          <StatusDonut buckets={summary.controlBuckets} total={summary.totalControls} />
+          <StatusDonut buckets={summary.controlBuckets} total={summary.totalControls} label={controlScopeLabel} />
           <div style={{ minWidth: 180, flex: 1 }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: colors.darkGreen, lineHeight: 1 }}>{implementationRate}%</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: colors.navy, marginTop: 3 }}>control rollup implemented</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: progressColor, lineHeight: 1 }}>{implementationRate}%</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: colors.navy, marginTop: 3 }}>{controlScopeLabel.toLowerCase()} satisfied</div>
             <p style={{ fontSize: 12, color: colors.gray, lineHeight: 1.6, margin: "8px 0 0" }}>
-              Rollup status is derived from explicit control properties when present, otherwise from each control&apos;s component and statement implementation statuses.
+              {summary.isProfileScoped
+                ? `The ${summary.totalControls} total is the resolved profile requirement set. The current SSP contains ${summary.totalSspControls} implemented-requirement record${summary.totalSspControls === 1 ? "" : "s"}.`
+                : "Rollup status is based on the current SSP implemented-requirement controls."} Missing controls reduce progress unless satisfied by a loaded leveraged authorization.
             </p>
           </div>
         </div>
@@ -1485,13 +1613,13 @@ function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusD
               <div style={{ fontSize: 22, fontWeight: 800, color: colors.darkGreen }}>{summary.totalComponents}</div>
               <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>Components</div>
             </div>
+            <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.orange, 7), border: `1px solid ${alpha(colors.orange, 18)}` }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: colors.orange }}>{summary.totalSspControls}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>SSP Controls</div>
+            </div>
             <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.cobalt, 7), border: `1px solid ${alpha(colors.cobalt, 18)}` }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: colors.cobalt }}>{summary.familySummaries.length}</div>
               <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>Families</div>
-            </div>
-            <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.orange, 7), border: `1px solid ${alpha(colors.orange, 18)}` }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: colors.orange }}>{summary.totalStatements}</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.6 }}>Statements</div>
             </div>
             <div style={{ padding: "10px 12px", borderRadius: radii.md, backgroundColor: alpha(colors.purple, 7), border: `1px solid ${alpha(colors.purple, 18)}` }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: colors.purple }}>{summary.totalByComponentEntries}</div>
@@ -1589,6 +1717,137 @@ function findCatalogControl(catalog: OscalCatalog | null, controlId: string): Ca
     }
   }
   return undefined;
+}
+
+interface SspProfileIncludeControl {
+  "with-ids"?: string[];
+  matching?: { pattern: string }[];
+  "with-child-controls"?: "yes" | "no";
+}
+
+interface SspProfileImport {
+  href?: string;
+  "include-all"?: Record<string, never>;
+  "include-controls"?: SspProfileIncludeControl[];
+  "exclude-controls"?: SspProfileIncludeControl[];
+}
+
+interface SspProfileShape {
+  imports?: SspProfileImport[];
+  modify?: { alters?: { "control-id"?: string }[] };
+}
+
+function collectCatalogControlIds(catalog: OscalCatalog | null): string[] {
+  if (!catalog) return [];
+  const ids: string[] = [];
+  const visitControl = (control: CatalogControl) => {
+    ids.push(control.id);
+    control.controls?.forEach(visitControl);
+  };
+  const visitGroup = (group: CatalogGroup) => {
+    group.controls?.forEach(visitControl);
+    group.groups?.forEach(visitGroup);
+  };
+  catalog.groups?.forEach(visitGroup);
+  catalog.controls?.forEach(visitControl);
+  return ids;
+}
+
+function childControlIds(catalog: OscalCatalog | null, controlId: string): string[] {
+  const control = findCatalogControl(catalog, controlId);
+  if (!control?.controls?.length) return [];
+  const ids: string[] = [];
+  const visit = (c: CatalogControl) => {
+    ids.push(c.id);
+    c.controls?.forEach(visit);
+  };
+  control.controls.forEach(visit);
+  return ids;
+}
+
+function addProfileControlSelection(target: Set<string>, selection: SspProfileIncludeControl, catalog: OscalCatalog | null) {
+  const includeChildren = selection["with-child-controls"] !== "no";
+  selection["with-ids"]?.forEach((id) => {
+    target.add(id);
+    if (includeChildren) childControlIds(catalog, id).forEach((childId) => target.add(childId));
+  });
+  selection.matching?.forEach(({ pattern }) => {
+    try {
+      const re = new RegExp(pattern, "i");
+      collectCatalogControlIds(catalog).forEach((id) => {
+        if (re.test(id)) target.add(id);
+      });
+    } catch {
+      /* Ignore invalid profile regex patterns rather than breaking the viewer. */
+    }
+  });
+}
+
+function extractProfileControlIds(rawProfile: unknown, catalog: OscalCatalog | null): string[] {
+  if (!rawProfile) return [];
+  const wrapped = rawProfile as Record<string, unknown>;
+  const profile = (wrapped.profile ?? wrapped) as SspProfileShape;
+  if (!profile.imports?.length) return [];
+
+  const ids = new Set<string>();
+  if (profile.imports.some((imp) => imp["include-all"])) {
+    collectCatalogControlIds(catalog).forEach((id) => ids.add(id));
+  }
+
+  profile.imports.forEach((imp) => {
+    imp["include-controls"]?.forEach((selection) => addProfileControlSelection(ids, selection, catalog));
+  });
+
+  profile.imports.forEach((imp) => {
+    imp["exclude-controls"]?.forEach((selection) => {
+      const excluded = new Set<string>();
+      addProfileControlSelection(excluded, selection, catalog);
+      excluded.forEach((id) => ids.delete(id));
+    });
+  });
+
+  if (ids.size === 0) {
+    profile.modify?.alters?.forEach((alter) => {
+      if (alter["control-id"]) ids.add(alter["control-id"]);
+    });
+  }
+
+  return [...ids];
+}
+
+function controlHasImplementation(ir?: ImplementedRequirement): boolean {
+  if (!ir) return false;
+  if (ir.byComponents.length > 0) return true;
+  return ir.statements.some((st) => st.byComponents.length > 0);
+}
+
+function buildControlEntries(ssp: SspParsed, leveragedIndex: LeveragedIndex, profileControlIds: string[]): ControlNavEntry[] {
+  const byId = new Map<string, ControlNavEntry>();
+  const irById = new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir]));
+  const addControl = (controlId: string, isExpected: boolean) => {
+    const ir = irById.get(controlId);
+    const existing = byId.get(controlId);
+    const entry: ControlNavEntry = existing ?? {
+      controlId,
+      hasCurrent: false,
+      hasProvider: false,
+      attachmentCount: 0,
+      isExpected: false,
+      hasImplementationRecord: false,
+    };
+    entry.isExpected = entry.isExpected || isExpected;
+    const alreadyHadImplementationRecord = entry.hasImplementationRecord;
+    entry.hasImplementationRecord = entry.hasImplementationRecord || !!ir;
+    entry.hasCurrent = entry.hasCurrent || controlHasImplementation(ir);
+    entry.hasProvider = entry.hasProvider || leveragedIndex.byControl.has(controlId);
+    if (ir && !alreadyHadImplementationRecord) entry.attachmentCount += base64BackMatterAttachmentCount(ir.links, ssp.backMatter);
+    byId.set(controlId, entry);
+  };
+
+  profileControlIds.forEach((id) => addControl(id, true));
+  ssp.controlImplementation.implementedRequirements.forEach((ir) => addControl(ir.controlId, profileControlIds.includes(ir.controlId)));
+  for (const controlId of leveragedIndex.byControl.keys()) addControl(controlId, profileControlIds.includes(controlId));
+  return [...byId.values()];
 }
 
 /** Find a specific part by id anywhere in a control's part tree */
@@ -1890,6 +2149,8 @@ interface ControlNavEntry {
   hasCurrent: boolean;
   hasProvider: boolean;
   attachmentCount: number;
+  isExpected: boolean;
+  hasImplementationRecord: boolean;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1974,9 +2235,17 @@ function OverviewView({ ssp, leveragedIndex, navigate }: {
   leveragedIndex: LeveragedIndex;
   navigate: (id: string) => void;
 }) {
+  const oscal = useOscal();
   const { metadata: md, systemCharacteristics: sc, systemImplementation: si, controlImplementation: ci, backMatter: bm } = ssp;
   const catalogSort = useCatalogSortIndex();
-  const dashboardSummary = useMemo(() => buildControlStatusDashboard(ssp, catalogSort), [ssp, catalogSort]);
+  const profileControlIds = useMemo(
+    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+    [oscal.profile, oscal.catalog],
+  );
+  const dashboardSummary = useMemo(
+    () => buildControlStatusDashboard(ssp, catalogSort, leveragedIndex, profileControlIds),
+    [ssp, catalogSort, leveragedIndex, profileControlIds],
+  );
   return (
     <>
       <Card>
@@ -2001,7 +2270,7 @@ function OverviewView({ ssp, leveragedIndex, navigate }: {
           <StatChip value={si.components.length} label="Components" color={colors.cobalt} />
           <StatChip value={si.users.length} label="Users" color={colors.brightBlue} />
           <StatChip value={si.inventoryItems.length} label="Inventory" color={colors.darkGreen} />
-          <StatChip value={ci.implementedRequirements.length} label="Controls" color={colors.orange} />
+          <StatChip value={ci.implementedRequirements.length} label="SSP Controls" color={colors.orange} />
           <StatChip value={bm.length} label="Resources" color={colors.gray} />
           {si.leveragedAuthorizations.length > 0 && (
             <StatChip value={si.leveragedAuthorizations.length} label="Leveraged" color={colors.purple} />
@@ -2595,32 +2864,82 @@ function DiagramSectionView({ title, section, backMatter, sourceUrl }: { title: 
 
 function SystemCharacteristicsView({ ssp, sourceUrl }: { ssp: SspParsed; sourceUrl?: string | null }) {
   const sc = ssp.systemCharacteristics;
+  const sensitivityColor = riskColor(sc.securitySensitivityLevel);
+  const statusColor = componentStatusColor(sc.status.state);
+  const statusIcon = componentStatusIconKey(sc.status.state);
   return (
     <>
-      <Card>
+      <Card style={{ padding: "18px 24px 16px" }}>
         <SectionLabel>System Characteristics</SectionLabel>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: "0 0 8px" }}>
-          {sc.systemName}{sc.systemNameShort ? ` (${sc.systemNameShort})` : ""}
-        </h2>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
-          <MField label="Status" value={sc.status.state} />
-          <MField label="Sensitivity Level" value={sc.securitySensitivityLevel} />
-          {sc.systemIds.map((sid, i) => (
-            <MField key={i} label={`System ID${sid.identifierType ? ` (${sid.identifierType})` : ""}`} value={sid.id} mono />
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) repeat(auto-fit, minmax(190px, 220px))", gap: 14, alignItems: "stretch" }}>
+          <div style={{ minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: colors.navy, margin: "0 0 12px" }}>
+              {sc.systemName}{sc.systemNameShort ? ` (${sc.systemNameShort})` : ""}
+            </h2>
+            {sc.systemIds.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {sc.systemIds.map((sid, i) => (
+                  <span key={i} title={sid.id} style={{
+                    maxWidth: 360, display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: radii.pill,
+                    backgroundColor: colors.surfaceSubtle, border: `1px solid ${colors.paleGray}`, color: colors.gray, fontSize: 10, fontWeight: 600,
+                  }}>
+                    {navIcon("tag", colors.gray, 11)}
+                    <span style={{ textTransform: "uppercase", letterSpacing: 0.5 }}>{sid.identifierType || "System ID"}</span>
+                    <span style={{ fontFamily: fonts.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{sid.id}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          {sc.status.state && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: radii.md,
+              backgroundColor: alpha(statusColor, 10), border: `1px solid ${alpha(statusColor, 28)}`,
+              boxShadow: `0 8px 18px ${alpha(statusColor, 8)}`,
+            }}>
+              <div style={{
+                width: 42, height: 42, borderRadius: radii.sm, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                backgroundColor: alpha(statusColor, 14), color: statusColor, flexShrink: 0,
+              }}>
+                {navIcon(statusIcon, statusColor, 24)}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: statusColor, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 4 }}>
+                  System Status
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: statusColor, textTransform: "uppercase", lineHeight: 1.1 }}>
+                  {sc.status.state}
+                </div>
+              </div>
+            </div>
+          )}
+          {sc.securitySensitivityLevel && (
+            <div style={{
+              padding: "12px 14px", borderRadius: radii.md,
+              backgroundColor: alpha(sensitivityColor, 12), border: `1px solid ${alpha(sensitivityColor, 35)}`,
+              textAlign: "center", boxShadow: `0 8px 18px ${alpha(sensitivityColor, 10)}`, display: "flex", flexDirection: "column", justifyContent: "center",
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: sensitivityColor, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 3 }}>
+                System Sensitivity
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: sensitivityColor, textTransform: "uppercase", lineHeight: 1.1 }}>
+                {sc.securitySensitivityLevel}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
 
       {(sc.securityImpactLevel.objectiveConfidentiality || sc.securityImpactLevel.objectiveIntegrity || sc.securityImpactLevel.objectiveAvailability) && (
-        <Card>
+        <Card style={{ padding: "16px 24px" }}>
           <SectionLabel>Security Impact Level</SectionLabel>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {[
               { l: "Confidentiality", v: sc.securityImpactLevel.objectiveConfidentiality, c: colors.cobalt },
               { l: "Integrity", v: sc.securityImpactLevel.objectiveIntegrity, c: colors.darkGreen },
               { l: "Availability", v: sc.securityImpactLevel.objectiveAvailability, c: colors.orange },
             ].filter((x) => x.v).map((x) => (
-              <div key={x.l} style={{ textAlign: "center", background: colors.surfaceSubtle, borderRadius: 6, padding: "10px 20px", minWidth: 100 }}>
+              <div key={x.l} style={{ textAlign: "center", background: colors.surfaceSubtle, borderRadius: 6, padding: "8px 18px", minWidth: 100 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: x.c, textTransform: "uppercase" }}>{x.v}</div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: colors.gray, textTransform: "uppercase", letterSpacing: "0.08em" }}>{x.l}</div>
               </div>
@@ -2710,16 +3029,20 @@ function SystemImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate:
       {/* Component quick list */}
       <Card>
         <SectionLabel>Components ({si.components.length})</SectionLabel>
-        {si.components.slice(0, 10).map((c, i) => (
-          <div key={c.uuid} onClick={() => navigate(`ssp-comp-${i}`)} style={{
-            padding: "6px 0", borderBottom: `1px solid ${colors.bg}`, cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            {navIcon(componentTypeNavKey(c.type), componentTypeColor(c.type), 13)}
-            <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{c.title || c.uuid.slice(0, 8)}</span>
-            <span style={{ fontSize: 11, color: colors.gray, marginLeft: "auto" }}>{c.type}</span>
-          </div>
-        ))}
+        {si.components.slice(0, 10).map((c, i) => {
+          const { iconKey, color: iconColor, assetType } = componentIcon(c);
+          return (
+            <div key={c.uuid} onClick={() => navigate(`ssp-comp-${i}`)} style={{
+              padding: "6px 0", borderBottom: `1px solid ${colors.bg}`, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 8,
+            }}>
+              {navIcon(iconKey, iconColor, 13)}
+              <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{c.title || c.uuid.slice(0, 8)}</span>
+              {assetType && <span style={{ fontSize: 10, color: iconColor, fontFamily: fonts.mono, marginLeft: "auto" }}>{assetType}</span>}
+              <span style={{ fontSize: 11, color: colors.gray, marginLeft: assetType ? 0 : "auto" }}>{c.type}</span>
+            </div>
+          );
+        })}
         {si.components.length > 10 && (
           <p style={{ fontSize: 11, color: colors.gray, marginTop: 6 }}>
             + {si.components.length - 10} more — click "Components" in sidebar
@@ -2740,30 +3063,46 @@ function ComponentsView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: stri
           All components defined in the system implementation.
         </p>
       </Card>
-      {comps.map((c, i) => (
-        <Card key={c.uuid} style={{ cursor: "pointer" }}>
-          <div onClick={() => navigate(`ssp-comp-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            {navIcon(componentTypeNavKey(c.type), componentTypeColor(c.type), 15)}
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0 }}>{c.title}</h3>
-            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono, marginLeft: "auto" }}>{c.type}</span>
-            {c.status && (
-              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: c.status === "operational" ? colors.successBg : colors.warningBg, color: c.status === "operational" ? colors.darkGreen : colors.orange, fontWeight: 600 }}>
-                {c.status}
-              </span>
-            )}
-          </div>
-          {c.description && <MarkupBlock value={c.description} style={{ fontSize: 12.5 }} />}
-          {c.props.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-              {c.props.map((p, i) => (
-                <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
-                  {p.name}: {p.value}
+      {comps.map((c, i) => {
+        const { iconKey, color: iconColor, assetType } = componentIcon(c);
+        const oscalProps = oscalNamespaceProps(c.props);
+        return (
+          <Card key={c.uuid} style={{ cursor: "pointer" }}>
+            <div onClick={() => navigate(`ssp-comp-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              {navIcon(iconKey, iconColor, 15)}
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0 }}>{c.title}</h3>
+              {assetType && (
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: alpha(iconColor, 10), color: iconColor, fontFamily: fonts.mono, fontWeight: 700, marginLeft: "auto" }}>{assetType}</span>
+              )}
+              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono, marginLeft: assetType ? 0 : "auto" }}>{c.type}</span>
+              {c.status && (
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: c.status === "operational" ? colors.successBg : colors.warningBg, color: c.status === "operational" ? colors.darkGreen : colors.orange, fontWeight: 600 }}>
+                  {c.status}
                 </span>
-              ))}
+              )}
             </div>
-          )}
-        </Card>
-      ))}
+            {oscalProps.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {oscalProps.map((p, pi) => (
+                  <span key={pi} title={p.ns} style={{ fontSize: 10, padding: "2px 7px", borderRadius: radii.sm, background: alpha(colors.cobalt, 8), color: colors.cobalt, fontFamily: fonts.mono, fontWeight: 600 }}>
+                    {propDisplayName(p)}: {p.value}
+                  </span>
+                ))}
+              </div>
+            )}
+            {c.description && <MarkupBlock value={c.description} style={{ fontSize: 12.5 }} />}
+            {c.props.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                {c.props.map((p, i) => (
+                  <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
+                    {p.name}: {p.value}
+                  </span>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })}
     </>
   );
 }
@@ -2824,7 +3163,7 @@ function InventoryView({ ssp }: { ssp: SspParsed }) {
         </p>
       </Card>
       {items.map((ii) => {
-        const assetType = ii.props.find((p) => p.name === "asset-type")?.value;
+        const assetType = findProp(ii.props, "asset-type")?.value;
         const { iconKey, color: iconColor } = inventoryItemIcon(ii, components);
         return (
           <Card key={ii.uuid}>
@@ -3754,18 +4093,31 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
 }
 
 function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: SspParsed; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
+  const oscal = useOscal();
   const ci = ssp.controlImplementation;
   const catalogSort = useCatalogSortIndex();
   const [scope, setScope] = useState("current");
+  const profileControlIds = useMemo(
+    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+    [oscal.profile, oscal.catalog],
+  );
+  const controlEntries = useMemo(
+    () => buildControlEntries(ssp, leveragedIndex, profileControlIds),
+    [ssp, leveragedIndex, profileControlIds],
+  );
   /* Group by family */
   const families = useMemo(() => {
-    const map: Record<string, ImplementedRequirement[]> = {};
-    ci.implementedRequirements.forEach((ir) => {
-      const fam = getFamily(ir.controlId);
-      (map[fam] ??= []).push(ir);
+    const map: Record<string, ControlNavEntry[]> = {};
+    controlEntries.forEach((entry) => {
+      const fam = getFamily(entry.controlId);
+      (map[fam] ??= []).push(entry);
     });
+    Object.values(map).forEach((entries) => entries.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
     return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
-  }, [ci, catalogSort]);
+  }, [controlEntries, catalogSort]);
+
+  const satisfiedCount = controlEntries.filter((entry) => entry.hasCurrent || entry.hasProvider).length;
+  const missingCount = controlEntries.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length;
 
   const providerScopes = useMemo(() => {
     const map = new Map<string, { title: string; controls: { controlId: string; entries: import("../hooks/useLeveragedIndex").ControlExportEntry[] }[] }>();
@@ -3811,7 +4163,9 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
         {ci.description && <MarkupBlock value={ci.description} style={{ marginBottom: 12 }} />}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
           <StatChip value={families.length} label="Families" color={colors.cobalt} />
-          <StatChip value={ci.implementedRequirements.length} label="Controls" color={colors.orange} />
+          <StatChip value={controlEntries.length} label={profileControlIds.length > 0 ? "Profile Controls" : "Controls"} color={colors.orange} />
+          <StatChip value={satisfiedCount} label="Satisfied" color={colors.darkGreen} />
+          <StatChip value={missingCount} label="Missing" color={colors.red} />
           <StatChip value={ci.implementedRequirements.reduce((n, r) => n + r.statements.length, 0)} label="Statements" color={colors.darkGreen} />
         </div>
         <div style={{ borderTop: `1px solid ${colors.paleGray}`, paddingTop: 12 }}>
@@ -3829,7 +4183,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
                 cursor: "pointer", fontSize: 12, fontWeight: 700,
               }}
             >
-              <IcoShield size={12} /> Current SSP <span style={{ ...S.badge, marginLeft: 2 }}>{ci.implementedRequirements.length}</span>
+              <IcoShield size={12} /> Current SSP <span style={{ ...S.badge, marginLeft: 2 }}>{controlEntries.length}</span>
             </button>
             {providerScopes.map((provider) => {
               const active = scope === provider.title;
@@ -3860,29 +4214,29 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
           )}
         </div>
       </Card>
-      {scope === "current" && families.map(([fam, reqs]) => (
+      {scope === "current" && families.map(([fam, entries]) => (
         <Card key={fam}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}
             onClick={() => navigate(`ctrl-family-${fam}`)}>
             <IcoFolder size={14} style={{ color: colors.cobalt }} />
             <span style={{ fontSize: 13, fontWeight: 700, color: colors.navy }}>{fam.toUpperCase()}</span>
             <span style={{ fontSize: 12, color: colors.gray }}>{FAMILY_NAMES[fam] || fam}</span>
-            <span style={S.badge}>{reqs.length}</span>
+            <span style={S.badge}>{entries.length}</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {[...reqs].sort((a, b) => catalogSort.compare(a.controlId, b.controlId)).map((ir) => {
-              const hasProvider = leveragedIndex.byControl.has(ir.controlId);
+            {entries.map((entry) => {
+              const color = controlSourceColor(entry.hasCurrent, entry.hasProvider);
               return (
-                <button key={ir.uuid}
-                  onClick={() => navigate(`ctrl-${ir.controlId}`)}
-                  title={controlSourceTitle(true, hasProvider)}
+                <button key={entry.controlId}
+                  onClick={() => navigate(`ctrl-${entry.controlId}`)}
+                  title={controlSourceTitle(entry.hasCurrent, entry.hasProvider)}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
                     padding: "3px 10px", borderRadius: radii.sm, fontSize: 11, fontWeight: 600,
-                    fontFamily: fonts.mono, border: `1px solid ${colors.orange}`, background: colors.warningBg,
-                    color: colors.orange, cursor: "pointer", transition: "all .12s",
+                    fontFamily: fonts.mono, border: `1px solid ${color}`, background: alpha(color, 8),
+                    color, cursor: "pointer", transition: "all .12s",
                   }}>
-                  <ControlSourceIcon hasCurrent hasProvider={hasProvider} size={10} />{ir.controlId.toUpperCase()}
+                  <ControlSourceIcon hasCurrent={entry.hasCurrent} hasProvider={entry.hasProvider} size={10} />{entry.controlId.toUpperCase()}
                 </button>
               );
             })}
@@ -3935,12 +4289,21 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
 }
 
 function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { familyId: string; ssp: SspParsed; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
+  const oscal = useOscal();
   const catalogSort = useCatalogSortIndex();
+  const profileControlIds = useMemo(
+    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+    [oscal.profile, oscal.catalog],
+  );
   const familyControls = useMemo(() => {
-    return ssp.controlImplementation.implementedRequirements.filter(
-      (ir) => getFamily(ir.controlId) === familyId,
-    ).sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
-  }, [ssp, familyId, catalogSort]);
+    return buildControlEntries(ssp, leveragedIndex, profileControlIds)
+      .filter((entry) => getFamily(entry.controlId) === familyId)
+      .sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
+  }, [ssp, leveragedIndex, profileControlIds, familyId, catalogSort]);
+  const irById = useMemo(
+    () => new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir])),
+    [ssp],
+  );
   const familyLabel = FAMILY_NAMES[familyId] || familyId.toUpperCase();
 
   return (
@@ -3954,25 +4317,49 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <StatChip value={familyControls.length} label="Controls" color={colors.orange} />
-          <StatChip value={familyControls.reduce((n, r) => n + r.statements.length, 0)} label="Statements" color={colors.cobalt} />
+          <StatChip value={familyControls.filter((entry) => entry.hasCurrent || entry.hasProvider).length} label="Satisfied" color={colors.darkGreen} />
+          <StatChip value={familyControls.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length} label="Missing" color={colors.red} />
+          <StatChip value={familyControls.reduce((n, entry) => n + (irById.get(entry.controlId)?.statements.length ?? 0), 0)} label="Statements" color={colors.cobalt} />
         </div>
       </Card>
-      {familyControls.map((ir) => (
-        <Card key={ir.uuid}>
+      {familyControls.map((entry) => {
+        const ir = irById.get(entry.controlId);
+        return (
+        <Card key={entry.controlId} style={!entry.hasCurrent && !entry.hasProvider ? { borderLeft: `4px solid ${colors.red}` } : undefined}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
-            onClick={() => navigate(`ctrl-${ir.controlId}`)}>
-            <span title={controlSourceTitle(true, leveragedIndex.byControl.has(ir.controlId))} style={{ display: "inline-flex" }}>
-              <ControlSourceIcon hasCurrent hasProvider={leveragedIndex.byControl.has(ir.controlId)} size={14} />
+            onClick={() => navigate(`ctrl-${entry.controlId}`)}>
+            <span title={controlSourceTitle(entry.hasCurrent, entry.hasProvider)} style={{ display: "inline-flex" }}>
+              <ControlSourceIcon hasCurrent={entry.hasCurrent} hasProvider={entry.hasProvider} size={14} />
             </span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: colors.navy, fontFamily: fonts.mono }}>{ir.controlId.toUpperCase()}</span>
-            {ir.statements.length > 0 && (
+            <span style={{ fontSize: 14, fontWeight: 700, color: colors.navy, fontFamily: fonts.mono }}>{entry.controlId.toUpperCase()}</span>
+            {ir && !entry.hasCurrent && !entry.hasProvider && (
+              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.sm, background: alpha(colors.red, 8), color: colors.red, fontWeight: 700 }}>
+                missing implementation statements
+              </span>
+            )}
+            {!ir && !entry.hasProvider && (
+              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.sm, background: alpha(colors.red, 8), color: colors.red, fontWeight: 700 }}>
+                missing from SSP
+              </span>
+            )}
+            {entry.hasProvider && !entry.hasCurrent && (
+              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.sm, background: alpha(colors.purple, 8), color: colors.purple, fontWeight: 700 }}>
+                satisfied by provider
+              </span>
+            )}
+            {ir && ir.statements.length > 0 && (
               <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.sm, background: colors.bg, color: colors.gray }}>
                 {ir.statements.length} stmt{ir.statements.length !== 1 ? "s" : ""}
               </span>
             )}
           </div>
-          {ir.description && <MarkupBlock value={ir.description} style={{ fontSize: 12.5, marginTop: 4 }} />}
-          {ir.props.length > 0 && (
+          {ir?.description && <MarkupBlock value={ir.description} style={{ fontSize: 12.5, marginTop: 4 }} />}
+          {!ir && !entry.hasProvider && (
+            <p style={{ fontSize: 12, color: colors.gray, margin: "6px 0 0" }}>
+              This control is selected by the resolved profile but has no implementation entry in the SSP.
+            </p>
+          )}
+          {ir && ir.props.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
               {ir.props.map((p, i) => (
                 <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
@@ -3982,7 +4369,50 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
             </div>
           )}
         </Card>
-      ))}
+        );
+      })}
+    </>
+  );
+}
+
+function MissingControlView({ controlId, catalog, hasProvider, navigate }: { controlId: string; catalog: OscalCatalog | null; hasProvider: boolean; navigate: (id: string) => void }) {
+  const catalogControl = findCatalogControl(catalog, controlId);
+  const paramMap = catalogControl ? buildCatalogParamMap(catalog, catalogControl) : {};
+  const familyId = getFamily(controlId);
+  return (
+    <>
+      <Card style={{ borderLeft: `4px solid ${hasProvider ? colors.purple : colors.red}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          {navIcon(controlSourceIconKey(false, hasProvider), controlSourceColor(false, hasProvider), 22)}
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: colors.navy, margin: 0, fontFamily: fonts.mono }}>{controlId.toUpperCase()}</h2>
+            <div style={{ fontSize: 12, color: hasProvider ? colors.purple : colors.red, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              {hasProvider ? "Satisfied by leveraged authorization" : "Missing implementation statements"}
+            </div>
+          </div>
+        </div>
+        <p style={{ fontSize: 13, color: colors.gray, margin: 0 }}>
+          {hasProvider
+            ? "This control is selected by the resolved profile and is offered by a loaded leveraged authorization."
+            : "This control is selected by the resolved profile, but the current SSP has no implementation statements for it."}
+        </p>
+        <button
+          onClick={() => navigate(`ctrl-family-${familyId}`)}
+          style={{ marginTop: 12, background: "none", border: `1px solid ${colors.cobalt}`, borderRadius: radii.sm, color: colors.cobalt, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "5px 10px" }}
+        >
+          Back to {familyId.toUpperCase()} family
+        </button>
+      </Card>
+      {catalogControl ? (
+        <CatalogControlCard control={catalogControl} paramMap={paramMap} />
+      ) : (
+        <Card>
+          <SectionLabel>Catalog Control</SectionLabel>
+          <p style={{ fontSize: 12, color: colors.gray, margin: 0 }}>
+            The resolved catalog does not contain prose for this control.
+          </p>
+        </Card>
+      )}
     </>
   );
 }
@@ -4497,10 +4927,10 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
           <div style={{ display: "flex", gap: 0, borderBottom: `2px solid ${colors.paleGray}`, marginBottom: 16, flexWrap: "wrap" }}>
             {allComponents.map((comp) => {
               const isActive = comp.uuid === activeCompUuid;
-              const typeIcon = componentTypeNavKey(comp.type);
-              const typeColor = isActive ? componentTypeColor(comp.type) : colors.gray;
+              const { iconKey: typeIcon, color: baseTypeColor, assetType } = componentIcon(comp);
+              const typeColor = isActive ? baseTypeColor : colors.gray;
               return (
-                <button key={comp.uuid} onClick={() => setActiveCompUuid(comp.uuid)} title={comp.type || undefined} style={{
+                <button key={comp.uuid} onClick={() => setActiveCompUuid(comp.uuid)} title={assetType ? `${assetType} · ${comp.type}` : comp.type || undefined} style={{
                   display: "inline-flex", alignItems: "center", gap: 5,
                   padding: "8px 16px", fontSize: 12, fontWeight: isActive ? 700 : 500,
                   color: isActive ? colors.cobalt : colors.gray,
@@ -4892,23 +5322,26 @@ function ComponentRelationships({
           </div>
           <div style={{ fontSize: 11, color: colors.gray, marginBottom: 6 }}>{g.description}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {g.targets.map(({ idx, comp: target }) => (
-              <span
-                key={target.uuid}
-                onClick={() => navigate(`ssp-comp-${idx}`)}
-                style={{
-                  fontSize: 11, padding: "4px 10px", borderRadius: radii.pill,
-                  background: alpha(componentTypeColor(target.type), 0.12),
-                  color: componentTypeColor(target.type),
-                  border: `1px solid ${alpha(componentTypeColor(target.type), 0.35)}`,
-                  fontWeight: 600, cursor: "pointer",
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                }}
-              >
-                {navIcon(componentTypeNavKey(target.type), componentTypeColor(target.type), 11)}
-                {target.title || target.uuid.slice(0, 8)}
-              </span>
-            ))}
+            {g.targets.map(({ idx, comp: target }) => {
+              const { iconKey, color: iconColor } = componentIcon(target);
+              return (
+                <span
+                  key={target.uuid}
+                  onClick={() => navigate(`ssp-comp-${idx}`)}
+                  style={{
+                    fontSize: 11, padding: "4px 10px", borderRadius: radii.pill,
+                    background: alpha(iconColor, 0.12),
+                    color: iconColor,
+                    border: `1px solid ${alpha(iconColor, 0.35)}`,
+                    fontWeight: 600, cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                  }}
+                >
+                  {navIcon(iconKey, iconColor, 11)}
+                  {target.title || target.uuid.slice(0, 8)}
+                </span>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -4939,8 +5372,8 @@ function SspComponentDetailView({
     );
   }, [ssp, comp.uuid]);
 
-  const iconKey = componentTypeNavKey(comp.type);
-  const iconColor = componentTypeColor(comp.type);
+  const { iconKey, color: iconColor, assetType } = componentIcon(comp);
+  const oscalProps = oscalNamespaceProps(comp.props);
 
   return (
     <div>
@@ -4954,21 +5387,59 @@ function SspComponentDetailView({
       </div>
 
       {/* Title */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        {navIcon(iconKey, iconColor, 22)}
-        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{comp.title}</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: radii.md, backgroundColor: alpha(iconColor, 10), color: iconColor,
+          border: `1px solid ${alpha(iconColor, 24)}`, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          {navIcon(iconKey, iconColor, 30)}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 20, color: colors.navy, margin: "0 0 5px" }}>{comp.title}</h1>
+          <span title={comp.uuid} style={{
+            maxWidth: 420, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: radii.pill,
+            backgroundColor: colors.surfaceSubtle, border: `1px solid ${colors.paleGray}`, color: colors.gray, fontSize: 10, fontWeight: 600,
+          }}>
+            {navIcon("tag", colors.gray, 10)}
+            <span style={{ textTransform: "uppercase", letterSpacing: 0.5 }}>UUID</span>
+            <span style={{ fontFamily: fonts.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{comp.uuid}</span>
+          </span>
+        </div>
       </div>
 
       {/* Fields */}
       <Card>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
-          <MField label="Type" value={comp.type} />
-          <MField label="Status" value={comp.status || "—"} />
-          <MField label="UUID" value={comp.uuid} mono />
-          <MField label="Related Controls" value={String(relatedIRs.length)} />
-          <MField label="Inventory Items" value={String(relatedInventory.length)} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+          {assetType && <VisualField label="Asset Type" value={assetType} icon={iconKey} color={iconColor} mono iconSize={30} iconBoxSize={54} minHeight={86} valueSize={15} />}
+          <VisualField label="Type" value={comp.type || "—"} icon={componentTypeNavKey(comp.type)} color={componentTypeColor(comp.type)} mono iconSize={30} iconBoxSize={54} minHeight={86} valueSize={15} />
+          <VisualField label="Status" value={comp.status || "—"} icon={componentStatusIconKey(comp.status)} color={componentStatusColor(comp.status)} iconSize={30} iconBoxSize={54} minHeight={86} valueSize={15} />
+          <VisualField label="Related Controls" value={relatedIRs.length} icon="shield" color={colors.orange} iconSize={30} iconBoxSize={54} minHeight={86} valueSize={15} />
+          <VisualField label="Inventory Items" value={relatedInventory.length} icon="box" color={colors.darkGreen} iconSize={30} iconBoxSize={54} minHeight={86} valueSize={15} />
         </div>
       </Card>
+
+      {/* OSCAL namespace properties */}
+      {oscalProps.length > 0 && (
+        <Card style={{ borderLeft: `4px solid ${iconColor}` }}>
+          <SectionLabel>OSCAL Properties ({oscalProps.length})</SectionLabel>
+          <p style={{ fontSize: 11, color: colors.gray, margin: "-4px 0 10px", fontFamily: fonts.mono }}>
+            {OSCAL_NAMESPACE}
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+            {oscalProps.map((p, i) => (
+              <div key={i} style={{
+                padding: "8px 10px", borderRadius: radii.sm,
+                backgroundColor: alpha(iconColor, 7), border: `1px solid ${alpha(iconColor, 22)}`,
+              }}>
+                <div style={{ fontSize: 9, color: iconColor, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 800, marginBottom: 2 }}>
+                  {propDisplayName(p)}
+                </div>
+                <div style={{ fontSize: 12, color: colors.navy, fontFamily: fonts.mono, fontWeight: 700, wordBreak: "break-word" }}>{p.value}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Description */}
       {comp.description && (
@@ -5207,6 +5678,11 @@ interface ViewRouterProps {
 }
 
 function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }: ViewRouterProps) {
+  const oscal = useOscal();
+  const profileControlIds = useMemo(
+    () => extractProfileControlIds(oscal.profile?.data, catalog),
+    [oscal.profile, catalog],
+  );
   if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} navigate={navigate} />;
   if (view === "metadata") return <MetadataView ssp={ssp} />;
   if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} sourceUrl={sourceUrl} />;
@@ -5254,6 +5730,7 @@ function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }:
     /* Provider-only control — no local implementation but exists in leveraged index */
     const providerEntries = leveragedIndex.byControl.get(controlId);
     if (providerEntries) return <ProviderOnlyControlView controlId={controlId} entries={providerEntries} />;
+    if (profileControlIds.includes(controlId)) return <MissingControlView controlId={controlId} catalog={catalog} hasProvider={false} navigate={navigate} />;
   }
 
   return <NotFoundView view={view} />;
@@ -5315,14 +5792,14 @@ export default function SspPage() {
     const bm = rawSspObj["back-matter"] as Record<string, unknown> | undefined;
     return (bm?.resources as BackMatterResource[] | undefined) ?? [];
   }, [rawSspObj]);
-  const importProfileHref = oscal.catalog ? null : (ssp?.importProfileHref || null);
+  const importProfileHref = oscal.profile ? null : (ssp?.importProfileHref || null);
   const chain = useChainResolver(
     importProfileHref,
     sspBackMatter,
     urlDoc.sourceUrl,
     authToken,
     SSP_CHAIN,
-    !!oscal.profile || !!oscal.catalog,
+    !!oscal.profile,
   );
   const leveragedResolver = useLeveragedSspResolver(
     raw,
@@ -5366,6 +5843,8 @@ export default function SspPage() {
 
   const handleNewFile = useCallback(() => {
     oscal.clearSsp();
+    oscal.clearProfile();
+    oscal.clearCatalog();
     oscal.clearLeveragedSsps();
     setError("");
     setView("overview");
@@ -5394,12 +5873,16 @@ export default function SspPage() {
     setMobilePath((prev) => prev.slice(0, idx));
   }, []);
 
+  const profileControlIds = useMemo(
+    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+    [oscal.profile, oscal.catalog],
+  );
+
   /* ── Nav tree ── */
   const navTree = useMemo<NavItem[]>(() => {
     if (!ssp) return [];
     const items: NavItem[] = [];
     const si = ssp.systemImplementation;
-    const ci = ssp.controlImplementation;
     const sc = ssp.systemCharacteristics;
 
     items.push({ id: "overview", label: "Overview", icon: "home", color: colors.darkGreen, depth: 0 });
@@ -5428,7 +5911,9 @@ export default function SspPage() {
 
     /* System Implementation */
     items.push({ id: "sys-impl", label: "System Implementation", icon: "cube", color: colors.cobalt, depth: 0 });
-    items.push({ id: "sys-impl-components", label: "Components", icon: "cube", color: colors.cobalt, depth: 1, parent: "sys-impl", childCount: si.components.length });
+    if (si.components.length > 0) {
+      items.push({ id: "sys-impl-components", label: "Components", icon: "cube", color: colors.cobalt, depth: 1, parent: "sys-impl", childCount: si.components.length });
+    }
 
     /* Build service-component hierarchy and emit nav items in tree order. */
     const hierarchy = buildComponentHierarchy(si.components);
@@ -5436,20 +5921,27 @@ export default function SspPage() {
       const c = si.components[compIdx];
       const navId = `ssp-comp-${compIdx}`;
       const children = hierarchy.childrenByIndex.get(compIdx);
+      const { iconKey, color: iconColor } = componentIcon(c);
       items.push({
         id: navId,
         label: trunc(c.title || c.uuid.slice(0, 12), 32),
-        icon: componentTypeNavKey(c.type),
-        color: componentTypeColor(c.type),
+        icon: iconKey,
+        color: iconColor,
         depth,
         parent: parentId,
         childCount: children?.length,
       });
       children?.forEach((childIdx) => emitComponent(childIdx, depth + 1, navId));
     };
-    hierarchy.rootIndices.forEach((idx) => emitComponent(idx, 2, "sys-impl-components"));
-    items.push({ id: "sys-impl-users", label: "Users", icon: "users", color: colors.brightBlue, depth: 1, parent: "sys-impl", childCount: si.users.length });
-    items.push({ id: "sys-impl-inventory", label: "Inventory Items", icon: "box", color: colors.darkGreen, depth: 1, parent: "sys-impl", childCount: si.inventoryItems.length });
+    if (si.components.length > 0) {
+      hierarchy.rootIndices.forEach((idx) => emitComponent(idx, 2, "sys-impl-components"));
+    }
+    if (si.users.length > 0) {
+      items.push({ id: "sys-impl-users", label: "Users", icon: "users", color: colors.brightBlue, depth: 1, parent: "sys-impl", childCount: si.users.length });
+    }
+    if (si.inventoryItems.length > 0) {
+      items.push({ id: "sys-impl-inventory", label: "Inventory Items", icon: "box", color: colors.darkGreen, depth: 1, parent: "sys-impl", childCount: si.inventoryItems.length });
+    }
     if (si.leveragedAuthorizations.length > 0) {
       items.push({ id: "sys-impl-leveraged", label: "Leveraged Authorizations", icon: "link", color: colors.purple, depth: 1, parent: "sys-impl", childCount: si.leveragedAuthorizations.length });
 
@@ -5503,36 +5995,15 @@ export default function SspPage() {
     /* Control Implementation — group by family */
     items.push({ id: "ctrl-impl", label: "Control Implementation", icon: "shield", color: colors.orange, depth: 0 });
 
-    /* Build the control family map from the main SSP and decorate / extend it
-       with controls offered by loaded provider (leveraged) SSPs. Controls that
-       only exist in provider SSPs are added as provider-only entries so users
-       can browse what the leveraged authorization covers. */
+    /* Build the control family map from the resolved profile controls first,
+       then decorate / extend it with current SSP implementations and provider
+       offerings. Profile-selected controls with no implementation show as
+       missing unless a leveraged authorization offers them. */
     const familyMap: Record<string, ControlNavEntry[]> = {};
-    ci.implementedRequirements.forEach((ir) => {
-      const fam = getFamily(ir.controlId);
-      (familyMap[fam] ??= []).push({
-        controlId: ir.controlId,
-        hasCurrent: true,
-        hasProvider: leveragedIndex.byControl.has(ir.controlId),
-        attachmentCount: base64BackMatterAttachmentCount(ir.links, ssp.backMatter),
-      });
+    buildControlEntries(ssp, leveragedIndex, profileControlIds).forEach((entry) => {
+      const fam = getFamily(entry.controlId);
+      (familyMap[fam] ??= []).push(entry);
     });
-
-    for (const controlId of leveragedIndex.byControl.keys()) {
-      const fam = getFamily(controlId);
-      const entries = (familyMap[fam] ??= []);
-      const existing = entries.find((entry) => entry.controlId === controlId);
-      if (existing) {
-        existing.hasProvider = true;
-      } else {
-        entries.push({
-          controlId,
-          hasCurrent: false,
-          hasProvider: true,
-          attachmentCount: 0,
-        });
-      }
-    }
 
     const sortedFamilies = Object.entries(familyMap).sort(([a], [b]) => catalogSort.compare(a, b));
 
@@ -5559,18 +6030,20 @@ export default function SspPage() {
       Object.values(enhancementMap).forEach((arr) => arr.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
 
       const allProviderOnly = entries.length > 0 && entries.every((entry) => !entry.hasCurrent && entry.hasProvider);
+      const allMissing = entries.length > 0 && entries.every((entry) => !entry.hasCurrent && !entry.hasProvider);
 
       items.push({
         id: famId,
         label: `${fam.toUpperCase()} — ${FAMILY_NAMES[fam] || fam}`,
-        icon: allProviderOnly ? "folder-layers" : "folder",
-        color: allProviderOnly ? colors.purple : colors.cobalt,
+        icon: allProviderOnly ? "folder-layers" : allMissing ? "missing-control" : "folder",
+        color: allProviderOnly ? colors.purple : allMissing ? colors.red : colors.cobalt,
         depth: 1,
         parent: "ctrl-impl",
         childCount: baseEntries.length,
         attachmentCount: familyAttachmentCount || undefined,
         title: [
           allProviderOnly ? "All controls in this family are offered by loaded provider SSPs" : undefined,
+          allMissing ? "Controls in this family are missing implementation statements" : undefined,
           familyAttachmentCount ? attachmentTitle(familyAttachmentCount) : undefined,
         ].filter(Boolean).join(" · ") || undefined,
       });
@@ -5611,10 +6084,12 @@ export default function SspPage() {
     });
 
     /* Back matter */
-    items.push({ id: "back-matter", label: "Back Matter", icon: "book", color: colors.gray, depth: 0, childCount: ssp.backMatter.length || undefined });
+    if (ssp.backMatter.length > 0) {
+      items.push({ id: "back-matter", label: "Back Matter", icon: "book", color: colors.gray, depth: 0, childCount: ssp.backMatter.length });
+    }
 
     return items;
-  }, [ssp, leveragedIndex, catalogSort, urlDoc.sourceUrl, oscal.leveragedSsps]);
+  }, [ssp, leveragedIndex, catalogSort, urlDoc.sourceUrl, oscal.leveragedSsps, profileControlIds]);
 
   /* ── Child counts ── */
   const childCounts = useMemo(() => {
