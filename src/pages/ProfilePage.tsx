@@ -23,6 +23,7 @@ import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
+import { resolveHref, type BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
@@ -563,6 +564,7 @@ export default function ProfilePage() {
   const oscal = useOscal();
   const { token: authToken } = useAuth();
   const profile = oscal.profile?.data as Profile | null;
+  const profileSourceUrl = oscal.profile?.sourceUrl ?? null;
   const fileName = oscal.profile?.fileName ?? "";
   const [error, setError] = useState("");
   const [view, setView] = useState("overview");
@@ -593,6 +595,9 @@ export default function ProfilePage() {
 
   /* ── Auto-resolve all catalog imports from profile ── */
   const storedResolved = useRef(new Set<string>());
+  useEffect(() => {
+    storedResolved.current.clear();
+  }, [profile?.uuid]);
   const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
     const key = `${doc.modelKey}:${doc.url}`;
     if (storedResolved.current.has(key)) return;
@@ -602,11 +607,41 @@ export default function ProfilePage() {
       oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
     }
   }, [oscal]);
+  const resolverBaseUrl = profileSourceUrl ?? urlDoc.sourceUrl;
+  const catalogImportsAlreadyLoaded = useMemo(() => {
+    const imports = profile?.imports ?? [];
+    if (!profile || !oscal.catalog || imports.length === 0) return false;
+
+    const catalogSourceUrl = oscal.catalog.sourceUrl ?? null;
+    const backMatter = (profile["back-matter"]?.resources ?? []) as BackMatterResource[];
+
+    return imports.every((importEntry) => {
+      const { url: rawUrl, formatError } = resolveHref(importEntry.href, backMatter);
+      if (formatError || !rawUrl) return false;
+
+      // If the catalog was manually loaded from a local file, there may be no
+      // source URL to compare. Treat the loaded catalog as satisfying the
+      // profile import so navigating to this tab doesn't re-open the resolver.
+      if (!catalogSourceUrl) return true;
+
+      try {
+        const resolvedImportUrl = rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
+          ? rawUrl
+          : resolverBaseUrl
+            ? new URL(rawUrl, resolverBaseUrl).href
+            : null;
+        return resolvedImportUrl === catalogSourceUrl;
+      } catch {
+        return false;
+      }
+    });
+  }, [profile, oscal.catalog, resolverBaseUrl]);
   const graphResolver = useOscalGraphResolver({
     root: profile,
     rootModelKey: "profile",
-    rootBaseUrl: urlDoc.sourceUrl,
+    rootBaseUrl: resolverBaseUrl,
     token: authToken,
+    skip: catalogImportsAlreadyLoaded,
     onResolved: handleResolved,
   });
 
