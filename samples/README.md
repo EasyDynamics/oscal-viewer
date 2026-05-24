@@ -22,3 +22,12 @@ Any viewer page accepts a `?url=` query parameter pointing to a raw JSON file. F
 ```
 http://localhost:5173/ssp?url=https://raw.githubusercontent.com/.../ssp.json
 ```
+
+## OSCAL.io Viewer Hints
+
+Sample component-definition files may use optional viewer hint props in the `http://oscal.io/ns` namespace:
+
+- `llm-generated` on implemented requirements: `yes` shows an **LLM Generated** badge; `no` is hidden.
+- `type` on component-definition back-matter resources: `standards` or `threat-intelligence` categorizes the resource with a matching icon.
+
+Embedded back-matter artifacts should use the resource-level `base64` object with `filename`, `media-type`, and `value`; do not put attachment data in props.

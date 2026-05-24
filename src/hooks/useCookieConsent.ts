@@ -8,13 +8,14 @@
    requiring a page reload.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 export type ConsentValue = "accepted" | "declined" | null;
 
 const COOKIE_NAME = "cookie_consent";
 const MAX_AGE_DAYS = 365;
 const GA_ID = "G-J56BFX8610";
+const CONSENT_CHANGED_EVENT = "oscal-cookie-consent-changed";
 
 /** Read the current consent cookie (returns null if unset). */
 function readConsent(): ConsentValue {
@@ -47,6 +48,7 @@ declare global {
 }
 
 let gaLoaded = false;
+let lastPageView: { path: string; time: number } | null = null;
 
 /** Dynamically inject GA if it hasn't been loaded yet. */
 function enableGA() {
@@ -67,7 +69,7 @@ function enableGA() {
     window.dataLayer.push(arguments);
   };
   window.gtag("js", new Date());
-  window.gtag("config", GA_ID);
+  window.gtag("config", GA_ID, { send_page_view: false });
 
   gaLoaded = true;
 }
@@ -90,19 +92,74 @@ function disableGA() {
   }
 }
 
+function notifyConsentChanged() {
+  window.dispatchEvent(new Event(CONSENT_CHANGED_EVENT));
+}
+
+export function syncAnalyticsWithConsent() {
+  if (readConsent() === "accepted") enableGA();
+  else disableGA();
+}
+
+export function sanitizedAnalyticsPath(pathname: string, search = "", hash = "") {
+  const params = new URLSearchParams(search);
+  if (params.has("url")) params.set("url", "loaded");
+  const query = params.toString();
+  return `${pathname}${query ? `?${query}` : ""}${hash}`;
+}
+
+export function viewerAnalyticsPath(pathname: string, search: string, viewId: string) {
+  const params = new URLSearchParams(search);
+  if (params.has("url")) params.set("url", "loaded");
+  params.set("view", viewId);
+  return `${pathname}?${params.toString()}`;
+}
+
+export function trackPageView(
+  pagePath: string,
+  pageTitle = document.title,
+  params: Record<string, string> = {},
+) {
+  if (readConsent() !== "accepted") return;
+
+  enableGA();
+
+  const now = Date.now();
+  if (lastPageView?.path === pagePath && now - lastPageView.time < 1000) return;
+  lastPageView = { path: pagePath, time: now };
+
+  window.gtag("event", "page_view", {
+    page_path: pagePath,
+    page_location: `${window.location.origin}${pagePath}`,
+    page_title: pageTitle,
+    ...params,
+  });
+}
+
+export function onConsentChanged(listener: () => void) {
+  window.addEventListener(CONSENT_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(CONSENT_CHANGED_EVENT, listener);
+}
+
 export function useCookieConsent() {
   const [consent, setConsent] = useState<ConsentValue>(readConsent);
+
+  useEffect(() => {
+    syncAnalyticsWithConsent();
+  }, []);
 
   const accept = useCallback(() => {
     writeConsent("accepted");
     setConsent("accepted");
     enableGA();
+    notifyConsentChanged();
   }, []);
 
   const decline = useCallback(() => {
     writeConsent("declined");
     setConsent("declined");
     disableGA();
+    notifyConsentChanged();
   }, []);
 
   return { consent, accept, decline } as const;

@@ -53,9 +53,9 @@ export default function PrivacyPolicyPage() {
       </section>
 
       <section style={s.section}>
-        <h2 style={s.subheading}>JWT Tokens</h2>
+        <h2 style={s.subheading}>Access Tokens</h2>
         <p style={s.text}>
-          If you load a JWT token for authenticated document fetches, it is held
+          If you load an access token for authenticated document fetches, it is held
           in <code style={s.code}>sessionStorage</code> and automatically
           cleared when the browser tab is closed. It is never written to a
           cookie or persisted to disk.

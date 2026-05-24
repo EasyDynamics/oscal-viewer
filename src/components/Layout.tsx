@@ -9,9 +9,9 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { CSSProperties } from "react";
 import { colors, fonts, oscalModels, shadows, radii, brand, alpha } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
-import { useAuth, isValidJwtFormat } from "../context/AuthContext";
+import { useAuth, isValidBearerTokenFormat } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { IconSun, IconMoon, IconLock, IconUnlock } from "./Icons";
+import { Lock, Moon, Sun, Unlock } from "lucide-react";
 import useIsMobile from "../hooks/useIsMobile";
 import CookieBanner from "./CookieBanner";
 
@@ -28,13 +28,7 @@ export default function Layout() {
   const menuRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const jwtRef = useRef<HTMLDivElement>(null);
-  const sspCount = (oscal.ssp ? 1 : 0) + oscal.leveragedSsps.length;
-  const sspCountTitle = sspCount > 0
-    ? [
-        `Main SSP: ${oscal.ssp ? documentDisplayName(oscal.ssp) : "none loaded"}`,
-        ...oscal.leveragedSsps.map((entry, i) => `Leveraged SSP ${i + 1}: ${documentDisplayName(entry)}`),
-      ].join("\n")
-    : undefined;
+  const loadedByModel = (modelKey: string) => loadedEntriesForModel(oscal, modelKey);
 
   /* Close the menu when the route changes */
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
@@ -106,14 +100,14 @@ export default function Layout() {
               <div style={{ position: "relative" }} ref={jwtRef}>
                 <button
                   onClick={() => { setJwtOpen((v) => !v); setJwtDraft(""); }}
-                  aria-label={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
-                  title={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                  aria-label={isAuthenticated ? "Token loaded — click to manage" : "Load access token"}
+                  title={isAuthenticated ? "Token loaded — click to manage" : "Load access token"}
                   style={{
                     ...styles.themeToggle,
                     background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
                   }}
                 >
-                  {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                  {isAuthenticated ? <Lock size={16} /> : <Unlock size={16} />}
                 </button>
                 {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
               </div>
@@ -123,7 +117,7 @@ export default function Layout() {
                 title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                 style={styles.themeToggle}
               >
-                {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+                {resolvedMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <a href="https://oscal.io/" target="_blank" rel="noopener noreferrer">
                 <img src={brand.logoUrl} alt={brand.tagline} style={{ height: 20 }} />
@@ -134,14 +128,14 @@ export default function Layout() {
               <div style={{ position: "relative" }} ref={jwtRef}>
                 <button
                   onClick={() => { setJwtOpen((v) => !v); setJwtDraft(""); }}
-                  aria-label={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
-                  title={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                  aria-label={isAuthenticated ? "Token loaded — click to manage" : "Load access token"}
+                  title={isAuthenticated ? "Token loaded — click to manage" : "Load access token"}
                   style={{
                     ...styles.themeToggle,
                     background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
                   }}
                 >
-                  {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                  {isAuthenticated ? <Lock size={16} /> : <Unlock size={16} />}
                 </button>
                 {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
               </div>
@@ -151,7 +145,7 @@ export default function Layout() {
                 title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                 style={styles.themeToggle}
               >
-                {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+                {resolvedMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <span style={styles.tagline}>{brand.tagline}</span>
             </div>
@@ -162,14 +156,14 @@ export default function Layout() {
             <div style={{ position: "relative" }} ref={!isMobile ? undefined : jwtRef}>
               <button
                 onClick={() => { setJwtOpen((v) => !v); setJwtDraft(""); }}
-                aria-label={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
-                title={isAuthenticated ? "JWT loaded — click to manage" : "Load JWT token"}
+                aria-label={isAuthenticated ? "Token loaded — click to manage" : "Load access token"}
+                title={isAuthenticated ? "Token loaded — click to manage" : "Load access token"}
                 style={{
                   ...styles.themeToggle,
                   background: isAuthenticated ? alpha(colors.darkGreen, 30) : alpha(colors.white, 12),
                 }}
               >
-                {isAuthenticated ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                {isAuthenticated ? <Lock size={16} /> : <Unlock size={16} />}
               </button>
               {jwtOpen && <JwtPopover token={token} draft={jwtDraft} setDraft={setJwtDraft} onSubmit={handleJwtSubmit} onClear={handleJwtClear} />}
             </div>
@@ -179,7 +173,7 @@ export default function Layout() {
               title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               style={styles.themeToggle}
             >
-              {resolvedMode === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+              {resolvedMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
         )}
@@ -192,7 +186,9 @@ export default function Layout() {
             Home
           </NavLink>
           {oscalModels.map((m) => {
-            const loaded = isLoaded(m.key);
+            const loadedEntries = loadedByModel(m.key);
+            const loaded = loadedEntries.length > 0 || isLoaded(m.key);
+            const loadedTitle = loadedEntries.length > 0 ? loadedEntries.join("\n") : undefined;
             if (m.disabled) {
               return (
                 <span
@@ -214,12 +210,12 @@ export default function Layout() {
               <NavLink
                 key={m.key}
                 to={m.path}
-                title={m.key === "ssp" ? sspCountTitle : undefined}
+                title={loadedTitle}
                 style={() => tabStyle(location.pathname.startsWith(m.path))}
               >
                 <StatusDot color={loaded ? m.color : colors.gray} loaded={loaded} />
                 {m.label}
-                {m.key === "ssp" && sspCount > 1 && <SspCountBadge count={sspCount} title={sspCountTitle} />}
+                {loadedEntries.length > 1 && <DocumentCountBadge count={loadedEntries.length} title={loadedTitle} />}
               </NavLink>
             );
           })}
@@ -256,13 +252,15 @@ export default function Layout() {
             <MobileMenuItem to="/" label="Home" isActive={location.pathname === "/"} onTap={() => setMenuOpen(false)} />
             {oscalModels.map((m) => {
               if (m.disabled) return null;
-              const loaded = isLoaded(m.key);
+              const loadedEntries = loadedByModel(m.key);
+              const loaded = loadedEntries.length > 0 || isLoaded(m.key);
+              const loadedTitle = loadedEntries.length > 0 ? loadedEntries.join("\n") : undefined;
               return (
                 <MobileMenuItem
                   key={m.key}
                   to={m.path}
-                  label={m.key === "ssp" && sspCount > 1 ? `${m.label} (${sspCount})` : m.label}
-                  title={m.key === "ssp" ? sspCountTitle : undefined}
+                  label={loadedEntries.length > 1 ? `${m.label} ${loadedEntries.length}` : m.label}
+                  title={loadedTitle}
                   isActive={location.pathname.startsWith(m.path)}
                   dot={{ color: loaded ? m.color : colors.gray, loaded }}
                   onTap={() => setMenuOpen(false)}
@@ -296,6 +294,7 @@ export default function Layout() {
 
       {/* ── Footer ── */}
       <footer style={styles.footer}>
+        <NavLink to="/docs" style={styles.footerLink}>Documentation</NavLink>
         <NavLink to="/privacy" style={styles.footerLink}>Privacy Policy</NavLink>
       </footer>
 
@@ -307,7 +306,7 @@ export default function Layout() {
 
 /* ── Small presentational helpers ── */
 
-/** Popover for entering / viewing / clearing a JWT */
+/** Popover for entering / viewing / clearing an access token */
 function JwtPopover({
   token,
   draft,
@@ -367,7 +366,7 @@ function JwtPopover({
   return (
     <div style={popoverStyle} onClick={(e) => e.stopPropagation()}>
       <div style={labelStyle}>
-        {token ? "JWT Token Loaded" : "Load JWT Token"}
+        {token ? "Access Token Loaded" : "Load Access Token"}
       </div>
 
       {token ? (
@@ -409,24 +408,24 @@ function JwtPopover({
                 onSubmit();
               }
             }}
-            placeholder="Paste your JWT here..."
+            placeholder="Paste your registry access token here..."
             rows={3}
             style={{
               ...inputStyle,
               resize: "vertical" as const,
             }}
           />
-          {draft.trim() && !isValidJwtFormat(draft.trim()) && (
+          {draft.trim() && !isValidBearerTokenFormat(draft.trim()) && (
             <div style={{ fontSize: 11, color: colors.red, lineHeight: 1.3 }}>
-              Not a valid JWT format. Expected a JWS (header.payload.signature) or JWE (header.encryptedKey.iv.ciphertext.tag) token.
+              Not a valid bearer token format.
             </div>
           )}
           <button
             onClick={onSubmit}
-            disabled={!draft.trim() || !isValidJwtFormat(draft.trim())}
+            disabled={!draft.trim() || !isValidBearerTokenFormat(draft.trim())}
             style={{
               ...btnBase,
-              backgroundColor: draft.trim() && isValidJwtFormat(draft.trim()) ? colors.navy : colors.paleGray,
+                backgroundColor: draft.trim() && isValidBearerTokenFormat(draft.trim()) ? colors.navy : colors.paleGray,
               color: colors.white,
             }}
           >
@@ -436,8 +435,8 @@ function JwtPopover({
       )}
 
       <div style={{ fontSize: 11, color: colors.gray, lineHeight: 1.4 }}>
-        Token is stored in sessionStorage and sent as a Bearer token with all
-        document fetches. It clears when the tab is closed.
+        Token is stored in sessionStorage and sent as a Bearer token only to OSCAL registry/API requests.
+        It clears when the tab is closed.
       </div>
     </div>
   );
@@ -462,16 +461,40 @@ function StatusDot({ color, loaded }: { color: string; loaded: boolean }) {
   );
 }
 
+function loadedEntriesForModel(oscal: ReturnType<typeof useOscal>, modelKey: string): string[] {
+  switch (modelKey) {
+    case "catalog": return oscal.catalog ? [`Catalog: ${documentDisplayName(oscal.catalog)}`] : [];
+    case "profile": return oscal.profile ? [`Profile: ${documentDisplayName(oscal.profile)}`] : [];
+    case "component-definition": return oscal.componentDefinition ? [`Component Definition: ${documentDisplayName(oscal.componentDefinition)}`] : [];
+    case "ssp": return [
+      ...(oscal.ssp ? [`Main SSP: ${documentDisplayName(oscal.ssp)}`] : []),
+      ...oscal.leveragedSsps.map((entry, i) => `Leveraged SSP ${i + 1}: ${documentDisplayName(entry)}`),
+    ];
+    case "assessment-plan": return oscal.assessmentPlan ? [`Assessment Plan: ${documentDisplayName(oscal.assessmentPlan)}`] : [];
+    case "assessment-results": return oscal.assessmentResults ? [`Assessment Results: ${documentDisplayName(oscal.assessmentResults)}`] : [];
+    case "poam": return oscal.poam ? [`POA&M: ${documentDisplayName(oscal.poam)}`] : [];
+    default: return [];
+  }
+}
+
 function documentDisplayName(entry: { data: unknown; fileName: string; sourceUrl?: string | null }): string {
   const raw = entry.data as Record<string, unknown> | null;
-  const ssp = (raw?.["system-security-plan"] ?? raw) as Record<string, unknown> | null;
-  const metadata = ssp?.metadata as Record<string, unknown> | undefined;
+  const model = unwrapOscalModel(raw);
+  const metadata = model?.metadata as Record<string, unknown> | undefined;
   const title = typeof metadata?.title === "string" ? metadata.title : "";
   const source = entry.sourceUrl ? ` — ${entry.sourceUrl}` : "";
   return title && title !== entry.fileName ? `${title} (${entry.fileName})${source}` : `${entry.fileName}${source}`;
 }
 
-function SspCountBadge({ count, title }: { count: number; title?: string }) {
+function unwrapOscalModel(raw: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  for (const key of ["catalog", "profile", "component-definition", "system-security-plan", "assessment-plan", "assessment-results", "plan-of-action-and-milestones"]) {
+    if (raw[key] && typeof raw[key] === "object") return raw[key] as Record<string, unknown>;
+  }
+  return raw;
+}
+
+function DocumentCountBadge({ count, title }: { count: number; title?: string }) {
   return (
     <span title={title} style={{
       marginLeft: 6,
@@ -484,7 +507,7 @@ function SspCountBadge({ count, title }: { count: number; title?: string }) {
       fontWeight: 800,
       lineHeight: "16px",
     }}>
-      {count} SSPs
+      {count}
     </span>
   );
 }

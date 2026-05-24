@@ -1,0 +1,20 @@
+{
+  "catalog": {
+    "uuid": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+    "metadata": {
+      "title": "Example Catalog B",
+      "last-modified": "2026-05-23T00:00:00Z",
+      "version": "0.1.0",
+      "oscal-version": "1.1.3"
+    },
+    "groups": [
+      {
+        "id": "au",
+        "title": "Audit and Accountability",
+        "controls": [
+          { "id": "au-1", "title": "Policy and Procedures" }
+        ]
+      }
+    ]
+  }
+}

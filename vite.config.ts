@@ -10,9 +10,9 @@ import react from '@vitejs/plugin-react'
  *  - Only https:// and http:// schemes allowed (no file://, ftp://, etc.)
  *  - Blocks requests to private/internal IP ranges and cloud metadata endpoints
  *  - Request body limited to 4 KB (just a URL + headers)
- *  - Only proxies JSON responses (Content-Type must contain "json")
+ *  - Only proxies JSON-like responses (JSON, text/plain, octet-stream)
  *  - Error messages are generic (no internal stack traces)
- *  - Upstream fetch has a 30-second timeout
+ *  - Upstream fetch has a 120-second timeout
  */
 function corsProxyPlugin(): Plugin {
   return {
@@ -109,28 +109,40 @@ function corsProxyPlugin(): Plugin {
           }
         }
 
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30_000);
+          timeout = setTimeout(() => controller.abort(), 120_000);
 
           const upstream = await fetch(url, {
             headers: safeHeaders,
             signal: controller.signal,
           });
-          clearTimeout(timeout);
 
           const contentType = upstream.headers.get('content-type') || '';
 
-          // ── Only proxy JSON responses to limit attack surface ──
-          if (!contentType.includes('json')) {
+          // ── Only proxy JSON-like responses to limit attack surface.
+          // Some registries and raw file hosts serve JSON as text/plain or
+          // application/octet-stream, so allow the same types the client-side
+          // OSCAL resolvers accept and let JSON.parse validate the payload.
+          const isJsonLike =
+            contentType.includes('json') ||
+            contentType.includes('text/plain') ||
+            contentType.includes('octet-stream');
+
+          if (!isJsonLike) {
+            clearTimeout(timeout);
+            timeout = undefined;
             res.writeHead(415, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
-              error: `Upstream responded with unsupported content type: ${contentType}. Only JSON is accepted.`,
+              error: `Upstream responded with unsupported content type: ${contentType}. Only JSON-like responses are accepted.`,
             }));
             return;
           }
 
           const data = await upstream.arrayBuffer();
+          clearTimeout(timeout);
+          timeout = undefined;
 
           res.writeHead(upstream.status, {
             'Content-Type': contentType,
@@ -138,6 +150,7 @@ function corsProxyPlugin(): Plugin {
           });
           res.end(Buffer.from(data));
         } catch {
+          if (timeout) clearTimeout(timeout);
           // Generic error — don't leak internal details
           res.writeHead(502, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Failed to fetch upstream resource' }));

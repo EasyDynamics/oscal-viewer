@@ -4,8 +4,8 @@
 
 import { Link } from "react-router-dom";
 import { useState, type CSSProperties } from "react";
+import { GitFork, Grid3X3, Shield, TriangleAlert } from "lucide-react";
 import { colors, fonts, oscalModels, shadows, radii, brand } from "../theme/tokens";
-import { IconShield, IconGrid, IconAlertTriangle, IconGitHub } from "../components/Icons";
 import useIsMobile from "../hooks/useIsMobile";
 
 export default function HomePage() {
@@ -20,7 +20,7 @@ export default function HomePage() {
           {brand.favicon ? (
             <img src={brand.favicon} alt="" style={{ height: isMobile ? 22 : 28 }} />
           ) : (
-            <IconShield size={isMobile ? 22 : 28} style={{ color: colors.orange }} />
+            <Shield size={isMobile ? 22 : 28} style={{ color: colors.orange }} />
           )}
           <h1 style={{ ...styles.heading, ...(isMobile ? { fontSize: "1.1rem" } : {}) }}>{brand.heading}</h1>
           <a
@@ -30,7 +30,7 @@ export default function HomePage() {
             title="View on GitHub"
             style={{ display: "inline-flex", marginLeft: 8, color: colors.navy }}
           >
-            <IconGitHub size={isMobile ? 20 : 24} />
+            <GitFork size={isMobile ? 20 : 24} />
           </a>
         </div>
         <p style={{ ...styles.subtitle, ...(isMobile ? { fontSize: 13, lineHeight: 1.4, marginBottom: 0 } : {}) }}>
@@ -46,7 +46,7 @@ export default function HomePage() {
               onClick={() => setNotesOpen((v) => !v)}
               style={styles.notesToggle}
             >
-              <IconShield size={12} style={{ color: colors.navy, flexShrink: 0 }} />
+              <Shield size={12} style={{ color: colors.navy, flexShrink: 0 }} />
               <span>Privacy &amp; Heads&nbsp;up</span>
               <span style={{ marginLeft: "auto", fontSize: 10 }}>{notesOpen ? "▲" : "▼"}</span>
             </button>
@@ -54,7 +54,7 @@ export default function HomePage() {
               <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                 <div style={{ ...styles.noteCard, padding: "8px 10px" }}>
                   <div style={styles.noteHeader}>
-                    <IconShield size={14} style={{ color: colors.navy, flexShrink: 0 }} />
+                    <Shield size={14} style={{ color: colors.navy, flexShrink: 0 }} />
                     <span style={styles.noteLabel}>Privacy</span>
                   </div>
                   <p style={{ ...styles.noteText, fontSize: 12 }}>
@@ -63,7 +63,7 @@ export default function HomePage() {
                 </div>
                 <div style={{ ...styles.noteCard, padding: "8px 10px" }}>
                   <div style={styles.noteHeader}>
-                    <IconAlertTriangle size={14} style={{ color: colors.yellow, flexShrink: 0 }} />
+                    <TriangleAlert size={14} style={{ color: colors.yellow, flexShrink: 0 }} />
                     <span style={styles.noteLabel}>Heads up</span>
                   </div>
                   <p style={{ ...styles.noteText, fontSize: 12 }}>
@@ -77,7 +77,7 @@ export default function HomePage() {
           <div style={styles.notesRow}>
             <div style={styles.noteCard}>
               <div style={styles.noteHeader}>
-                <IconShield size={16} style={{ color: colors.navy, flexShrink: 0 }} />
+                <Shield size={16} style={{ color: colors.navy, flexShrink: 0 }} />
                 <span style={styles.noteLabel}>Privacy</span>
               </div>
               <p style={styles.noteText}>
@@ -88,7 +88,7 @@ export default function HomePage() {
             </div>
             <div style={styles.noteCard}>
               <div style={styles.noteHeader}>
-                <IconAlertTriangle size={16} style={{ color: colors.yellow, flexShrink: 0 }} />
+                <TriangleAlert size={16} style={{ color: colors.yellow, flexShrink: 0 }} />
                 <span style={styles.noteLabel}>Heads up</span>
               </div>
               <p style={styles.noteText}>
@@ -103,7 +103,7 @@ export default function HomePage() {
 
       {/* Model cards grid */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: isMobile ? 8 : 16 }}>
-        <IconGrid size={16} style={{ color: colors.gray }} />
+        <Grid3X3 size={16} style={{ color: colors.gray }} />
         <h2 style={{ fontSize: isMobile ? 14 : 16, fontWeight: 600, color: colors.black, margin: 0 }}>
           OSCAL Models
         </h2>
@@ -149,15 +149,15 @@ export default function HomePage() {
         })}
       </div>
 
-      {/* Subtle link to How It Works */}
+      {/* Subtle link to Docs */}
       <div style={{ textAlign: "center", marginTop: isMobile ? 20 : 32, paddingBottom: 8 }}>
         <Link
-          to="/how-it-works"
+          to="/docs"
           style={{ fontSize: 12, color: colors.gray, textDecoration: "none", fontFamily: fonts.sans }}
           onMouseEnter={(e) => { (e.target as HTMLElement).style.color = colors.brightBlue; (e.target as HTMLElement).style.textDecoration = "underline"; }}
           onMouseLeave={(e) => { (e.target as HTMLElement).style.color = colors.gray; (e.target as HTMLElement).style.textDecoration = "none"; }}
         >
-          How does the viewer work? →
+          View documentation →
         </Link>
       </div>
     </div>

@@ -1,0 +1,20 @@
+{
+  "system-security-plan": {
+    "uuid": "33333333-3333-4333-8333-333333333333",
+    "metadata": {
+      "title": "Example Leveraged SSP 3",
+      "last-modified": "2026-05-23T00:00:00Z",
+      "version": "0.1.0",
+      "oscal-version": "1.1.3"
+    },
+    "system-characteristics": {
+      "system-name": "Leveraged Provider 3",
+      "status": { "state": "operational" }
+    },
+    "system-implementation": {},
+    "control-implementation": {
+      "description": "Provider 3 controls",
+      "implemented-requirements": []
+    }
+  }
+}

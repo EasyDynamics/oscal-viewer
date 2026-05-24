@@ -20,11 +20,13 @@ import { useOscal } from "../context/OscalContext";
 import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
-import { useChainResolver, AR_CHAIN } from "../hooks/useChainResolver";
-import type { BackMatterResource } from "../hooks/useImportResolver";
+import { useAnalyticsView } from "../hooks/useAnalyticsView";
+import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { IcoAlert, IcoAlertTriangle, IcoBook, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFolder, IcoHome, IcoInfo, IcoSearch, IcoShield, IcoTarget, IcoTool, IcoUpload, IcoXCircle } from "../components/IconAliases";
+import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -61,6 +63,7 @@ interface Metadata {
   parties?: { uuid: string; type: string; name: string; "short-name"?: string }[];
   roles?: { id: string; title: string }[];
   props?: OscalProp[];
+  "responsible-parties"?: { "role-id": string; "party-uuids"?: string[] }[];
 }
 
 interface Observation {
@@ -422,74 +425,6 @@ function getCatalogLabel(props?: { name: string; value: string; class?: string }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   INLINE SVG ICONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-interface IconProps { size?: number; style?: CSSProperties }
-
-function IcoUpload({ size = 20, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>;
-}
-function IcoHome({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
-}
-function IcoInfo({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>;
-}
-function IcoShield({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>;
-}
-function IcoCheck({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
-}
-function IcoFolder({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /></svg>;
-}
-function IcoSearch({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
-}
-function IcoChev({ open, style }: { open: boolean; style?: CSSProperties }) {
-  return (
-    <svg
-      style={{ ...style, transform: open ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s", flexShrink: 0 }}
-      width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-    >
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-function IcoAlert({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
-}
-function IcoClipboard({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>;
-}
-function IcoExternalLink({ size = 14, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>;
-}
-function IcoBook({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
-}
-function IcoTarget({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;
-}
-function IcoAlertTriangle({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
-}
-function IcoTool({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" /></svg>;
-}
-function IcoCheckCircle({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
-}
-function IcoXCircle({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>;
-}
-function IcoEye({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
    MAIN PAGE COMPONENT
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -509,6 +444,7 @@ export default function AssessmentResultsPage() {
   const isMobile = useIsMobile();
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  useAnalyticsView("Assessment Results", view);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -530,39 +466,37 @@ export default function AssessmentResultsPage() {
     }
   }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Auto-resolve import-ap reference ── */
-  const arBackMatter = useMemo<BackMatterResource[]>(() => {
-    if (!ar) return [];
-    return (ar["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
-  }, [ar]);
-  const importApHref = ar?.["import-ap"]?.href ?? null;
-  const resolverChain = useMemo(
-    () => oscal.catalog ? AR_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : AR_CHAIN,
-    [oscal.catalog],
-  );
-  const chain = useChainResolver(
-    importApHref,
-    arBackMatter,
-    urlDoc.sourceUrl,
-    authToken,
-    resolverChain,
-    !!oscal.assessmentPlan,
-  );
-  const chainStored = useRef(new Set<string>());
-  useEffect(() => {
-    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
-    for (const step of chain.steps) {
-      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
-        chainStored.current.add(step.modelKey);
-        const raw = step.json as Record<string, unknown>;
-        const data = raw[step.modelKey] ?? raw;
-        if (step.modelKey === "assessment-plan") oscal.setAssessmentPlan(data, step.resolvedLabel ?? "Resolved AP");
-        if (step.modelKey === "system-security-plan") oscal.setSsp(data, step.resolvedLabel ?? "Resolved SSP");
-        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
-        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
-      }
+  /* ── Auto-resolve AR dependency graph ── */
+  const storedResolved = useRef(new Set<string>());
+  const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
+    const key = `${doc.modelKey}:${doc.url}`;
+    if (storedResolved.current.has(key)) return;
+    storedResolved.current.add(key);
+    if (doc.modelKey === "assessment-plan" && !oscal.assessmentPlan && !storedResolved.current.has("slot:assessment-plan")) {
+      storedResolved.current.add("slot:assessment-plan");
+      oscal.setAssessmentPlan(doc.data, doc.label, doc.url);
     }
-  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (doc.modelKey === "system-security-plan" && doc.relation !== "leveraged authorization" && !oscal.ssp && !storedResolved.current.has("slot:ssp")) {
+      storedResolved.current.add("slot:ssp");
+      oscal.setSsp(doc.data, doc.label, doc.url);
+    }
+    if (doc.modelKey === "profile" && !oscal.profile && !storedResolved.current.has("slot:profile")) {
+      storedResolved.current.add("slot:profile");
+      oscal.setProfile(doc.data, doc.label, doc.url);
+    }
+    if (doc.modelKey === "catalog" && !oscal.catalog && !storedResolved.current.has("slot:catalog")) {
+      storedResolved.current.add("slot:catalog");
+      oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
+    }
+    if (doc.modelKey === "system-security-plan" && doc.relation === "leveraged authorization") oscal.addLeveragedSsp(doc.json, doc.label, doc.url);
+  }, [oscal]);
+  const graphResolver = useOscalGraphResolver({
+    root: ar,
+    rootModelKey: "assessment-results",
+    rootBaseUrl: urlDoc.sourceUrl,
+    token: authToken,
+    onResolved: handleResolved,
+  });
 
   const navigate = useCallback((id: string) => {
     setView(id);
@@ -933,7 +867,7 @@ export default function AssessmentResultsPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} onSkip={chain.cancel} />
+    <ResolverModal items={graphResolver.items} onSkip={graphResolver.cancel} />
   );
 
   /* ── If no file loaded, show drop zone ── */
@@ -2008,14 +1942,7 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
       {meta.parties && meta.parties.length > 0 && (
         <Card>
           <SectionLabel>Parties ({meta.parties.length})</SectionLabel>
-          {meta.parties.map((p) => (
-            <div key={p.uuid} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{p.name}</div>
-              <div style={{ fontSize: 11, color: colors.gray }}>
-                {p.type}{p["short-name"] ? ` · ${p["short-name"]}` : ""}
-              </div>
-            </div>
-          ))}
+          <PartyCardGrid parties={meta.parties} />
         </Card>
       )}
 
@@ -2034,6 +1961,13 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
               </span>
             ))}
           </div>
+        </Card>
+      )}
+
+      {meta["responsible-parties"] && meta["responsible-parties"].length > 0 && (
+        <Card>
+          <SectionLabel>Responsible Parties</SectionLabel>
+          <ResponsiblePartiesList responsibleParties={meta["responsible-parties"]} parties={meta.parties ?? []} roles={meta.roles ?? []} />
         </Card>
       )}
 

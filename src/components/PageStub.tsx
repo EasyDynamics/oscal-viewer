@@ -4,8 +4,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import type { CSSProperties, ReactNode } from "react";
+import { Upload } from "lucide-react";
 import { colors, fonts, shadows, radii } from "../theme/tokens";
-import { IconUpload } from "./Icons";
 
 interface PageStubProps {
   title: string;
@@ -41,7 +41,7 @@ export default function PageStub({
       {/* Content area — either children or a default upload prompt */}
       {children ?? (
         <div style={styles.uploadZone}>
-          <IconUpload size={40} style={{ color: colors.gray }} />
+          <Upload size={40} style={{ color: colors.gray }} />
           <p style={{ marginTop: 12, fontSize: 15, color: colors.black }}>
             Drop an OSCAL <strong>{title}</strong> JSON file here, or click to
             browse

@@ -3,6 +3,7 @@ import { OscalProvider } from "./context/OscalContext";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import Layout from "./components/Layout";
+import AnalyticsPageTracker from "./components/AnalyticsPageTracker";
 import HomePage from "./pages/HomePage";
 import CatalogPage from "./pages/CatalogPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -12,6 +13,7 @@ import AssessmentPlanPage from "./pages/AssessmentPlanPage";
 import AssessmentResultsPage from "./pages/AssessmentResultsPage";
 import PoamPage from "./pages/PoamPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
+import DocsSspPage from "./pages/DocsSspPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 
 export default function App() {
@@ -20,6 +22,7 @@ export default function App() {
     <AuthProvider>
     <OscalProvider>
     <BrowserRouter>
+      <AnalyticsPageTracker />
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
@@ -37,6 +40,8 @@ export default function App() {
           <Route path="poam" element={<PoamPage />} />
           <Route path="plans-of-action-and-milestones" element={<PoamPage />} />
           <Route path="how-it-works" element={<HowItWorksPage />} />
+          <Route path="docs" element={<HowItWorksPage />} />
+          <Route path="docs/ssp" element={<DocsSspPage />} />
           <Route path="privacy" element={<PrivacyPolicyPage />} />
         </Route>
       </Routes>

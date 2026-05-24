@@ -19,11 +19,13 @@ import { useOscal } from "../context/OscalContext";
 import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
-import { useChainResolver, POAM_CHAIN } from "../hooks/useChainResolver";
-import type { BackMatterResource } from "../hooks/useImportResolver";
+import { useAnalyticsView } from "../hooks/useAnalyticsView";
+import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { IcoAlert, IcoBook, IcoBulb, IcoCalendar, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFlag, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTarget, IcoUpload } from "../components/IconAliases";
+import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -334,77 +336,6 @@ function findParentCatalogControl(catalog: OscalCatalog, enhId: string): Catalog
   return undefined;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   INLINE SVG ICONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-interface IconProps { size?: number; style?: CSSProperties }
-
-function IcoUpload({ size = 20, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>;
-}
-function IcoHome({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
-}
-function IcoInfo({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>;
-}
-function IcoShield({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>;
-}
-function IcoAlert({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
-}
-function IcoClipboard({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>;
-}
-function IcoSearch({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
-}
-function IcoChev({ open, style }: { open: boolean; style?: CSSProperties }) {
-  return (
-    <svg style={{ ...style, transform: open ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s", flexShrink: 0 }}
-      width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-function IcoExternalLink({ size = 14, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>;
-}
-function IcoTarget({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;
-}
-function IcoEye({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
-}
-function IcoCalendar({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
-}
-function IcoCheckCircle({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
-}
-function IcoFlag({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" /></svg>;
-}
-
-/* ── Extra icons needed for catalog control rendering ── */
-function IcoList({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
-}
-function IcoBook({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
-}
-function IcoBulb({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z" /></svg>;
-}
-function IcoCheck({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
-}
-function IcoLink({ size = 14, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>;
-}
-
 function ctrlSectionIcon(icon: string, size = 16, style?: CSSProperties): ReactNode {
   switch (icon) {
     case "info": return <IcoInfo size={size} style={style} />;
@@ -649,6 +580,7 @@ export default function PoamPage() {
   const isMobile = useIsMobile();
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  useAnalyticsView("POA&M", view);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -669,38 +601,33 @@ export default function PoamPage() {
     }
   }, [urlDoc.json]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Auto-resolve import-ssp reference ── */
-  const poamBackMatter = useMemo<BackMatterResource[]>(() => {
-    if (!poam) return [];
-    return (poam["back-matter"]?.resources as unknown as BackMatterResource[] | undefined) ?? [];
-  }, [poam]);
-  const importSspHref = poam?.["import-ssp"]?.href ?? null;
-  const resolverChain = useMemo(
-    () => oscal.catalog ? POAM_CHAIN.filter((link) => link.modelKey !== "profile" && link.modelKey !== "catalog") : POAM_CHAIN,
-    [oscal.catalog],
-  );
-  const chain = useChainResolver(
-    importSspHref,
-    poamBackMatter,
-    urlDoc.sourceUrl,
-    authToken,
-    resolverChain,
-    !!oscal.ssp,
-  );
-  const chainStored = useRef(new Set<string>());
-  useEffect(() => {
-    if (chain.steps.every(s => s.status === "idle")) { chainStored.current.clear(); return; }
-    for (const step of chain.steps) {
-      if (step.status === "success" && step.json && !chainStored.current.has(step.modelKey)) {
-        chainStored.current.add(step.modelKey);
-        const raw = step.json as Record<string, unknown>;
-        const data = raw[step.modelKey] ?? raw;
-        if (step.modelKey === "system-security-plan") oscal.setSsp(data, step.resolvedLabel ?? "Resolved SSP");
-        if (step.modelKey === "profile") oscal.setProfile(data, step.resolvedLabel ?? "Resolved Profile");
-        if (step.modelKey === "catalog") oscal.setCatalog(data as import("../context/OscalContext").Catalog, step.resolvedLabel ?? "Resolved Catalog");
-      }
+  /* ── Auto-resolve POA&M dependency graph ── */
+  const storedResolved = useRef(new Set<string>());
+  const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
+    const key = `${doc.modelKey}:${doc.url}`;
+    if (storedResolved.current.has(key)) return;
+    storedResolved.current.add(key);
+    if (doc.modelKey === "system-security-plan" && doc.relation !== "leveraged authorization" && !oscal.ssp && !storedResolved.current.has("slot:ssp")) {
+      storedResolved.current.add("slot:ssp");
+      oscal.setSsp(doc.data, doc.label, doc.url);
     }
-  }, [chain.steps]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (doc.modelKey === "profile" && !oscal.profile && !storedResolved.current.has("slot:profile")) {
+      storedResolved.current.add("slot:profile");
+      oscal.setProfile(doc.data, doc.label, doc.url);
+    }
+    if (doc.modelKey === "catalog" && !oscal.catalog && !storedResolved.current.has("slot:catalog")) {
+      storedResolved.current.add("slot:catalog");
+      oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
+    }
+    if (doc.modelKey === "system-security-plan" && doc.relation === "leveraged authorization") oscal.addLeveragedSsp(doc.json, doc.label, doc.url);
+  }, [oscal]);
+  const graphResolver = useOscalGraphResolver({
+    root: poam,
+    rootModelKey: "plan-of-action-and-milestones",
+    rootBaseUrl: urlDoc.sourceUrl,
+    token: authToken,
+    onResolved: handleResolved,
+  });
 
   const navigate = useCallback((id: string) => {
     setView(id);
@@ -843,7 +770,7 @@ export default function PoamPage() {
 
   /* ── Modal for dependency resolution status ── */
   const resolverModalEl = (
-    <ResolverModal items={chain.items} onSkip={chain.cancel} />
+    <ResolverModal items={graphResolver.items} onSkip={graphResolver.cancel} />
   );
 
   /* ── If no file loaded, show drop zone ── */
@@ -1732,14 +1659,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
       {meta.parties && meta.parties.length > 0 && (
         <Card>
           <SectionLabel>Parties ({meta.parties.length})</SectionLabel>
-          {meta.parties.map((p) => (
-            <div key={p.uuid} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{p.name}</div>
-              <div style={{ fontSize: 11, color: colors.gray }}>
-                {p.type}{p["short-name"] ? ` · ${p["short-name"]}` : ""}
-              </div>
-            </div>
-          ))}
+          <PartyCardGrid parties={meta.parties} />
         </Card>
       )}
 
@@ -1758,6 +1678,13 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
               </span>
             ))}
           </div>
+        </Card>
+      )}
+
+      {meta["responsible-parties"] && meta["responsible-parties"].length > 0 && (
+        <Card>
+          <SectionLabel>Responsible Parties</SectionLabel>
+          <ResponsiblePartiesList responsibleParties={meta["responsible-parties"]} parties={meta.parties ?? []} roles={meta.roles ?? []} />
         </Card>
       )}
 

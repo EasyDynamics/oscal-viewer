@@ -18,9 +18,13 @@ import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
+import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
+import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
+import { backMatterBase64Link, backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import type {
   Catalog,
   Control,
@@ -217,59 +221,6 @@ function findParentControl(catalog: Catalog, enhId: string): Control | undefined
   return undefined;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   INLINE SVG ICONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-interface IconProps { size?: number; style?: CSSProperties }
-
-function IcoUpload({ size = 20, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>;
-}
-function IcoBook({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
-}
-function IcoFolder({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /></svg>;
-}
-function IcoShield({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>;
-}
-function IcoHome({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
-}
-function IcoInfo({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>;
-}
-function IcoList({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
-}
-function IcoBulb({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z" /></svg>;
-}
-function IcoCheck({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
-}
-function IcoChev({ open, style }: { open: boolean; style?: CSSProperties }) {
-  return (
-    <svg
-      style={{ ...style, transform: open ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s", flexShrink: 0 }}
-      width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-    >
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-function IcoLink({ size = 14, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>;
-}
-function IcoTag({ size = 14, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>;
-}
-function IcoSearch({ size = 16, style }: IconProps) {
-  return <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
-}
-
 function sectionIcon(icon: string, size = 16, style?: CSSProperties): ReactNode {
   switch (icon) {
     case "info": return <IcoInfo size={size} style={style} />;
@@ -278,6 +229,17 @@ function sectionIcon(icon: string, size = 16, style?: CSSProperties): ReactNode 
     case "bulb": return <IcoBulb size={size} style={style} />;
     case "check": return <IcoCheck size={size} style={style} />;
     default: return <IcoInfo size={size} style={style} />;
+  }
+}
+
+function resourceIcon(icon: string, size = 14, style?: CSSProperties): ReactNode {
+  switch (icon) {
+    case "cloud": return <IcoCloud size={size} style={style} />;
+    case "code": return <IcoCode size={size} style={style} />;
+    case "target": return <IcoTarget size={size} style={style} />;
+    case "standard": return <IcoStandard size={size} style={style} />;
+    case "paperclip": return <IcoPaperclip size={size} style={style} />;
+    default: return <IcoBook size={size} style={style} />;
   }
 }
 
@@ -297,6 +259,7 @@ export default function CatalogPage() {
   const isMobile = useIsMobile();
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  useAnalyticsView("Catalog", view);
 
   /* ── Auto-load from ?url= query param ── */
   const urlDoc = useUrlDocument();
@@ -1119,7 +1082,7 @@ function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: 
   const familyCount = groups.length;
 
   // Count withdrawn vs active
-  const withdrawn = allCtrls.filter((c) => (c.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn")).length;
+  const withdrawn = allCtrls.filter((c) => (c.props ?? []).some(isWithdrawnStatusProp)).length;
   const active = allCtrls.length - withdrawn;
 
   return (
@@ -1186,18 +1149,6 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
   const links = meta.links ?? [];
   const responsibleParties: ResponsibleParty[] = (meta["responsible-parties"] ?? []) as ResponsibleParty[];
 
-  // Build lookup maps
-  const partyMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    parties.forEach((p) => { m[p.uuid] = p.name; });
-    return m;
-  }, [parties]);
-  const roleMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    roles.forEach((r) => { m[r.id] = r.title; });
-    return m;
-  }, [roles]);
-
   return (
     <div>
       <Breadcrumbs items={[{ id: "overview", label: "Overview" }, { id: "metadata", label: "Metadata" }]} navigate={navigate} />
@@ -1259,33 +1210,7 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
       {responsibleParties.length > 0 && (
         <Card>
           <SectionLabel>Responsible Parties</SectionLabel>
-          {responsibleParties.map((rp, i) => {
-            const roleName = roleMap[rp["role-id"]] ?? rp["role-id"];
-            const partyNames = (rp["party-uuids"] ?? []).map((uuid) => partyMap[uuid] ?? uuid);
-            return (
-              <div key={i} style={{ padding: "10px 0", borderBottom: i < responsibleParties.length - 1 ? `1px solid ${colors.bg}` : "none" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{
-                    fontSize: 11, padding: "2px 10px", borderRadius: radii.pill,
-                    backgroundColor: colors.cobalt, color: colors.white, fontWeight: 600,
-                    textTransform: "uppercase", letterSpacing: 0.5,
-                  }}>
-                    {roleName}
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {partyNames.map((name, j) => (
-                    <span key={j} style={{
-                      fontSize: 12, padding: "3px 10px", borderRadius: radii.sm,
-                      backgroundColor: colors.bg, color: colors.navy, fontWeight: 500,
-                    }}>
-                      {name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          <ResponsiblePartiesList responsibleParties={responsibleParties} parties={parties} roles={roles} />
         </Card>
       )}
 
@@ -1293,45 +1218,7 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
       {parties.length > 0 && (
         <Card>
           <SectionLabel>Parties</SectionLabel>
-          {parties.map((p) => (
-            <div key={p.uuid} style={{ padding: "10px 0", borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{p.name}</div>
-                <span style={{
-                  fontSize: 10, padding: "1px 8px", borderRadius: radii.pill,
-                  backgroundColor: p.type === "organization" ? alpha(colors.cobalt, 0.12) : alpha(colors.mint, 0.18),
-                  color: p.type === "organization" ? colors.cobalt : colors.navy,
-                  fontWeight: 600, textTransform: "capitalize",
-                }}>
-                  {p.type}
-                </span>
-              </div>
-              {p["short-name"] && (
-                <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>Short name: {p["short-name"]}</div>
-              )}
-              <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono, marginTop: 2 }}>{p.uuid}</div>
-              {(p.links ?? []).length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-                  {(p.links ?? []).map((lnk, li) => (
-                    <a
-                      key={li}
-                      href={lnk.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: 11, color: colors.brightBlue, textDecoration: "none",
-                        padding: "2px 8px", borderRadius: radii.sm,
-                        backgroundColor: alpha(colors.brightBlue, 0.08),
-                        fontFamily: fonts.mono, wordBreak: "break-all",
-                      }}
-                    >
-                      {lnk.text ?? lnk.rel ?? lnk.href}
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+          <PartyCardGrid parties={parties} />
         </Card>
       )}
 
@@ -1403,12 +1290,11 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
       )
     : resources;
 
-  // Group resources by definition-type prop if present
+  // Group resources by a shared type prop convention when present.
   const typeGroups = useMemo(() => {
     const map = new Map<string, Resource[]>();
     for (const r of filtered) {
-      const typeProp = (r.props ?? []).find((p) => p.name === "definition-type");
-      const key = typeProp ? typeProp.value : "other";
+      const key = backMatterResourceType(r);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     }
@@ -1454,14 +1340,16 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
               fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1,
               color: colors.gray, marginBottom: 6, marginTop: 12,
             }}>
-              {type === "other" ? "Resources" : type.replace(/-/g, " ")}
+              {backMatterResourceVisual(type).label}
               <span style={{ fontWeight: 400, marginLeft: 6 }}>({items.length})</span>
             </div>
           )}
           <Card>
             {items.map((r, i) => {
-              const defType = (r.props ?? []).find((p) => p.name === "definition-type");
-              const otherProps = (r.props ?? []).filter((p) => p.name !== "definition-type");
+              const type = backMatterResourceType(r);
+              const meta = backMatterResourceVisual(type);
+              const hasType = type !== "other";
+              const otherProps = (r.props ?? []).filter((p) => !isBackMatterResourceTypeProp(p));
               return (
                 <div
                   key={r.uuid}
@@ -1473,17 +1361,17 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <IcoBook size={14} style={{ color: colors.cobalt, flexShrink: 0 }} />
+                    {resourceIcon(meta.iconKey, 14, { color: meta.color, flexShrink: 0 })}
                     <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
                       {r.title ?? "Untitled Resource"}
                     </span>
-                    {defType && (
+                    {hasType && (
                       <span style={{
                         fontSize: 10, padding: "1px 8px", borderRadius: radii.pill,
-                        backgroundColor: alpha(colors.cobalt, 0.12), color: colors.cobalt,
+                        backgroundColor: alpha(meta.color, 12), color: meta.color,
                         fontWeight: 600, textTransform: "capitalize", flexShrink: 0,
                       }}>
-                        {defType.value.replace(/-/g, " ")}
+                        {meta.label}
                       </span>
                     )}
                   </div>
@@ -1536,6 +1424,9 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
 function ResourceDetailView({ resource: r, navigate }: { resource: Resource; navigate: (id: string) => void }) {
   const rlinks = r.rlinks ?? [];
   const props = r.props ?? [];
+  const type = backMatterResourceType(r);
+  const meta = backMatterResourceVisual(type);
+  const base64Link = backMatterBase64Link(r);
 
   return (
     <div>
@@ -1546,7 +1437,7 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <IcoBook size={22} style={{ color: colors.cobalt }} />
+        {resourceIcon(meta.iconKey, 22, { color: meta.color })}
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{r.title ?? "Untitled Resource"}</h1>
       </div>
 
@@ -1565,9 +1456,25 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
         <SectionLabel>Details</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 16 }}>
           <MField label="UUID" value={r.uuid} mono />
+          <MField label="Type" value={meta.label ?? type} />
           {r.citation && <MField label="Citation" value={r.citation.text} />}
         </div>
       </Card>
+
+      {base64Link && (
+        <Card>
+          <SectionLabel>Embedded Attachment</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <IcoPaperclip size={13} style={{ color: colors.orange }} />
+            <a href={base64Link.href} download={base64Link.filename} style={{ fontSize: 13, color: colors.brightBlue }}>
+              {base64Link.filename}
+            </a>
+            {base64Link.mediaType && (
+              <span style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{base64Link.mediaType}</span>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Properties */}
       {props.length > 0 && (
@@ -1708,7 +1615,7 @@ function GroupView({ group, catalog: _catalog, navigate }: { group: Group; catal
         {controls.map((c) => {
           const cLbl = getLabel(c.props);
           const enhCount = (c.controls ?? []).length;
-          const isWithdrawn = (c.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn");
+          const isWithdrawn = (c.props ?? []).some(isWithdrawnStatusProp);
           return (
             <div
               key={c.id}
@@ -1754,7 +1661,7 @@ function ControlView({ control, catalog, navigate }: {
   control: Control; catalog: Catalog; navigate: (id: string) => void;
 }) {
   const lbl = getLabel(control.props);
-  const isWithdrawn = (control.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn");
+  const isWithdrawn = (control.props ?? []).some(isWithdrawnStatusProp);
   const enhancements = control.controls ?? [];
   const params = control.params ?? [];
   const links = control.links ?? [];
@@ -1928,7 +1835,7 @@ function ControlView({ control, catalog, navigate }: {
           <SectionLabel>Control Enhancements ({enhancements.length})</SectionLabel>
           {enhancements.map((enh) => {
             const eLbl = getLabel(enh.props);
-            const eWithdrawn = (enh.props ?? []).some((p) => p.name === "status" && p.value === "withdrawn");
+            const eWithdrawn = (enh.props ?? []).some(isWithdrawnStatusProp);
             return (
               <div key={enh.id} onClick={() => navigate(`ctrl-${enh.id}`)}
                 style={{
