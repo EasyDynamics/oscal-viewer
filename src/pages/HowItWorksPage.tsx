@@ -22,7 +22,7 @@ export default function HowItWorksPage() {
     { href: "#profiles", label: "Profiles", description: "Selection, tailoring, and imports", color: colors.brightBlue, icon: <IcoSliders size={16} /> },
     { href: "#reference-flow", label: "Reference flow", description: "How OSCAL models connect", color: colors.cobalt, icon: <IcoLink size={16} /> },
     { href: "#resolution", label: "Resolution", description: "Direct URLs, back matter, and chains", color: colors.darkGreen, icon: <IcoShield size={16} /> },
-    { href: "#viewer-props", label: "Viewer props", description: "Supported oscal.io namespace hints", color: colors.purple, icon: <IcoTag size={16} /> },
+    { href: "#viewer-props", label: "Viewer props", description: "CSRC props and OSCAL.io hints", color: colors.purple, icon: <IcoTag size={16} /> },
     { href: "#format", label: "Format", description: "JSON support and constraints", color: colors.orange, icon: <IcoInfo size={16} /> },
   ];
 
@@ -52,7 +52,7 @@ export default function HowItWorksPage() {
         </SectionHeader>
         <p style={S.paragraph}>
           This overview explains shared concepts like catalog enrichment, import resolution,
-          supported formats, and viewer namespace props.
+          supported formats, and props the viewer treats as first-class UI information.
         </p>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
           <MiniCard title="Shared concepts" color={colors.cobalt}>
@@ -305,25 +305,40 @@ export default function HowItWorksPage() {
         </Callout>
       </Card>
 
-      {/* ── OSCAL.io Viewer Namespace Props ── */}
+      {/* ── Viewer Props ── */}
       <Card id="viewer-props">
         <SectionHeader icon={<IcoTag size={18} style={{ color: colors.purple }} />} color={colors.purple}>
-          OSCAL.io Namespace Props
+          Props the Viewer Understands
         </SectionHeader>
         <p style={S.paragraph}>
-          OSCAL allows extensions through <code style={S.code}>props</code>. This viewer intentionally
-          special-cases only a small set of props in the <code style={S.code}>http://oscal.io/ns</code>{" "}
-          namespace. These props are viewer hints for generated or enriched content; they are not
-          replacements for normative OSCAL fields and should not use the CSRC OSCAL namespace.
+          OSCAL allows structured metadata through <code style={S.code}>props</code>. Most props are
+          displayed as ordinary metadata when a page has a place to show them. A smaller set is
+          treated as <strong>first-class UI information</strong>: the viewer may use those props for
+          labels, ordering, badges, icons, grouping, or other visual behavior.
         </p>
-        <Callout color={colors.purple}>
-          <strong>Producer rule:</strong> if a prop is meant to trigger viewer-specific behavior,
-          include <code style={S.code}>"ns": "http://oscal.io/ns"</code>. Same-named props in other
-          namespaces are treated as ordinary properties.
+        <Callout color={colors.cobalt}>
+          <strong>Namespace rule:</strong> standard OSCAL semantics belong in the CSRC namespace
+          <code style={S.code}>http://csrc.nist.gov/ns/oscal</code>. Viewer-only hints belong in
+          <code style={S.code}>http://oscal.io/ns</code>. The OSCAL.io namespace is for display hints,
+          not replacements for OSCAL-native fields.
         </Callout>
 
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: colors.navy, marginBottom: 8 }}>
+            CSRC OSCAL namespace props currently honored as first-class UI inputs
+          </div>
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
+            <TypeRow icon={<IcoTag size={16} />} color={colors.navy} value="label" label="Control labels" description="Shows human-friendly control and group labels, preferring non-zero-padded labels when available." />
+            <TypeRow icon={<IcoLayers size={16} />} color={colors.cobalt} value="sort-id" label="Catalog ordering" description="Keeps catalog controls and groups in catalog-defined order when sorting control lists." />
+            <TypeRow icon={<IcoInfo size={16} />} color={colors.orange} value="status=withdrawn" label="Withdrawn controls" description="Marks and counts withdrawn controls when the status prop is in the CSRC OSCAL namespace." />
+            <TypeRow icon={<IcoDatabase size={16} />} color={colors.darkGreen} value="asset-type" label="Asset visuals" description="Chooses more specific SSP component and inventory icons for known asset types like database, firewall, router, and web-server." />
+            <TypeRow icon={<IcoShield size={16} />} color={colors.purple} value="implementation-point" label="Component chips" description="Raises selected component-definition props such as baseline, implementation point, authenticated scan, virtual, public, function, and model." />
+            <TypeRow icon={<IcoBook size={16} />} color={colors.brightBlue} value="definition-type" label="Resource grouping" description="Groups back-matter resources when no recognized OSCAL.io resource type hint is present." />
+          </div>
+        </div>
+
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", marginTop: 16 }}>
-          <MiniCard title="Implemented requirement: llm-generated" color={colors.purple}>
+          <MiniCard title="OSCAL.io hint: llm-generated" color={colors.purple}>
             <p style={S.paragraph}>
               Use this on component-definition implemented requirements when an LLM generated the
               implementation content.
@@ -340,10 +355,10 @@ export default function HowItWorksPage() {
             </ul>
           </MiniCard>
 
-          <MiniCard title="Back-matter resource: type" color={colors.cobalt}>
+          <MiniCard title="OSCAL.io hint: resource type" color={colors.cobalt}>
             <p style={S.paragraph}>
-              Use this on component-definition back-matter resources to categorize references and
-              attachments in the References tree.
+              Use this on back-matter resources to categorize references and attachments when no
+              standard OSCAL prop captures the viewer-specific category.
             </p>
             <code style={S.codeSm}>{`{
   "name": "type",
@@ -351,14 +366,15 @@ export default function HowItWorksPage() {
   "value": "standards"
 }`}</code>
             <p style={{ ...S.paragraph, marginTop: 10, marginBottom: 0 }}>
-              The viewer reads the <code style={S.code}>value</code> and groups resources by type.
+              Known OSCAL.io <code style={S.code}>type</code> values take precedence over
+              <code style={S.code}>definition-type</code> for resource grouping.
             </p>
           </MiniCard>
         </div>
 
         <div style={{ marginTop: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: colors.navy, marginBottom: 8 }}>
-            Supported back-matter type values
+            Supported OSCAL.io back-matter type values
           </div>
           <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)" }}>
             <TypeRow icon={<IcoStandard size={16} />} color={colors.navy} value="standards" label="Standards" description="Standards, specifications, control references, and authoritative documentation." />
@@ -373,8 +389,9 @@ export default function HowItWorksPage() {
           <p style={S.paragraph}>
             Back-matter resources can also carry embedded artifacts through a resource-level
             <code style={S.code}>base64</code> object. The viewer turns this into a downloadable
-            attachment. If no recognized <code style={S.code}>type</code> prop is present, the
-            resource is grouped as <strong>Embedded Attachments</strong> with a paperclip icon.
+            attachment. If no recognized OSCAL.io <code style={S.code}>type</code> or
+            <code style={S.code}>definition-type</code> prop is present, the resource is grouped as
+            <strong>Embedded Attachments</strong> with a paperclip icon.
           </p>
           <code style={S.codeSm}>{`{
   "uuid": "11111111-1111-4111-8111-111111111111",
@@ -394,10 +411,15 @@ export default function HowItWorksPage() {
 }`}</code>
           <ul style={{ ...S.list, marginTop: 12, marginBottom: 0 }}>
             <li>Keep attachment payloads in <code style={S.code}>base64</code>, not in <code style={S.code}>props[].value</code>.</li>
-            <li>Include both <code style={S.code}>type</code> and <code style={S.code}>base64</code> when an embedded artifact should appear in a semantic category.</li>
+            <li>Include a category prop and <code style={S.code}>base64</code> when an embedded artifact should appear in a semantic category.</li>
             <li>Use <code style={S.code}>filename</code> and <code style={S.code}>media-type</code> so the browser can label and download the artifact correctly.</li>
           </ul>
         </div>
+
+        <Callout color={colors.purple}>
+          <strong>Preview status:</strong> this list reflects current viewer behavior. More CSRC OSCAL
+          props may become first-class UI inputs as the viewer encounters more real-world OSCAL data.
+        </Callout>
       </Card>
 
       {/* ── Supported Format ── */}

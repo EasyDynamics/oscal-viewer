@@ -25,7 +25,7 @@ http://localhost:5173/ssp?url=https://raw.githubusercontent.com/.../ssp.json
 
 ## OSCAL.io Viewer Hints
 
-Sample component-definition files may use optional viewer hint props in the `http://oscal.io/ns` namespace:
+Sample component-definition files may use optional viewer hint props in the `http://oscal.io/ns` namespace. See the current props preview in [../docs/oscal-io-extensions/README.md](../docs/oscal-io-extensions/README.md).
 
 - `llm-generated` on implemented requirements: `yes` shows an **LLM Generated** badge; `no` is hidden.
 - `type` on component-definition back-matter resources: `standards` or `threat-intelligence` categorizes the resource with a matching icon.
