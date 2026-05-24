@@ -215,7 +215,7 @@ export default function Layout() {
               >
                 <StatusDot color={loaded ? m.color : colors.gray} loaded={loaded} />
                 {m.label}
-                {loadedEntries.length > 1 && <DocumentCountBadge count={loadedEntries.length} label={pluralLabel(m.label, loadedEntries.length)} title={loadedTitle} />}
+                {loadedEntries.length > 1 && <DocumentCountBadge count={loadedEntries.length} title={loadedTitle} />}
               </NavLink>
             );
           })}
@@ -259,7 +259,7 @@ export default function Layout() {
                 <MobileMenuItem
                   key={m.key}
                   to={m.path}
-                  label={loadedEntries.length > 1 ? `${m.label} (${loadedEntries.length})` : m.label}
+                  label={loadedEntries.length > 1 ? `${m.label} ${loadedEntries.length}` : m.label}
                   title={loadedTitle}
                   isActive={location.pathname.startsWith(m.path)}
                   dot={{ color: loaded ? m.color : colors.gray, loaded }}
@@ -494,14 +494,7 @@ function unwrapOscalModel(raw: Record<string, unknown> | null): Record<string, u
   return raw;
 }
 
-function pluralLabel(label: string, count: number): string {
-  if (count === 1) return label;
-  if (label === "SSP") return "SSPs";
-  if (label === "POA&M") return "POA&Ms";
-  return label.endsWith("s") ? label : `${label}s`;
-}
-
-function DocumentCountBadge({ count, label, title }: { count: number; label: string; title?: string }) {
+function DocumentCountBadge({ count, title }: { count: number; title?: string }) {
   return (
     <span title={title} style={{
       marginLeft: 6,
@@ -514,7 +507,7 @@ function DocumentCountBadge({ count, label, title }: { count: number; label: str
       fontWeight: 800,
       lineHeight: "16px",
     }}>
-      {count} {label}
+      {count}
     </span>
   );
 }

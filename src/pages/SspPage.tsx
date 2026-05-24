@@ -5378,17 +5378,24 @@ export default function SspPage() {
 
   /* ── Auto-resolve SSP dependency graph ── */
   const storedResolved = useRef(new Set<string>());
+  useEffect(() => {
+    storedResolved.current.clear();
+  }, [raw]);
   const handleResolved = useCallback((doc: ResolvedOscalDocument) => {
     const key = `${doc.modelKey}:${doc.url}`;
     if (storedResolved.current.has(key)) return;
     storedResolved.current.add(key);
-    if (doc.modelKey === "profile" && !oscal.profile && !storedResolved.current.has("slot:profile")) {
+    if (doc.modelKey === "profile" && !storedResolved.current.has("slot:profile")) {
       storedResolved.current.add("slot:profile");
-      oscal.setProfile(doc.data, doc.label, doc.url);
+      if (oscal.profile?.sourceUrl !== doc.url) {
+        oscal.setProfile(doc.data, doc.label, doc.url);
+      }
     }
-    if (doc.modelKey === "catalog" && !oscal.catalog && !storedResolved.current.has("slot:catalog")) {
+    if (doc.modelKey === "catalog" && !storedResolved.current.has("slot:catalog")) {
       storedResolved.current.add("slot:catalog");
-      oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
+      if (oscal.catalog?.sourceUrl !== doc.url) {
+        oscal.setCatalog(doc.data as unknown as import("../context/OscalContext").Catalog, doc.label, doc.url);
+      }
     }
     if (doc.modelKey === "system-security-plan" && doc.relation === "leveraged authorization") {
       oscal.addLeveragedSsp(doc.json, doc.label, doc.url);
@@ -5405,6 +5412,7 @@ export default function SspPage() {
   /* ── Load file ── */
   const loadFile = useCallback((file: File) => {
     setError("");
+    storedResolved.current.clear();
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -5422,9 +5430,8 @@ export default function SspPage() {
   }, [oscal]);
 
   const handleNewFile = useCallback(() => {
+    storedResolved.current.clear();
     oscal.clearSsp();
-    oscal.clearProfile();
-    oscal.clearCatalog();
     oscal.clearLeveragedSsps();
     setError("");
     setView("overview");
