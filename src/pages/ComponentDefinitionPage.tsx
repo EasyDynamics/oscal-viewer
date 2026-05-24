@@ -1246,32 +1246,6 @@ function PropPill({ name, value }: { name: string; value: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { bg: string; fg: string }> = {
-    implemented: { bg: colors.mint, fg: colors.white },
-    partial: { bg: colors.yellow, fg: colors.black },
-    planned: { bg: colors.cobalt, fg: colors.white },
-    alternative: { bg: colors.brightCyan, fg: colors.white },
-    "not-applicable": { bg: colors.paleGray, fg: colors.black },
-  };
-  const s = map[status] ?? { bg: colors.paleGray, fg: colors.black };
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        fontSize: 11,
-        padding: "2px 10px",
-        borderRadius: radii.pill,
-        backgroundColor: s.bg,
-        color: s.fg,
-        fontWeight: 600,
-      }}
-    >
-      {status}
-    </span>
-  );
-}
-
 function LlmGeneratedBadge() {
   return (
     <span
@@ -1432,14 +1406,6 @@ function OverviewView({
   const familySet = new Set(allReqs.map((r) => familyOf(r["control-id"])));
   const resources = cdef["back-matter"]?.resources ?? [];
 
-  const statusCounts: Record<string, number> = {};
-  allReqs.forEach((r) => {
-    const st =
-      (r.props ?? []).find((p) => p.name === "implementation-status")?.value ??
-      "unknown";
-    statusCounts[st] = (statusCounts[st] ?? 0) + 1;
-  });
-
   return (
     <div>
       <h1 style={{ fontSize: 22, color: colors.navy, marginBottom: 4 }}>
@@ -1491,26 +1457,6 @@ function OverviewView({
           </Card>
         ))}
       </div>
-
-      {/* Status summary */}
-      {Object.keys(statusCounts).length > 0 && (
-        <Card>
-          <SectionLabel>Implementation Status Summary</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            {Object.entries(statusCounts)
-              .sort(([, a], [, b]) => b - a)
-              .map(([st, count]) => (
-                <div
-                  key={st}
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
-                >
-                  <StatusBadge status={st} />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{count}</span>
-                </div>
-              ))}
-          </div>
-        </Card>
-      )}
 
       {/* Family pills */}
       <Card>
@@ -1958,10 +1904,6 @@ function ControlImplView({
       <Card>
         <SectionLabel>Implemented Requirements ({reqs.length})</SectionLabel>
         {reqs.map((req) => {
-          const status =
-            (req.props ?? []).find(
-              (p) => p.name === "implementation-status",
-            )?.value ?? "unknown";
           const isLlmGenerated = !!llmGeneratedLabel(req.props);
           return (
             <div
@@ -1999,7 +1941,6 @@ function ControlImplView({
               >
                 {familyName(req["control-id"])}
               </span>
-              <StatusBadge status={status} />
               {isLlmGenerated && <LlmGeneratedBadge />}
             </div>
           );
@@ -2217,9 +2158,6 @@ function RequirementView({
   resolvedTitleForSource: (source: string) => string | null;
 }) {
   const impl = comp["control-implementations"]?.[implIdx];
-  const status =
-    (req.props ?? []).find((p) => p.name === "implementation-status")?.value ??
-    "unknown";
   const statements = req.statements ?? [];
   const links = req.links ?? [];
   const partyByUuid = useMemo(() => new Map(parties.map((party) => [party.uuid, party])), [parties]);
@@ -2277,7 +2215,7 @@ function RequirementView({
         </h1>
       </div>
 
-      {/* UUID + status */}
+      {/* UUID */}
       <div
         style={{
           display: "flex",
@@ -2295,7 +2233,6 @@ function RequirementView({
         >
           {req.uuid}
         </span>
-        <StatusBadge status={status} />
         {llmGeneratedLabel(req.props) && <LlmGeneratedBadge />}
       </div>
 

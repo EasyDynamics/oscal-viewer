@@ -1014,8 +1014,8 @@ function StatusBadge({ status }: { status: string }) {
   const lower = status.toLowerCase();
   const isImplemented = lower === "implemented";
   const isPartial = lower.includes("partial");
-  const bg = isImplemented ? colors.successBg : isPartial ? colors.warningBg : colors.surfaceSubtle;
-  const fg = isImplemented ? colors.darkGreen : isPartial ? colors.orange : colors.gray;
+  const bg = isImplemented ? colors.successBg : isPartial ? colors.dangerBg : colors.surfaceSubtle;
+  const fg = isImplemented ? colors.darkGreen : isPartial ? colors.dangerFg : colors.gray;
   return (
     <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 10px", borderRadius: radii.pill, backgroundColor: bg, color: fg }}>
       {status}
@@ -1043,7 +1043,7 @@ function ImplStatusBadge({ status }: { status: string }) {
   const lower = status.toLowerCase();
   let bg: string, fg: string;
   if (lower === "implemented") { bg = colors.successBg; fg = colors.darkGreen; }
-  else if (lower === "partial") { bg = colors.warningBg; fg = colors.orange; }
+  else if (lower === "partial") { bg = colors.dangerBg; fg = colors.dangerFg; }
   else if (lower === "planned") { bg = alpha(colors.brightBlue, 10); fg = colors.brightBlue; }
   else if (lower === "alternative") { bg = alpha(colors.cobalt, 10); fg = colors.cobalt; }
   else if (lower === "not-applicable") { bg = colors.surfaceSubtle; fg = colors.blueGray; }
@@ -1096,7 +1096,7 @@ function controlStatusMeta(status: string): { color: string; background: string;
   const lower = status.toLowerCase();
   if (lower === "implemented") return { color: colors.darkGreen, background: colors.successBg, description: "The control is fully implemented." };
   if (lower === "satisfied-by-provider") return { color: colors.purple, background: alpha(colors.purple, 10), description: "The control is satisfied by a loaded leveraged authorization." };
-  if (lower === "partial") return { color: colors.orange, background: colors.warningBg, description: "The control is partially implemented." };
+  if (lower === "partial") return { color: colors.dangerFg, background: colors.dangerBg, description: "The control is partially implemented." };
   if (lower === "planned") return { color: colors.brightBlue, background: alpha(colors.brightBlue, 10), description: "A plan exists for implementing the control." };
   if (lower === "alternative") return { color: colors.cobalt, background: alpha(colors.cobalt, 10), description: "An alternative implementation is described." };
   if (lower === "not-applicable") return { color: colors.blueGray, background: colors.surfaceSubtle, description: "The control is justified as not applicable." };
