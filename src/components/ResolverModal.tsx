@@ -179,6 +179,13 @@ function originLabel(origin: ResolverItem["origin"]): string | null {
   return null;
 }
 
+const STATUS_ORDER: Record<ResolveStatus, number> = { idle: 0, loading: 1, success: 2, error: 3 };
+
+function bestResolverItem(live: ResolverItem, snapshot: ResolverItem | undefined): ResolverItem {
+  if (!snapshot) return live;
+  return STATUS_ORDER[live.status] >= STATUS_ORDER[snapshot.status] ? live : snapshot;
+}
+
 /* ── Component ── */
 
 export default function ResolverModal({ items, onSkip }: Props) {
@@ -188,6 +195,7 @@ export default function ResolverModal({ items, onSkip }: Props) {
   // and only resets when the user clicks Continue.
   const [activated, setActivated] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   // Snapshot each item at its "best" state so that if the hook
   // resets to idle after setting context, we still display success/error.
@@ -197,6 +205,7 @@ export default function ResolverModal({ items, onSkip }: Props) {
   // for the same resolution set.
   const dismissedKeyRef = useRef<string | null>(null);
   const activationTimerRef = useRef<number | null>(null);
+  const loadingSinceRef = useRef<Map<string, number>>(new Map());
 
   const anyNonIdle = items.some((i) => i.status !== "idle");
   const anyBlocking = items.some((i) => i.status === "loading" || i.status === "error");
@@ -206,6 +215,29 @@ export default function ResolverModal({ items, onSkip }: Props) {
     .map((i) => `${i.id ?? i.label}:${i.resolvedUrl ?? ""}`)
     .sort()
     .join("|");
+
+  useEffect(() => {
+    const currentKeys = new Set<string>();
+    const timestamp = Date.now();
+    for (const item of items) {
+      const key = resolverItemKey(item);
+      currentKeys.add(key);
+      if (item.status === "loading") {
+        if (!loadingSinceRef.current.has(key)) loadingSinceRef.current.set(key, timestamp);
+      } else {
+        loadingSinceRef.current.delete(key);
+      }
+    }
+    for (const key of loadingSinceRef.current.keys()) {
+      if (!currentKeys.has(key)) loadingSinceRef.current.delete(key);
+    }
+  }, [items]);
+
+  useEffect(() => {
+    if (!liveAnyLoading) return;
+    const intervalId = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(intervalId);
+  }, [liveAnyLoading]);
 
   // Latch activated only when there is active work or an error. Cached-only
   // success states can appear when navigating back to a page; those should not
@@ -259,10 +291,9 @@ export default function ResolverModal({ items, onSkip }: Props) {
   // Update snapshots: keep the most "advanced" state per item
   useEffect(() => {
     if (!activated) return;
-    const ORDER: Record<ResolveStatus, number> = { idle: 0, loading: 1, success: 2, error: 3 };
     for (const item of items) {
       const existing = snapshotRef.current.get(resolverItemKey(item));
-      if (!existing || ORDER[item.status] > ORDER[existing.status]) {
+      if (!existing || STATUS_ORDER[item.status] > STATUS_ORDER[existing.status]) {
         snapshotRef.current.set(resolverItemKey(item), { ...item });
       }
     }
@@ -282,8 +313,19 @@ export default function ResolverModal({ items, onSkip }: Props) {
   // can reset to idle immediately after storing a resolved document in context;
   // keep the modal content visible until the user clicks Continue.
   const displayItems = orderByTree(items.length > 0
-    ? items.map((item) => snapshotRef.current.get(resolverItemKey(item)) ?? item)
-    : Array.from(snapshotRef.current.values()));
+    ? items.map((item) => bestResolverItem(item, snapshotRef.current.get(resolverItemKey(item))))
+    : Array.from(snapshotRef.current.values()))
+    .map((item) => {
+      if (item.status !== "loading") return item;
+      const since = loadingSinceRef.current.get(resolverItemKey(item));
+      const timeoutMs = item.modelKey === "profile" ? 8_000 : 20_000;
+      if (!since || now - since < timeoutMs) return item;
+      return {
+        ...item,
+        status: "error" as const,
+        error: `Timed out resolving ${item.modelKey ?? item.label} after ${Math.round(timeoutMs / 1000)} seconds`,
+      };
+    });
 
   const anyLoading = displayItems.some((i) => i.status === "loading");
   const anyError = displayItems.some((i) => i.status === "error");
@@ -371,7 +413,7 @@ export default function ResolverModal({ items, onSkip }: Props) {
                   )}
 
                   {/* Source document, with full URL available via link/title */}
-                  {item.resolvedUrl && (
+                  {item.resolvedUrl && item.status !== "error" && (
                     <div style={S.urlRow}>
                       <span style={{ color: colors.gray }}>
                         <SourceIcon url={item.resolvedUrl} />
@@ -418,12 +460,10 @@ export default function ResolverModal({ items, onSkip }: Props) {
               ...S.btn,
               margin: 0,
               flex: 1,
-              ...(anyLoading ? S.btnDisabled : {}),
             }}
-            disabled={anyLoading}
-            onClick={handleContinue}
+            onClick={() => { if (liveAnyLoading) onSkip?.(); handleContinue(); }}
           >
-            {anyLoading ? "Please wait\u2026" : "Continue"}
+            Continue
           </button>
         </div>
       </div>

@@ -12,7 +12,7 @@ import react from '@vitejs/plugin-react'
  *  - Request body limited to 4 KB (just a URL + headers)
  *  - Only proxies JSON-like responses (JSON, text/plain, octet-stream)
  *  - Error messages are generic (no internal stack traces)
- *  - Upstream fetch has a 120-second timeout
+ *  - Upstream fetch has a bounded timeout supplied by the client
  */
 function corsProxyPlugin(): Plugin {
   return {
@@ -49,7 +49,7 @@ function corsProxyPlugin(): Plugin {
           chunks.push(chunk as Buffer);
         }
 
-        let body: { url?: string; headers?: Record<string, string> };
+        let body: { url?: string; headers?: Record<string, string>; timeoutMs?: number };
         try {
           body = JSON.parse(Buffer.concat(chunks).toString());
         } catch {
@@ -58,7 +58,7 @@ function corsProxyPlugin(): Plugin {
           return;
         }
 
-        const { url, headers = {} } = body;
+        const { url, headers = {}, timeoutMs } = body;
         if (!url || typeof url !== 'string') {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Missing or invalid "url" in request body' }));
@@ -112,7 +112,8 @@ function corsProxyPlugin(): Plugin {
         let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
           const controller = new AbortController();
-          timeout = setTimeout(() => controller.abort(), 120_000);
+          const upstreamTimeout = Math.max(1_000, Math.min(Number(timeoutMs) || 20_000, 30_000));
+          timeout = setTimeout(() => controller.abort(), upstreamTimeout);
 
           const upstream = await fetch(url, {
             headers: safeHeaders,

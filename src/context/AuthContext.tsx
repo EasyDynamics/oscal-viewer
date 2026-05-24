@@ -144,13 +144,14 @@ function proxyFetch(
   url: string,
   headers: Record<string, string>,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<Response> {
   return fetch("/__proxy", {
     credentials: "include",
     method: "POST",
     headers: { "Content-Type": "application/json" },
     signal,
-    body: JSON.stringify({ url, headers }),
+    body: JSON.stringify({ url, headers, timeoutMs }),
   });
 }
 
@@ -174,7 +175,7 @@ function proxyFetch(
 export function authFetch(
   url: string,
   token: string | null,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<Response> {
   const needsCredentials = isOscalApiOrigin(url);
   const shouldSendAuthHeader = token != null && isOscalAuthOrigin(url);
@@ -189,7 +190,7 @@ export function authFetch(
   // cookies for api.oscal.io, but token-authenticated OSCAL requests can go
   // through the proxy with Authorization attached.
   if (import.meta.env.DEV && isCrossOrigin(url) && (!needsCredentials || token)) {
-    return proxyFetch(url, requestHeaders, opts.signal);
+    return proxyFetch(url, requestHeaders, opts.signal, opts.timeoutMs);
   }
 
   if (!token) {
@@ -209,7 +210,7 @@ export function authFetch(
 
   // In dev, route through the server-side proxy to avoid CORS
   // (localhost isn't in the registry's allowed origins)
-  if (import.meta.env.DEV) return proxyFetch(url, requestHeaders, opts.signal);
+  if (import.meta.env.DEV) return proxyFetch(url, requestHeaders, opts.signal, opts.timeoutMs);
 
   // In production, call the API directly — its CORS policy
   // allows the deployed viewer origin.

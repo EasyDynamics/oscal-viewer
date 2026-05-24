@@ -56,6 +56,8 @@ export interface GraphResolveNode {
   resolvedLabel: string | null;
   resolvedUrl: string | null;
   depth: number;
+  /** Timestamp used to force a visible timeout if the browser/proxy fetch hangs. */
+  startedAt?: number;
 }
 
 export interface ResolvedOscalDocument {
@@ -116,7 +118,8 @@ const MODEL_LABELS: Record<OscalModelKey, string> = {
   "plan-of-action-and-milestones": "POA&M",
 };
 
-const DEPENDENCY_FETCH_TIMEOUT_MS = 120_000;
+const DEPENDENCY_FETCH_TIMEOUT_MS = 20_000;
+const PROFILE_FETCH_TIMEOUT_MS = 8_000;
 
 function text(v: unknown): string {
   if (!v) return "";
@@ -446,8 +449,8 @@ function nodeId(parentId: string, modelKey: OscalModelKey, urlOrHref: string): s
   return `${parentId}>${modelKey}>${urlOrHref}`;
 }
 
-async function fetchJson(url: string, token: string | null, signal: AbortSignal, onText?: () => void): Promise<unknown> {
-  const res = await authFetch(url, token, { signal });
+async function fetchJson(url: string, token: string | null, signal: AbortSignal, timeoutMs: number, onText?: () => void): Promise<unknown> {
+  const res = await authFetch(url, token, { signal, timeoutMs });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
   const ct = res.headers.get("content-type") ?? "";
@@ -467,6 +470,14 @@ async function fetchJson(url: string, token: string | null, signal: AbortSignal,
   }
 }
 
+function fetchTimeoutMsForModel(modelKey: OscalModelKey): number {
+  return modelKey === "profile" ? PROFILE_FETCH_TIMEOUT_MS : DEPENDENCY_FETCH_TIMEOUT_MS;
+}
+
+function fetchTimeoutMs(target: DependencyTarget): number {
+  return fetchTimeoutMsForModel(target.modelKey);
+}
+
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function useOscalGraphResolver({
@@ -482,6 +493,7 @@ export function useOscalGraphResolver({
 }: UseOscalGraphResolverOptions): GraphResolverResult {
   const [nodes, setNodes] = useState<GraphResolveNode[]>([]);
   const controllersRef = useRef<AbortController[]>([]);
+  const controllersByNodeRef = useRef<Map<string, AbortController>>(new Map());
   const onResolvedRef = useRef(onResolved);
   onResolvedRef.current = onResolved;
   const getCachedDocumentRef = useRef(getCachedDocument);
@@ -523,8 +535,31 @@ export function useOscalGraphResolver({
   }, [getCachedDocument]);
 
   useEffect(() => {
+    if (!nodes.some((node) => node.status === "loading")) return;
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      setNodes((prev) => prev.map((node) => {
+        if (node.status !== "loading" || !node.startedAt) return node;
+        const timeoutMs = fetchTimeoutMsForModel(node.modelKey);
+        if (now - node.startedAt < timeoutMs) return node;
+        controllersByNodeRef.current.get(node.id)?.abort();
+        controllersByNodeRef.current.delete(node.id);
+        return {
+          ...node,
+          status: "error",
+          error: `Timed out resolving ${node.modelKey} from ${node.resolvedUrl ?? node.label} after ${Math.round(timeoutMs / 1000)} seconds`,
+          json: null,
+        };
+      }));
+    }, 500);
+    return () => window.clearInterval(intervalId);
+  }, [nodes]);
+
+  useEffect(() => {
     controllersRef.current.forEach((controller) => controller.abort());
     controllersRef.current = [];
+    controllersByNodeRef.current.forEach((controller) => controller.abort());
+    controllersByNodeRef.current.clear();
     setNodes([]);
 
     const currentRoot = rootRef.current;
@@ -616,18 +651,36 @@ export function useOscalGraphResolver({
         }
         visitedUrls.add(url);
 
-        upsertNode(id, () => ({ ...baseNode(), status: "loading", error: null, json: null, resolvedLabel: null, resolvedUrl: url }));
+        upsertNode(id, () => ({ ...baseNode(), status: "loading", error: null, json: null, resolvedLabel: null, resolvedUrl: url, startedAt: Date.now() }));
 
         const controller = new AbortController();
         controllersRef.current.push(controller);
-        const timeoutId = setTimeout(() => controller.abort(), DEPENDENCY_FETCH_TIMEOUT_MS);
+        controllersByNodeRef.current.set(id, controller);
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const fetchTimeout = fetchTimeoutMs(target);
 
         try {
-          const parsed = await fetchJson(url, token, controller.signal, () => {
-            const fetchedLabel = title ?? fileNameFromUrl(url);
-            upsertNode(id, () => ({ ...baseNode(), label: fetchedLabel, status: "success", error: null, json: null, resolvedLabel: fetchedLabel, resolvedUrl: url }));
-          });
-          clearTimeout(timeoutId);
+          const parsed = await Promise.race([
+            fetchJson(url, token, controller.signal, fetchTimeout, () => {
+              const fetchedLabel = title ?? fileNameFromUrl(url);
+              upsertNode(id, () => ({ ...baseNode(), label: fetchedLabel, status: "success", error: null, json: null, resolvedLabel: fetchedLabel, resolvedUrl: url }));
+            }),
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(() => {
+                controller.abort();
+                upsertNode(id, () => ({
+                  ...baseNode(),
+                  status: "error",
+                  error: `Timed out resolving ${target.modelKey} from ${url} after ${Math.round(fetchTimeout / 1000)} seconds`,
+                  json: null,
+                  resolvedLabel: null,
+                  resolvedUrl: url,
+                }));
+                reject(new DOMException("Dependency fetch timed out", "AbortError"));
+              }, fetchTimeout);
+            }),
+          ]);
+          if (timeoutId) clearTimeout(timeoutId);
           if (cancelled) return;
 
           const matchedModelKey = detectModelKey(parsed, target.modelKey, target.accepts);
@@ -659,13 +712,14 @@ export function useOscalGraphResolver({
           upsertNode(id, () => ({
             ...baseNode(),
             status: "error",
-            error: isTimeout ? `Timed out resolving ${target.modelKey} from ${url} after ${Math.round(DEPENDENCY_FETCH_TIMEOUT_MS / 1000)} seconds` : err instanceof Error ? err.message : `Failed to fetch ${target.modelKey}`,
+            error: isTimeout ? `Timed out resolving ${target.modelKey} from ${url} after ${Math.round(fetchTimeout / 1000)} seconds` : err instanceof Error ? err.message : `Failed to fetch ${target.modelKey}`,
             json: null,
             resolvedLabel: null,
             resolvedUrl: url,
           }));
         } finally {
-          clearTimeout(timeoutId);
+          if (timeoutId) clearTimeout(timeoutId);
+          controllersByNodeRef.current.delete(id);
         }
       }
 
@@ -675,6 +729,8 @@ export function useOscalGraphResolver({
       cancelled = true;
       controllersRef.current.forEach((controller) => controller.abort());
       controllersRef.current = [];
+      controllersByNodeRef.current.forEach((controller) => controller.abort());
+      controllersByNodeRef.current.clear();
     };
   }, [rootModelKey, rootBaseUrl, rootKey, token, skip]);
 
