@@ -34,6 +34,8 @@ export interface ResolverItem {
   resolvedLabel?: string | null;
   /** Full URL that was fetched */
   resolvedUrl?: string | null;
+  /** How this document got into the resolver graph. */
+  origin?: "manual" | "auto" | "cached";
 }
 
 interface Props {
@@ -170,6 +172,13 @@ function SourceIcon({ url }: { url: string }) {
   return <ExternalIcon />;
 }
 
+function originLabel(origin: ResolverItem["origin"]): string | null {
+  if (origin === "manual") return "manual upload";
+  if (origin === "cached") return "already loaded";
+  if (origin === "auto") return "auto-resolved";
+  return null;
+}
+
 /* ── Component ── */
 
 export default function ResolverModal({ items, onSkip }: Props) {
@@ -187,21 +196,57 @@ export default function ResolverModal({ items, onSkip }: Props) {
   // Track the item identities that were dismissed so we don't re-trigger
   // for the same resolution set.
   const dismissedKeyRef = useRef<string | null>(null);
+  const activationTimerRef = useRef<number | null>(null);
 
   const anyNonIdle = items.some((i) => i.status !== "idle");
+  const anyBlocking = items.some((i) => i.status === "loading" || i.status === "error");
+  const liveAnyLoading = items.some((i) => i.status === "loading");
+  const liveAnyError = items.some((i) => i.status === "error");
   const resolutionKey = items
     .map((i) => `${i.id ?? i.label}:${i.resolvedUrl ?? ""}`)
     .sort()
     .join("|");
 
-  // Latch activated when any item goes non-idle, but not if we just dismissed this set
+  // Latch activated only when there is active work or an error. Cached-only
+  // success states can appear when navigating back to a page; those should not
+  // reopen the modal. Loading also gets a short debounce so cached rechecks
+  // that briefly pass through "loading" do not flash a Done-only modal.
   useEffect(() => {
-    if (anyNonIdle && !activated && !dismissed && dismissedKeyRef.current !== resolutionKey) {
+    if (!anyBlocking || activated || dismissed || dismissedKeyRef.current === resolutionKey) {
+      if (activationTimerRef.current !== null) {
+        window.clearTimeout(activationTimerRef.current);
+        activationTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (liveAnyError) {
+      if (activationTimerRef.current !== null) {
+        window.clearTimeout(activationTimerRef.current);
+        activationTimerRef.current = null;
+      }
       setActivated(true);
       setDismissed(false);
       snapshotRef.current = new Map();
+      return;
     }
-  }, [anyNonIdle, activated, dismissed, resolutionKey]);
+
+    if (liveAnyLoading && activationTimerRef.current === null) {
+      activationTimerRef.current = window.setTimeout(() => {
+        activationTimerRef.current = null;
+        setActivated(true);
+        setDismissed(false);
+        snapshotRef.current = new Map();
+      }, 250);
+    }
+
+    return () => {
+      if (activationTimerRef.current !== null) {
+        window.clearTimeout(activationTimerRef.current);
+        activationTimerRef.current = null;
+      }
+    };
+  }, [anyBlocking, liveAnyError, liveAnyLoading, activated, dismissed, resolutionKey]);
 
   // Reset dismissed flag when items go back to all-idle (new document load)
   useEffect(() => {
@@ -255,8 +300,8 @@ export default function ResolverModal({ items, onSkip }: Props) {
 
         {/* Header */}
         <div style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: radii.md, backgroundColor: alpha(colors.navy, 10), color: colors.navy, flexShrink: 0 }}>
-            <Link2 size={22} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: radii.md, backgroundColor: alpha(colors.navy, 10), color: colors.navy, flexShrink: 0 }}>
+            <Link2 size={18} />
           </div>
           <div>
             <h2 style={S.title}>Resolving OSCAL Dependencies</h2>
@@ -293,6 +338,7 @@ export default function ResolverModal({ items, onSkip }: Props) {
           {displayItems.map((item, i) => {
             const mc = modelColor(item.modelKey ?? item.label);
             const depth = Math.min(item.depth ?? 0, 5);
+            const origin = originLabel(item.origin);
             return (
               <div key={resolverItemKey(item) || i} style={{ ...S.item, borderLeft: `3px solid ${mc}`, marginLeft: depth * 18 }}>
                 {depth > 0 && <div style={S.treeStem} />}
@@ -320,7 +366,7 @@ export default function ResolverModal({ items, onSkip }: Props) {
                   </div>
                   {(item.modelKey || item.relation) && (
                     <div style={S.metaText}>
-                      {[item.modelKey, item.relation].filter(Boolean).join(" · ")}
+                      {[origin, item.modelKey, item.relation].filter(Boolean).join(" · ")}
                     </div>
                   )}
 
@@ -342,6 +388,9 @@ export default function ResolverModal({ items, onSkip }: Props) {
                         Open
                       </a>
                     </div>
+                  )}
+                  {!item.resolvedUrl && item.resolvedLabel && (
+                    <div style={S.resolvedName} title={item.resolvedLabel}>{item.resolvedLabel}</div>
                   )}
 
                   {/* Error message */}
@@ -427,23 +476,23 @@ const S: Record<string, CSSProperties> = {
   header: {
     display: "flex",
     alignItems: "flex-start",
-    gap: 12,
-    padding: "24px 24px 0",
+    gap: 10,
+    padding: "18px 20px 0",
   },
   title: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: 700,
     color: colors.navy,
     margin: 0,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.gray,
-    margin: "3px 0 0",
+    margin: "2px 0 0",
   },
   progressTrack: {
-    margin: "16px 24px 0",
-    height: 4,
+    margin: "12px 20px 0",
+    height: 3,
     backgroundColor: alpha(colors.gray, 15),
     borderRadius: 2,
     overflow: "hidden",
@@ -454,13 +503,13 @@ const S: Record<string, CSSProperties> = {
     transition: "width 0.4s ease, background-color 0.3s ease",
   },
   progressLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: colors.gray,
     textAlign: "right" as const,
-    padding: "4px 24px 0",
+    padding: "3px 20px 0",
   },
   itemList: {
-    padding: "12px 24px 8px",
+    padding: "10px 20px 8px",
     display: "flex",
     flexDirection: "column" as const,
     gap: 8,
@@ -471,8 +520,8 @@ const S: Record<string, CSSProperties> = {
     position: "relative",
     display: "flex",
     alignItems: "flex-start",
-    gap: 10,
-    padding: "10px 12px",
+    gap: 8,
+    padding: "8px 10px",
     backgroundColor: alpha(colors.gray, 5),
     borderRadius: radii.sm,
   },
@@ -540,8 +589,8 @@ const S: Record<string, CSSProperties> = {
     display: "block",
     width: "calc(100% - 48px)",
     margin: "8px 24px 24px",
-    padding: "10px 0",
-    fontSize: 14,
+    padding: "9px 0",
+    fontSize: 13,
     fontWeight: 600,
     fontFamily: fonts.sans,
     color: colors.white,

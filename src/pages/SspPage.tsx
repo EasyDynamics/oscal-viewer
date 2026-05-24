@@ -22,7 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
-import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
+import { useOscalGraphResolver, type GraphResolverCachedTarget, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import LinkChips from "../components/LinkChips";
@@ -408,14 +408,26 @@ function pickLeveragedHref(la: any): string | undefined {
   if (typeof la?.link?.href === "string") return la.link.href;
 
   const links = [...(la?.links || []), ...(la?.rlinks || [])];
-  const jsonLink = links.find((l: any) => String(l?.["media-type"] ?? "").toLowerCase().includes("json") && l?.href);
-  if (jsonLink?.href) return jsonLink.href;
-
   const semanticLink = links.find((l: any) => {
-    const rel = String(l?.rel ?? "").toLowerCase();
-    return l?.href && (rel.includes("ssp") || rel.includes("source") || rel.includes("provider") || rel.includes("authorization"));
+    const searchable = [l?.rel, l?.text, l?.title, l?.["media-type"], l?.mediaType]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return l?.href && (
+      searchable.includes("ssp") ||
+      searchable.includes("source") ||
+      searchable.includes("provider") ||
+      searchable.includes("authorization") ||
+      searchable.includes("leveraged") ||
+      searchable.includes("system-security-plan")
+    );
   });
   if (semanticLink?.href) return semanticLink.href;
+
+  const jsonLink = links.find((l: any) => String(l?.["media-type"] ?? l?.mediaType ?? "").toLowerCase().includes("json") && l?.href);
+  if (jsonLink?.href) return jsonLink.href;
+
+  if (links.length === 1 && typeof links[0]?.href === "string") return links[0].href;
 
   const prop = (la?.props || []).find((p: any) => {
     const name = String(p?.name ?? "").toLowerCase();
@@ -2995,6 +3007,16 @@ function resolvePotentialHref(href: string | undefined, sourceUrl: string | null
   catch { return href; }
 }
 
+function isAutoResolvableHref(href: string | undefined, sourceUrl: string | null | undefined): boolean {
+  if (!href) return false;
+  if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("#")) return true;
+  return Boolean(sourceUrl);
+}
+
+function loadedEntryMatchesUrl(entry: { fileName: string; sourceUrl?: string | null }, url: string): boolean {
+  return entry.sourceUrl === url || entry.fileName === fileNameFromUrl(url);
+}
+
 function matchLeveragedSummary(la: LeveragedAuth, from: LeveragedSystemSummary, summaries: LeveragedSystemSummary[]): LeveragedSystemSummary | undefined {
   // 0. Explicit user binding wins over heuristics.
   const explicit = summaries.find((s) => s.id !== from.id && s.boundLaUuid === la.uuid);
@@ -5339,6 +5361,8 @@ export default function SspPage() {
   const { token: authToken } = useAuth();
   const raw = oscal.ssp?.data ?? null;
   const fileName = oscal.ssp?.fileName ?? "";
+  const urlDoc = useUrlDocument();
+  const sourceUrl = oscal.ssp?.sourceUrl ?? urlDoc.sourceUrl;
 
   const [error, setError] = useState("");
   const [view, setView] = useState("overview");
@@ -5354,14 +5378,13 @@ export default function SspPage() {
   const catalogSort = useCatalogSortIndex();
 
   /* ── Auto-load from ?url= query param ── */
-  const urlDoc = useUrlDocument();
   useEffect(() => {
     if (!urlDoc.json || oscal.ssp) return;
     try {
       const inner = (urlDoc.json as Record<string, unknown>)["system-security-plan"] ?? urlDoc.json;
       if (!(inner as Record<string, unknown>).metadata)
         throw new Error("Not a valid OSCAL SSP — missing metadata.");
-      oscal.setSsp(urlDoc.json, fileNameFromUrl(urlDoc.sourceUrl!));
+      oscal.setSsp(urlDoc.json, fileNameFromUrl(urlDoc.sourceUrl!), urlDoc.sourceUrl);
       setView("overview");
       setCollapsed({});
     } catch (err) {
@@ -5398,14 +5421,68 @@ export default function SspPage() {
       }
     }
     if (doc.modelKey === "system-security-plan" && doc.relation === "leveraged authorization") {
-      oscal.addLeveragedSsp(doc.json, doc.label, doc.url);
+      oscal.addLeveragedSsp(doc.json, doc.label, doc.url, doc.boundLaUuid);
     }
   }, [oscal]);
+  const sspResolutionAlreadySatisfied = useMemo(() => {
+    if (!ssp) return false;
+
+    const importProfileHref = (raw as any)?.["system-security-plan"]?.["import-profile"]?.href
+      ?? (raw as any)?.["import-profile"]?.href;
+    if (importProfileHref && !oscal.profile) return false;
+
+    const profileData = oscal.profile?.data ? ((oscal.profile.data as any)?.profile ?? oscal.profile.data) : null;
+    const profileImports = Array.isArray((profileData as any)?.imports) ? (profileData as any).imports : [];
+    if (profileImports.length > 0 && !oscal.catalog) return false;
+
+    const leveraged = ssp.systemImplementation.leveragedAuthorizations.filter((la) => isAutoResolvableHref(pickLeveragedHref(la), sourceUrl));
+    if (leveraged.some((la) => {
+      const href = pickLeveragedHref(la);
+      const resolvedHref = resolvePotentialHref(href, sourceUrl);
+      return !oscal.leveragedSsps.some((entry) =>
+        entry.boundLaUuid === la.uuid || (resolvedHref ? loadedEntryMatchesUrl(entry, resolvedHref) : false),
+      );
+    })) return false;
+
+    return Boolean(importProfileHref || profileImports.length > 0 || leveraged.length > 0);
+  }, [oscal.catalog, oscal.leveragedSsps, oscal.profile, raw, sourceUrl, ssp]);
   const graphResolver = useOscalGraphResolver({
     root: raw,
     rootModelKey: "system-security-plan",
-    rootBaseUrl: urlDoc.sourceUrl,
+    rootBaseUrl: sourceUrl,
+    rootLabel: fileName || ssp?.metadata.title || "Loaded SSP",
+    rootOrigin: sourceUrl ? "auto" : "manual",
     token: authToken,
+    skip: sspResolutionAlreadySatisfied,
+    getCachedDocument: useCallback((target: GraphResolverCachedTarget) => {
+      if (target.modelKey === "profile" && oscal.profile && loadedEntryMatchesUrl(oscal.profile, target.url)) {
+        return {
+          json: oscal.profile.data,
+          label: oscal.profile.fileName,
+          url: oscal.profile.sourceUrl ?? target.url,
+        };
+      }
+      if (target.modelKey === "catalog" && oscal.catalog && loadedEntryMatchesUrl(oscal.catalog, target.url)) {
+        return {
+          json: oscal.catalog.data,
+          label: oscal.catalog.fileName,
+          url: oscal.catalog.sourceUrl ?? target.url,
+        };
+      }
+      if (target.modelKey === "system-security-plan" && target.relation === "leveraged authorization") {
+        const leveraged = oscal.leveragedSsps.find((entry) =>
+          (target.boundLaUuid && entry.boundLaUuid === target.boundLaUuid) || loadedEntryMatchesUrl(entry, target.url),
+        );
+        if (leveraged) {
+          return {
+            json: leveraged.data,
+            label: leveraged.fileName,
+            url: leveraged.sourceUrl ?? target.url,
+          };
+        }
+      }
+      return null;
+    }, [oscal.catalog, oscal.leveragedSsps, oscal.profile]),
     onResolved: handleResolved,
   });
 

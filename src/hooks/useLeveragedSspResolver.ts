@@ -23,6 +23,7 @@ import {
 interface LeveragedTarget {
   href: string;
   label: string;
+  laUuid?: string;
   backMatter: BackMatterResource[];
   baseUrl: string | null;
   depth: number;
@@ -71,14 +72,25 @@ function backMatter(ssp: any): BackMatterResource[] {
 
 function pickLinkHref(links: any[]): string | null {
   if (!Array.isArray(links)) return null;
-  const jsonLink = links.find((l) => String(l?.["media-type"] ?? "").toLowerCase().includes("json") && l?.href);
-  if (jsonLink?.href) return jsonLink.href;
 
   const semantic = links.find((l) => {
-    const rel = String(l?.rel ?? "").toLowerCase();
-    return l?.href && (rel.includes("ssp") || rel.includes("source") || rel.includes("provider") || rel.includes("authorization"));
+    const searchable = [l?.rel, l?.text, l?.title, l?.["media-type"], l?.mediaType]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return l?.href && (
+      searchable.includes("ssp") ||
+      searchable.includes("source") ||
+      searchable.includes("provider") ||
+      searchable.includes("authorization") ||
+      searchable.includes("leveraged") ||
+      searchable.includes("system-security-plan")
+    );
   });
   if (semantic?.href) return semantic.href;
+
+  const jsonLink = links.find((l) => String(l?.["media-type"] ?? l?.mediaType ?? "").toLowerCase().includes("json") && l?.href);
+  if (jsonLink?.href) return jsonLink.href;
 
   const anyJsonHref = links.find((l) => typeof l?.href === "string" && l.href.toLowerCase().includes(".json"));
   return anyJsonHref?.href ?? null;
@@ -102,7 +114,11 @@ function leveragedHref(la: any): string | null {
   if (typeof la?.url === "string") return la.url;
   if (typeof la?.source === "string") return la.source;
   if (typeof la?.link?.href === "string") return la.link.href;
-  return pickLinkHref(la?.links) ?? pickLinkHref(la?.rlinks) ?? pickPropHref(la?.props) ?? pickRemarksHref(la?.remarks);
+  const links = [...(la?.links ?? []), ...(la?.rlinks ?? [])];
+  return pickLinkHref(links)
+    ?? (links.length === 1 && typeof links[0]?.href === "string" ? links[0].href : null)
+    ?? pickPropHref(la?.props)
+    ?? pickRemarksHref(la?.remarks);
 }
 
 function extractTargets(json: unknown, baseUrl: string | null, depth: number): LeveragedTarget[] {
@@ -118,6 +134,7 @@ function extractTargets(json: unknown, baseUrl: string | null, depth: number): L
       return {
         href,
         label: la.title || "Leveraged SSP",
+        laUuid: typeof la.uuid === "string" ? la.uuid : undefined,
         backMatter: bm,
         baseUrl,
         depth,
@@ -155,7 +172,7 @@ export function useLeveragedSspResolver(
   rootBaseUrl: string | null,
   token: string | null,
   loadedSsps: UploadEntry<unknown>[],
-  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null) => void,
+  addLeveragedSsp: (data: unknown, fileName: string, sourceUrl?: string | null, boundLaUuid?: string) => void,
 ): LeveragedSspResolverResult {
   const [steps, setSteps] = useState<LeveragedStep[]>([]);
   const controllersRef = useRef<AbortController[]>([]);
@@ -221,10 +238,8 @@ export function useLeveragedSspResolver(
           if (!ssp) throw new Error("Fetched document does not appear to be a valid OSCAL SSP.");
 
           const resolvedLabel = title ?? fileNameFromUrl(url);
-          addLeveragedSsp(parsed, resolvedLabel, url);
+          addLeveragedSsp(parsed, resolvedLabel, url, target.laUuid);
           setStep(id, () => ({ id, label, status: "success", error: null, resolvedLabel, resolvedUrl: url }));
-
-          queue.push(...extractTargets(parsed, url, target.depth + 1));
         } catch (err) {
           if (cancelled) return;
           const isTimeout = (err as DOMException).name === "AbortError";

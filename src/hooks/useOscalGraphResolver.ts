@@ -35,6 +35,8 @@ interface DependencyTarget {
   modelKey: OscalModelKey;
   accepts?: OscalModelKey[];
   relation: string;
+  /** UUID of the leveraged-authorization that introduced this target. */
+  boundLaUuid?: string;
   backMatter: BackMatterResource[];
   baseUrl: string | null;
   parentId: string;
@@ -64,6 +66,26 @@ export interface ResolvedOscalDocument {
   url: string;
   parentId: string | null;
   relation: string;
+  /** UUID of the leveraged-authorization that introduced this document. */
+  boundLaUuid?: string;
+}
+
+export interface GraphResolverCachedTarget {
+  modelKey: OscalModelKey;
+  accepts?: OscalModelKey[];
+  relation: string;
+  href: string;
+  url: string;
+  parentId: string;
+  depth: number;
+  boundLaUuid?: string;
+}
+
+export interface CachedOscalDocument {
+  json: unknown;
+  data?: Record<string, unknown>;
+  label?: string;
+  url?: string;
 }
 
 export interface GraphResolverResult {
@@ -76,9 +98,12 @@ interface UseOscalGraphResolverOptions {
   root: unknown | null;
   rootModelKey: OscalModelKey;
   rootBaseUrl: string | null;
+  rootLabel?: string | null;
+  rootOrigin?: ResolverItem["origin"];
   token: string | null;
   skip?: boolean;
   onResolved?: (doc: ResolvedOscalDocument) => void;
+  getCachedDocument?: (target: GraphResolverCachedTarget) => CachedOscalDocument | null | undefined;
 }
 
 const MODEL_LABELS: Record<OscalModelKey, string> = {
@@ -135,14 +160,17 @@ function backMatterOf(model: Record<string, unknown> | null): BackMatterResource
 function pickLinkHref(links: any[], relWords: string[]): string | null {
   if (!Array.isArray(links)) return null;
 
-  const jsonLink = links.find((l) => String(l?.["media-type"] ?? "").toLowerCase().includes("json") && l?.href);
-  if (jsonLink?.href) return jsonLink.href;
-
   const semantic = links.find((l) => {
-    const rel = String(l?.rel ?? "").toLowerCase();
-    return l?.href && relWords.some((word) => rel.includes(word));
+    const searchable = [l?.rel, l?.text, l?.title, l?.["media-type"], l?.mediaType]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return l?.href && relWords.some((word) => searchable.includes(word));
   });
   if (semantic?.href) return semantic.href;
+
+  const jsonLink = links.find((l) => linkMediaType(l).includes("json") && l?.href);
+  if (jsonLink?.href) return jsonLink.href;
 
   const anyJsonHref = links.find((l) => typeof l?.href === "string" && /\.json(?:[?#].*)?$/i.test(l.href));
   return anyJsonHref?.href ?? null;
@@ -208,7 +236,9 @@ function leveragedHref(la: any): string | null {
   if (typeof la?.url === "string") return la.url;
   if (typeof la?.source === "string") return la.source;
   if (typeof la?.link?.href === "string") return la.link.href;
-  return pickLinkHref([...(la?.links ?? []), ...(la?.rlinks ?? [])], ["ssp", "source", "provider", "authorization", "leveraged"])
+  const links = [...(la?.links ?? []), ...(la?.rlinks ?? [])];
+  return pickLinkHref(links, ["ssp", "source", "provider", "authorization", "leveraged", "system-security-plan"])
+    ?? (links.length === 1 && typeof links[0]?.href === "string" ? links[0].href : null)
     ?? pickPropHref(la?.props, ["href", "url", "ssp-url", "source-url", "provider-ssp", "provider-ssp-url", "oscal-url"])
     ?? pickRemarksJsonUrl(la?.remarks);
 }
@@ -253,6 +283,23 @@ function extractDependencies(
   }
 
   if (modelKey === "system-security-plan") {
+    const leveraged = ((model["system-implementation"] as any)?.["leveraged-authorizations"] ?? []) as any[];
+    leveraged.forEach((la, index) => {
+      const href = leveragedHref(la);
+      if (!href) return;
+      targets.push({
+        href,
+        label: la.title || `Provider SSP ${index + 1}`,
+        modelKey: "system-security-plan",
+        relation: "leveraged authorization",
+        boundLaUuid: typeof la.uuid === "string" ? la.uuid : undefined,
+        backMatter: bm,
+        baseUrl,
+        parentId,
+        depth,
+      });
+    });
+
     const importProfile = model["import-profile"] as Record<string, unknown> | undefined;
     const profileHref = importProfile?.href as string | undefined;
     if (profileHref) {
@@ -267,22 +314,6 @@ function extractDependencies(
         depth,
       });
     }
-
-    const leveraged = ((model["system-implementation"] as any)?.["leveraged-authorizations"] ?? []) as any[];
-    leveraged.forEach((la, index) => {
-      const href = leveragedHref(la);
-      if (!href) return;
-      targets.push({
-        href,
-        label: la.title || `Provider SSP ${index + 1}`,
-        modelKey: "system-security-plan",
-        relation: "leveraged authorization",
-        backMatter: bm,
-        baseUrl,
-        parentId,
-        depth,
-      });
-    });
 
     targets.push(...sspLinkedTargets(model, bm, baseUrl, parentId, depth));
   }
@@ -368,10 +399,46 @@ function resolveTargetUrl(target: DependencyTarget): { url: string | null; title
   }
 
   try {
-    const url = new URL(rawUrl, target.baseUrl).href;
+    const url = resolveRegistryApiRelativeUrl(rawUrl, target.baseUrl, target.modelKey) ?? new URL(rawUrl, target.baseUrl).href;
     return { url, title: resolved.title, error: checkUrlFormat(url) };
   } catch {
     return { url: null, title: resolved.title, error: `Cannot resolve relative URL: ${rawUrl}` };
+  }
+}
+
+function isUnresolvableLocalLeveragedTarget(target: DependencyTarget, url: string | null, error: string | null): boolean {
+  return target.relation === "leveraged authorization"
+    && !url
+    && Boolean(error?.includes("no base URL"));
+}
+
+function registryCollectionForModel(modelKey: OscalModelKey): string | null {
+  switch (modelKey) {
+    case "catalog": return "catalogs";
+    case "profile": return "profiles";
+    case "system-security-plan": return "system-security-plans";
+    case "assessment-plan": return "assessment-plans";
+    case "assessment-results": return "assessment-results";
+    case "component-definition": return "component-definitions";
+    case "plan-of-action-and-milestones": return "plans-of-action-and-milestones";
+    default: return null;
+  }
+}
+
+function resolveRegistryApiRelativeUrl(rawUrl: string, baseUrl: string, modelKey: OscalModelKey): string | null {
+  try {
+    const base = new URL(baseUrl);
+    if (base.hostname !== "registry.oscal.io") return null;
+    const match = base.pathname.match(/^\/api\/v1\/([^/]+)\//);
+    const collection = registryCollectionForModel(modelKey);
+    if (!match || !collection) return null;
+    const raw = new URL(rawUrl, "https://placeholder.invalid/");
+    if (raw.pathname.startsWith("/")) return null;
+    const relativePath = raw.pathname.replace(/^\.\//, "");
+    if (!relativePath || relativePath.startsWith("../")) return null;
+    return `${base.origin}/api/v1/${match[1]}/${collection}/${relativePath}${raw.search}${raw.hash}`;
+  } catch {
+    return null;
   }
 }
 
@@ -406,14 +473,19 @@ export function useOscalGraphResolver({
   root,
   rootModelKey,
   rootBaseUrl,
+  rootLabel,
+  rootOrigin,
   token,
   skip = false,
   onResolved,
+  getCachedDocument,
 }: UseOscalGraphResolverOptions): GraphResolverResult {
   const [nodes, setNodes] = useState<GraphResolveNode[]>([]);
   const controllersRef = useRef<AbortController[]>([]);
   const onResolvedRef = useRef(onResolved);
   onResolvedRef.current = onResolved;
+  const getCachedDocumentRef = useRef(getCachedDocument);
+  getCachedDocumentRef.current = getCachedDocument;
   const rootRef = useRef(root);
   rootRef.current = root;
 
@@ -421,6 +493,34 @@ export function useOscalGraphResolver({
     const model = unwrapModel(root, rootModelKey);
     return model?.uuid ?? titleOf(model) ?? null;
   }, [root, rootModelKey]);
+  const rootId = rootKey ? `root:${rootModelKey}:${rootKey}` : null;
+
+  useEffect(() => {
+    if (!getCachedDocument) return;
+    setNodes((prev) => prev.map((node) => {
+      if (node.status !== "loading" || !node.resolvedUrl) return node;
+      const cached = getCachedDocument({
+        modelKey: node.modelKey,
+        relation: node.relation,
+        href: node.resolvedUrl,
+        url: node.resolvedUrl,
+        parentId: node.parentId ?? "",
+        depth: node.depth,
+      });
+      if (!cached) return node;
+      const matchedModelKey = detectModelKey(cached.json, node.modelKey) ?? node.modelKey;
+      const model = cached.data ?? unwrapModel(cached.json, matchedModelKey);
+      const cachedUrl = cached.url ?? node.resolvedUrl;
+      return {
+        ...node,
+        modelKey: matchedModelKey,
+        status: "success",
+        error: null,
+        resolvedLabel: cached.label ?? titleOf(model) ?? fileNameFromUrl(cachedUrl),
+        resolvedUrl: cachedUrl,
+      };
+    }));
+  }, [getCachedDocument]);
 
   useEffect(() => {
     controllersRef.current.forEach((controller) => controller.abort());
@@ -431,7 +531,6 @@ export function useOscalGraphResolver({
     if (skip || !currentRoot || !rootKey) return;
 
     let cancelled = false;
-    const rootId = `root:${rootModelKey}:${rootKey}`;
     const visitedUrls = new Set<string>();
     const queuedIds = new Set<string>();
 
@@ -447,8 +546,7 @@ export function useOscalGraphResolver({
     };
 
     (async () => {
-      const queue = extractDependencies(currentRoot, rootModelKey, rootBaseUrl, rootId, 0);
-      const resolvedDocs: ResolvedOscalDocument[] = [];
+      const queue = extractDependencies(currentRoot, rootModelKey, rootBaseUrl, rootId!, 0);
 
       while (queue.length > 0 && !cancelled) {
         const target = queue.shift()!;
@@ -468,9 +566,48 @@ export function useOscalGraphResolver({
           depth: target.depth,
         });
 
+        if (isUnresolvableLocalLeveragedTarget(target, url, error)) {
+          continue;
+        }
+
         if (!url || error) {
           upsertNode(id, () => ({ ...baseNode(), status: "error", error: error ?? "Unable to resolve dependency URL.", json: null, resolvedLabel, resolvedUrl: url }));
           continue;
+        }
+
+        const cached = getCachedDocumentRef.current?.({
+          modelKey: target.modelKey,
+          accepts: target.accepts,
+          relation: target.relation,
+          href: target.href,
+          url,
+          parentId: target.parentId,
+          depth: target.depth,
+          boundLaUuid: target.boundLaUuid,
+        });
+        if (cached) {
+          const matchedModelKey = detectModelKey(cached.json, target.modelKey, target.accepts) ?? target.modelKey;
+          const model = cached.data ?? unwrapModel(cached.json, matchedModelKey);
+          if (model) {
+            const cachedUrl = cached.url ?? url;
+            const label = cached.label ?? titleOf(model) ?? resolvedLabel ?? fileNameFromUrl(cachedUrl);
+            visitedUrls.add(url);
+            upsertNode(id, () => ({ ...baseNode(), label, modelKey: matchedModelKey, status: "success", error: null, json: null, resolvedLabel: label, resolvedUrl: cachedUrl }));
+            if (target.relation !== "leveraged authorization") {
+              queue.push(...extractDependencies(cached.json, matchedModelKey, cachedUrl, id, target.depth + 1));
+            }
+            onResolvedRef.current?.({
+              modelKey: matchedModelKey,
+              json: cached.json,
+              data: model,
+              label,
+              url: cachedUrl,
+              parentId: target.parentId,
+              relation: target.relation,
+              boundLaUuid: target.boundLaUuid,
+            });
+            continue;
+          }
         }
 
         if (visitedUrls.has(url)) {
@@ -508,11 +645,14 @@ export function useOscalGraphResolver({
             url,
             parentId: target.parentId,
             relation: target.relation,
+            boundLaUuid: target.boundLaUuid,
           };
 
-          queue.push(...extractDependencies(parsed, matchedModelKey ?? target.modelKey, url, id, target.depth + 1));
+          if (target.relation !== "leveraged authorization") {
+            queue.push(...extractDependencies(parsed, matchedModelKey ?? target.modelKey, url, id, target.depth + 1));
+          }
 
-          resolvedDocs.push(resolvedDoc);
+          onResolvedRef.current?.(resolvedDoc);
         } catch (err) {
           if (cancelled) return;
           const isTimeout = (err as DOMException).name === "AbortError";
@@ -529,14 +669,6 @@ export function useOscalGraphResolver({
         }
       }
 
-      // Let the resolver UI paint the final success state before pushing large
-      // OSCAL documents into global context (large catalogs can be 10MB+). Do
-      // this after the queue drains so context updates cannot abort an active
-      // sibling dependency fetch and leave that node stuck in loading state.
-      setTimeout(() => {
-        if (cancelled) return;
-        resolvedDocs.forEach((doc) => onResolvedRef.current?.(doc));
-      }, 0);
     })();
 
     return () => {
@@ -553,18 +685,34 @@ export function useOscalGraphResolver({
 
   return {
     nodes,
-    items: nodes.map((node) => ({
-      id: node.id,
-      parentId: node.parentId,
-      label: node.label,
-      modelKey: node.modelKey,
-      relation: node.relation,
-      depth: node.depth,
-      status: node.status,
-      error: node.error,
-      resolvedLabel: node.resolvedLabel,
-      resolvedUrl: node.resolvedUrl,
-    })),
+    items: [
+      ...(rootId && rootLabel && nodes.length > 0 ? [{
+        id: rootId,
+        parentId: null,
+        label: MODEL_LABELS[rootModelKey],
+        modelKey: rootModelKey,
+        relation: rootOrigin === "manual" ? "uploaded file" : "loaded file",
+        depth: 0,
+        status: "success" as const,
+        error: null,
+        resolvedLabel: rootLabel,
+        resolvedUrl: rootBaseUrl,
+        origin: rootOrigin ?? (rootBaseUrl ? "auto" : "manual"),
+      }] : []),
+      ...nodes.map((node) => ({
+        id: node.id,
+        parentId: node.parentId,
+        label: node.label,
+        modelKey: node.modelKey,
+        relation: node.relation,
+        depth: node.depth + (rootLabel ? 1 : 0),
+        status: node.status,
+        error: node.error,
+        resolvedLabel: node.resolvedLabel,
+        resolvedUrl: node.resolvedUrl,
+        origin: "auto" as const,
+      })),
+    ],
     cancel,
   };
 }

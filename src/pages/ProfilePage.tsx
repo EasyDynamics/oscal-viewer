@@ -584,7 +584,7 @@ export default function ProfilePage() {
       const data = (urlDoc.json as Record<string, unknown>)["profile"] ?? urlDoc.json;
       if (!(data as Record<string, unknown>).metadata)
         throw new Error("Not an OSCAL Profile — no metadata found.");
-      oscal.setProfile(data as Profile, fileNameFromUrl(urlDoc.sourceUrl!));
+      oscal.setProfile(data as Profile, fileNameFromUrl(urlDoc.sourceUrl!), urlDoc.sourceUrl);
       setView("overview");
       setCollapsed({});
       setSearchTerm("");
@@ -611,6 +611,12 @@ export default function ProfilePage() {
   const catalogImportsAlreadyLoaded = useMemo(() => {
     const imports = profile?.imports ?? [];
     if (!profile || !oscal.catalog || imports.length === 0) return false;
+
+    // The app currently has one shared catalog slot. If a profile has a single
+    // catalog import and that slot is already populated (for example by the SSP
+    // dependency resolver), don't re-open the resolver when the Profile tab is
+    // visited just to fetch the same catalog again.
+    if (imports.length === 1) return true;
 
     const catalogSourceUrl = oscal.catalog.sourceUrl ?? null;
     const backMatter = (profile["back-matter"]?.resources ?? []) as BackMatterResource[];
