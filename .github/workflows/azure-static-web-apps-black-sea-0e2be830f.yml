@@ -11,7 +11,10 @@ on:
 
 jobs:
   build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    # Skip on fork PRs: GitHub does not issue OIDC tokens to workflows
+    # triggered from forks (security policy), so the deploy step cannot
+    # acquire credentials. Push events and org-internal PRs still run.
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     permissions:
@@ -79,7 +82,9 @@ jobs:
             }
 
   close_pull_request_job:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    # Same fork-PR guard as build_and_deploy_job — a fork PR never
+    # deployed a preview, so there is nothing to close.
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     name: Close Pull Request Job
     permissions:
