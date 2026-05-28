@@ -1818,21 +1818,28 @@ interface ControlNavEntry {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SERVICE COMPONENT HIERARCHY
-   Service components may reference other components via `provided-by` or
-   `used-by` links. Those referenced components are displayed as children
-   beneath the service in the tree. If a single component is referenced by
-   both a `provided-by` (on one service) AND a `used-by` (on another), the
-   `provided-by` relationship wins (component nests under the provider).
+   COMPONENT HIERARCHY
+   Components may reference other components via `provided-by`, `used-by`, or
+   `depends-on` links. Those referenced components are displayed as children
+   beneath the component in the tree. If a single component is referenced by
+   multiple relationship types, `provided-by` wins, then `used-by`, then
+   `depends-on`.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const REL_PROVIDED_BY = "provided-by";
 const REL_USED_BY = "used-by";
+const REL_DEPENDS_ON = "depends-on";
 
-/** Extract the UUID portion from a link href like "#uuid" or "uuid". */
+/** Extract the UUID portion from a link href like "#uuid", "uuid", or "url#uuid". */
 function hrefToUuid(href: string): string {
-  if (!href) return "";
-  return href.startsWith("#") ? href.slice(1) : href;
+  const trimmed = href.trim();
+  if (!trimmed) return "";
+  const hashIndex = trimmed.lastIndexOf("#");
+  return hashIndex >= 0 ? trimmed.slice(hashIndex + 1) : trimmed;
+}
+
+function linkRel(link: SspLink): string {
+  return (link.rel ?? "").trim().toLowerCase();
 }
 
 interface ComponentHierarchy {
@@ -1851,7 +1858,7 @@ function buildComponentHierarchy(components: SspComponent[]): ComponentHierarchy
   components.forEach((c, parentIdx) => {
     if (c.type !== "service") return;
     c.links.forEach((l) => {
-      if (l.rel !== REL_PROVIDED_BY) return;
+      if (linkRel(l) !== REL_PROVIDED_BY) return;
       const childIdx = indexByUuid.get(hrefToUuid(l.href));
       if (childIdx === undefined || childIdx === parentIdx) return;
       if (!providedByOwner.has(childIdx)) providedByOwner.set(childIdx, parentIdx);
@@ -1863,7 +1870,7 @@ function buildComponentHierarchy(components: SspComponent[]): ComponentHierarchy
   components.forEach((c, parentIdx) => {
     if (c.type !== "service") return;
     c.links.forEach((l) => {
-      if (l.rel !== REL_USED_BY) return;
+      if (linkRel(l) !== REL_USED_BY) return;
       const childIdx = indexByUuid.get(hrefToUuid(l.href));
       if (childIdx === undefined || childIdx === parentIdx) return;
       if (providedByOwner.has(childIdx)) return; // conflict — provided-by wins
@@ -1871,10 +1878,23 @@ function buildComponentHierarchy(components: SspComponent[]): ComponentHierarchy
     });
   });
 
+  /* Pass 3 — claim by `depends-on`, skipping children already claimed above. */
+  const dependsOnOwner = new Map<number, number>();
+  components.forEach((c, parentIdx) => {
+    c.links.forEach((l) => {
+      if (linkRel(l) !== REL_DEPENDS_ON) return;
+      const childIdx = indexByUuid.get(hrefToUuid(l.href));
+      if (childIdx === undefined || childIdx === parentIdx) return;
+      if (providedByOwner.has(childIdx) || usedByOwner.has(childIdx)) return;
+      if (!dependsOnOwner.has(childIdx)) dependsOnOwner.set(childIdx, parentIdx);
+    });
+  });
+
   const childrenByIndex = new Map<number, number[]>();
   const childOf = new Map<number, number>();
   providedByOwner.forEach((p, c) => childOf.set(c, p));
   usedByOwner.forEach((p, c) => { if (!childOf.has(c)) childOf.set(c, p); });
+  dependsOnOwner.forEach((p, c) => { if (!childOf.has(c)) childOf.set(c, p); });
 
   childOf.forEach((parentIdx, childIdx) => {
     const arr = childrenByIndex.get(parentIdx) ?? [];
