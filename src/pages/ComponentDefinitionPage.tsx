@@ -24,6 +24,7 @@ import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
+import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
@@ -504,6 +505,7 @@ export default function ComponentDefinitionPage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const sidebar = useResizableSidebar({ storageKey: "oscal-viewer.sidebar.componentDefinition.width" });
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   const catalogSort = useCatalogSortIndex();
@@ -693,7 +695,7 @@ export default function ComponentDefinitionPage() {
         resources.forEach((r) => {
           items.push({
             id: `res-${r.uuid}`,
-            label: trunc(r.title ?? "Untitled", 28),
+            label: r.title ?? "Untitled",
             icon: meta.iconKey,
             color: meta.color,
             depth: 2,
@@ -872,7 +874,7 @@ export default function ComponentDefinitionPage() {
 
       <div style={S.body}>
         {/* ── LEFT SIDEBAR ── */}
-        <nav style={S.sidebar}>
+        <nav className={`oscal-model-sidebar oscal-sidebar-label-${sidebar.labelMode}`} style={{ ...S.sidebar, ...sidebar.sidebarStyle }}>
           <div style={S.sidebarFilename}>{trunc(fileName, 36)}</div>
           {visibleNav.map((item) => {
             const hasChildren = !!childCounts[item.id];
@@ -914,6 +916,7 @@ export default function ComponentDefinitionPage() {
             );
           })}
         </nav>
+        <div {...sidebar.resizeHandleProps} style={sidebar.resizeHandleStyle} />
 
         {/* ── CONTENT PANEL ── */}
         <div ref={contentRef} style={S.content}>
@@ -2715,8 +2718,8 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
   },
   sidebar: {
-    width: 260,
-    minWidth: 260,
+    width: 320,
+    minWidth: 320,
     backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",

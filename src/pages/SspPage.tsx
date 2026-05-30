@@ -25,6 +25,7 @@ import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useOscalGraphResolver, type GraphResolverCachedTarget, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
+import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
@@ -5389,6 +5390,7 @@ export default function SspPage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const sidebar = useResizableSidebar({ storageKey: "oscal-viewer.sidebar.ssp.width" });
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   useAnalyticsView("System Security Plan", view);
@@ -5608,12 +5610,13 @@ export default function SspPage() {
       const { iconKey, color: iconColor } = componentIcon(c);
       items.push({
         id: navId,
-        label: trunc(c.title || c.uuid.slice(0, 12), 32),
+        label: c.title || c.uuid.slice(0, 12),
         icon: iconKey,
         color: iconColor,
         depth,
         parent: parentId,
         childCount: children?.length,
+        title: c.uuid,
       });
       children?.forEach((childIdx) => emitComponent(childIdx, depth + 1, navId));
     };
@@ -5635,7 +5638,7 @@ export default function SspPage() {
         const loaded = loadedLaUuids.has(la.uuid);
         items.push({
           id: `leveraged-auth-${i}`,
-          label: trunc(la.title || la.uuid.slice(0, 12), 28),
+          label: la.title || la.uuid.slice(0, 12),
           icon: loaded ? "layers" : "link",
           color: loaded ? colors.purple : colors.blueGray,
           depth: 2,
@@ -5919,7 +5922,7 @@ export default function SspPage() {
 
       <div style={S.body}>
         {/* SIDEBAR */}
-        <nav style={S.sidebar}>
+        <nav className={`oscal-model-sidebar oscal-sidebar-label-${sidebar.labelMode}`} style={{ ...S.sidebar, ...sidebar.sidebarStyle }}>
           <div style={S.sidebarFilename}>{trunc(fileName, 40)}</div>
           {visibleNav.map((item) => {
             const hasChildren = !!childCounts[item.id];
@@ -5938,7 +5941,7 @@ export default function SspPage() {
                   if (hasChildren) toggleGroup(item.id);
                   navigate(item.id);
                 }}
-                title={item.title}
+                title={[item.label, item.title].filter(Boolean).join("\n")}
                 style={{
                   ...S.navItem,
                   paddingLeft: 12 + item.depth * 16,
@@ -5967,6 +5970,7 @@ export default function SspPage() {
             );
           })}
         </nav>
+        <div {...sidebar.resizeHandleProps} style={sidebar.resizeHandleStyle} />
 
         {/* CONTENT */}
         <div ref={contentRef} style={S.content}>
@@ -6004,7 +6008,7 @@ const S: Record<string, CSSProperties> = {
   },
   body: { display: "flex", flex: 1, overflow: "hidden" },
   sidebar: {
-    width: 280, minWidth: 280, backgroundColor: colors.card,
+    width: 320, minWidth: 320, backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`, overflowY: "auto" as const, flexShrink: 0,
   },
   sidebarFilename: {

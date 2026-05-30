@@ -35,6 +35,7 @@ import type {
   OscalProp as CatalogOscalProp,
 } from "../context/OscalContext";
 import useIsMobile from "../hooks/useIsMobile";
+import { useResizableSidebar } from "../hooks/useResizableSidebar";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    OSCAL POA&M TYPES
@@ -578,6 +579,7 @@ export default function PoamPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const sidebar = useResizableSidebar({ storageKey: "oscal-viewer.sidebar.poam.width" });
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   useAnalyticsView("POA&M", view);
@@ -814,24 +816,24 @@ export default function PoamPage() {
       if (section === "sec-poam-items") {
         return filteredPoamItems.map((pi) => {
           const poamId = getProp(pi.props, "poam-id");
-          return { id: `__poam-${pi.uuid}`, label: poamId ? `${poamId}: ${trunc(pi.title, 28)}` : trunc(pi.title, 34), icon: <StatusDot color={colors.red} />, isBranch: false };
+          return { id: `__poam-${pi.uuid}`, label: poamId ? `${poamId}: ${pi.title}` : pi.title, icon: <StatusDot color={colors.red} />, isBranch: false };
         });
       }
       if (section === "sec-risks") {
         return filteredRisks.map((risk) => {
           const sc = RISK_STATUS_COLORS[risk.status];
-          return { id: `__risk-${risk.uuid}`, label: trunc(risk.title, 36), icon: <StatusDot color={sc?.border ?? colors.gray} />, isBranch: false, statusColor: sc?.border };
+          return { id: `__risk-${risk.uuid}`, label: risk.title, icon: <StatusDot color={sc?.border ?? colors.gray} />, isBranch: false, statusColor: sc?.border };
         });
       }
       if (section === "sec-findings") {
         return filteredFindings.map((f) => {
           const state = f.target?.status?.state;
           const fsc = FINDING_STATUS_COLORS[state ?? ""];
-          return { id: `__finding-${f.uuid}`, label: trunc(f.title, 36), icon: <StatusDot color={fsc?.border ?? colors.cobalt} />, isBranch: false, statusColor: fsc?.border };
+          return { id: `__finding-${f.uuid}`, label: f.title, icon: <StatusDot color={fsc?.border ?? colors.cobalt} />, isBranch: false, statusColor: fsc?.border };
         });
       }
       if (section === "sec-observations") {
-        return filteredObservations.map((obs) => ({ id: `__obs-${obs.uuid}`, label: trunc(obs.title, 36), icon: <StatusDot color={colors.brightBlue} />, isBranch: false }));
+        return filteredObservations.map((obs) => ({ id: `__obs-${obs.uuid}`, label: obs.title, icon: <StatusDot color={colors.brightBlue} />, isBranch: false }));
       }
       return [];
     };
@@ -940,7 +942,7 @@ export default function PoamPage() {
 
       <div style={S.body}>
         {/* ── LEFT SIDEBAR ── */}
-        <nav style={S.sidebar}>
+        <nav className={`oscal-model-sidebar oscal-sidebar-label-${sidebar.labelMode}`} style={{ ...S.sidebar, ...sidebar.sidebarStyle }}>
           <div style={S.sidebarFilename}>{trunc(fileName, 36)}</div>
 
           {/* Search */}
@@ -976,7 +978,7 @@ export default function PoamPage() {
                 <NavRow
                   key={pi.uuid}
                   id={piViewId}
-                  label={poamId ? `${poamId}: ${trunc(pi.title, 28)}` : trunc(pi.title, 34)}
+                  label={poamId ? `${poamId}: ${pi.title}` : pi.title}
                   icon={<StatusDot color={colors.red} />}
                   active={view === piViewId}
                   onClick={() => navigate(piViewId)}
@@ -1002,7 +1004,7 @@ export default function PoamPage() {
                   <NavRow
                     key={risk.uuid}
                     id={rViewId}
-                    label={trunc(risk.title, 34)}
+                    label={risk.title}
                     icon={<StatusDot color={sc?.border ?? colors.gray} />}
                     active={view === rViewId}
                     onClick={() => navigate(rViewId)}
@@ -1030,7 +1032,7 @@ export default function PoamPage() {
                   <NavRow
                     key={finding.uuid}
                     id={fViewId}
-                    label={trunc(finding.title, 34)}
+                    label={finding.title}
                     icon={<StatusDot color={fsc?.border ?? colors.cobalt} />}
                     active={view === fViewId}
                     onClick={() => navigate(fViewId)}
@@ -1056,7 +1058,7 @@ export default function PoamPage() {
                   <NavRow
                     key={obs.uuid}
                     id={oViewId}
-                    label={trunc(obs.title, 34)}
+                    label={obs.title}
                     icon={<StatusDot color={colors.brightBlue} />}
                     active={view === oViewId}
                     onClick={() => navigate(oViewId)}
@@ -1067,6 +1069,7 @@ export default function PoamPage() {
             </SidebarSection>
           )}
         </nav>
+        <div {...sidebar.resizeHandleProps} style={sidebar.resizeHandleStyle} />
 
         {/* ── CONTENT PANEL ── */}
         <div ref={contentRef} style={S.content}>
@@ -1860,7 +1863,7 @@ function RiskView({ risk, navigate, obsMap }: {
     <div>
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
-        { id: `risk-${risk.uuid}`, label: trunc(risk.title, 50) },
+        { id: `risk-${risk.uuid}`, label: risk.title },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -2032,7 +2035,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog }: {
     <div>
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
-        { id: `finding-${finding.uuid}`, label: trunc(finding.title, 50) },
+        { id: `finding-${finding.uuid}`, label: finding.title },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -2149,7 +2152,7 @@ function ObservationView({ obs, navigate }: {
     <div>
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
-        { id: `obs-${obs.uuid}`, label: trunc(obs.title, 50) },
+        { id: `obs-${obs.uuid}`, label: obs.title },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -2348,8 +2351,8 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
   },
   sidebar: {
-    width: 300,
-    minWidth: 300,
+    width: 320,
+    minWidth: 320,
     backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",

@@ -22,6 +22,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
+import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import { resolveHref, type BackMatterResource } from "../hooks/useImportResolver";
 import ResolverModal from "../components/ResolverModal";
@@ -572,6 +573,7 @@ export default function ProfilePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const sidebar = useResizableSidebar({ storageKey: "oscal-viewer.sidebar.profile.width" });
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   useAnalyticsView("Profile", view);
@@ -860,7 +862,7 @@ export default function ProfilePage() {
 
       <div style={S.body}>
         {/* ── LEFT SIDEBAR ── */}
-        <nav style={S.sidebar}>
+        <nav className={`oscal-model-sidebar oscal-sidebar-label-${sidebar.labelMode}`} style={{ ...S.sidebar, ...sidebar.sidebarStyle }}>
           <div style={S.sidebarFilename}>{trunc(fileName, 36)}</div>
 
           {/* Search */}
@@ -894,6 +896,7 @@ export default function ProfilePage() {
             toggleGroup={toggleGroup}
           />
         </nav>
+        <div {...sidebar.resizeHandleProps} style={sidebar.resizeHandleStyle} />
 
         {/* ── CONTENT PANEL ── */}
         <div ref={contentRef} style={S.content}>
@@ -1013,7 +1016,9 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
                       color: view === `ctrl-${cid}` ? colors.orange : colors.black,
                     }}
                   >
-                    {enhs.length > 0 && <IcoChev open={!isCtrlCollapsed} style={{ marginRight: 4 }} />}
+                    {enhs.length > 0
+                      ? <IcoChev open={!isCtrlCollapsed} style={{ marginRight: 4, flexShrink: 0 }} />
+                      : <span style={{ width: 18, flexShrink: 0 }} />}
                     <IcoShield size={13} style={{ color: colors.brightBlue }} />
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {controlLabel(cid)}
@@ -2364,8 +2369,8 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
   },
   sidebar: {
-    width: 300,
-    minWidth: 300,
+    width: 320,
+    minWidth: 320,
     backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",
