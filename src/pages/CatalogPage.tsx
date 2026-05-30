@@ -20,6 +20,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUrlDocument, fileNameFromUrl } from "../hooks/useUrlDocument";
 import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
+import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
 import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
@@ -257,6 +258,7 @@ export default function CatalogPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const sidebar = useResizableSidebar({ storageKey: "oscal-viewer.sidebar.catalog.width" });
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   useAnalyticsView("Catalog", view);
@@ -423,7 +425,7 @@ export default function CatalogPage() {
 
       <div style={S.body}>
         {/* ── LEFT SIDEBAR ── */}
-        <nav style={S.sidebar}>
+        <nav className={`oscal-model-sidebar oscal-sidebar-label-${sidebar.labelMode}`} style={{ ...S.sidebar, ...sidebar.sidebarStyle }}>
           <div style={S.sidebarFilename}>{trunc(fileName, 36)}</div>
 
           {/* Search */}
@@ -459,6 +461,7 @@ export default function CatalogPage() {
             active={view === "back-matter" || view.startsWith("resource-")} onClick={() => navigate("back-matter")} depth={0}
             badge={(catalog["back-matter"]?.resources ?? []).length || undefined} />
         </nav>
+        <div {...sidebar.resizeHandleProps} style={sidebar.resizeHandleStyle} />
 
         {/* ── CONTENT PANEL ── */}
         <div ref={contentRef} style={S.content}>
@@ -473,10 +476,10 @@ export default function CatalogPage() {
    NAV ROW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function NavRow({ id: _id, label, icon, active, onClick, depth, badge, hasChildren, expanded, onToggle }: {
+function NavRow({ id: _id, label, icon, active, onClick, depth, badge, hasChildren, expanded, onToggle, reserveChevron }: {
   id: string; label: string; icon: ReactNode; active: boolean;
   onClick: () => void; depth: number; badge?: number;
-  hasChildren?: boolean; expanded?: boolean; onToggle?: () => void;
+  hasChildren?: boolean; expanded?: boolean; onToggle?: () => void; reserveChevron?: boolean;
 }) {
   return (
     <div
@@ -490,7 +493,9 @@ function NavRow({ id: _id, label, icon, active, onClick, depth, badge, hasChildr
         color: active ? colors.orange : colors.black,
       }}
     >
-      {hasChildren && <IcoChev open={!!expanded} style={{ marginRight: 4 }} />}
+      {hasChildren
+        ? <IcoChev open={!!expanded} style={{ marginRight: 4, flexShrink: 0 }} />
+        : reserveChevron && <span style={{ width: 18, flexShrink: 0 }} />}
       {icon}
       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {label}
@@ -580,6 +585,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
           hasChildren={hasEnhancements}
           expanded={!isCollapsed}
           onToggle={() => toggleGroup(cId)}
+          reserveChevron
         />
         {hasEnhancements && !isCollapsed && enhancements.map((enh) => {
           if (lowerSearch && !controlMatches(enh)) return null;
@@ -2104,8 +2110,8 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
   },
   sidebar: {
-    width: 300,
-    minWidth: 300,
+    width: 320,
+    minWidth: 320,
     backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",

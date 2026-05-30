@@ -35,6 +35,7 @@ import type {
   Param as CatalogParam,
 } from "../context/OscalContext";
 import useIsMobile from "../hooks/useIsMobile";
+import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -442,6 +443,7 @@ export default function AssessmentResultsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const sidebar = useResizableSidebar({ storageKey: "oscal-viewer.sidebar.assessmentResults.width" });
   const [mobilePath, setMobilePath] = useState<string[]>([]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   useAnalyticsView("Assessment Results", view);
@@ -752,7 +754,7 @@ export default function AssessmentResultsPage() {
         ar!.results.forEach((result, ri) => {
           items.push({
             id: `result-${ri}`,
-            label: trunc(result.title, 30),
+            label: result.title,
             icon: <IcoClipboard size={14} style={{ color: colors.cobalt }} />,
             isBranch: true,
             badge: result.observations?.length,
@@ -802,7 +804,7 @@ export default function AssessmentResultsPage() {
         const sc = STATUS_COLORS[status];
         return {
           id: `__obs-${obs.uuid}`,
-          label: trunc(obs.title ?? "Untitled", 40),
+          label: obs.title ?? "Untitled",
           icon: <StatusDot status={status} />,
           isBranch: false,
           statusColor: sc?.border,
@@ -835,7 +837,7 @@ export default function AssessmentResultsPage() {
         const rc = RISK_LEVEL_COLORS[level];
         return {
           id: `__risk-${r.uuid}`,
-          label: trunc(r.title, 36),
+          label: r.title,
           icon: <IcoAlertTriangle size={12} style={{ color: rc?.fg ?? colors.gray }} />,
           isBranch: false,
           statusColor: rc?.border,
@@ -851,7 +853,7 @@ export default function AssessmentResultsPage() {
     mobilePath.forEach((seg, i) => {
       if (seg.startsWith("result-")) {
         const ri = parseInt(seg.slice(7));
-        crumbs.push({ label: trunc(ar?.results[ri]?.title ?? `Result ${ri}`, 16), depth: i + 1 });
+        crumbs.push({ label: ar?.results[ri]?.title ?? `Result ${ri}`, depth: i + 1 });
       } else if (seg.startsWith("group-")) {
         crumbs.push({ label: seg.slice(6), depth: i + 1 });
       } else if (seg === "findings-section") {
@@ -1036,7 +1038,7 @@ export default function AssessmentResultsPage() {
 
       <div style={S.body}>
         {/* ── LEFT SIDEBAR ── */}
-        <nav style={S.sidebar}>
+        <nav className={`oscal-model-sidebar oscal-sidebar-label-${sidebar.labelMode}`} style={{ ...S.sidebar, ...sidebar.sidebarStyle }}>
           <div style={S.sidebarFilename}>{trunc(fileName, 36)}</div>
 
           {/* Search */}
@@ -1085,7 +1087,7 @@ export default function AssessmentResultsPage() {
                 <div key={ri}>
                   <NavRow
                     id={resultId}
-                    label={trunc(result.title, 30)}
+                    label={result.title}
                     icon={<IcoClipboard size={14} style={{ color: colors.cobalt }} />}
                     active={view === resultId}
                     onClick={() => navigate(resultId)}
@@ -1177,7 +1179,7 @@ export default function AssessmentResultsPage() {
                     <NavRow
                       key={r.uuid}
                       id={`risk-${r.uuid}`}
-                      label={trunc(r.title, 32)}
+                      label={r.title}
                       icon={<IcoAlertTriangle size={12} style={{ color: rc?.fg ?? colors.gray }} />}
                       active={view === `risk-${r.uuid}`}
                       onClick={() => navigate(`risk-${r.uuid}`)}
@@ -1190,6 +1192,7 @@ export default function AssessmentResultsPage() {
             );
           })()}
         </nav>
+        <div {...sidebar.resizeHandleProps} style={sidebar.resizeHandleStyle} />
 
         {/* ── CONTENT PANEL ── */}
         <div ref={contentRef} style={S.content}>
@@ -1338,7 +1341,7 @@ function SidebarGroupTree({ groupedObservations, groupNames, view, collapsed, se
                 <NavRow
                   key={obs.uuid}
                   id={obsId}
-                  label={trunc(obs.title ?? "Untitled", 38)}
+                  label={obs.title ?? "Untitled"}
                   icon={<StatusDot status={status} />}
                   active={view === obsId}
                   onClick={() => navigate(obsId)}
@@ -2196,7 +2199,7 @@ function ObservationView({ obs, navigate, catalog, nistControls }: {
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
         { id: `group-${controlGroup}`, label: controlGroup },
-        { id: `obs-${obs.uuid}`, label: trunc(obs.title ?? "Untitled", 50) },
+        { id: `obs-${obs.uuid}`, label: obs.title ?? "Untitled" },
       ]} navigate={navigate} />
 
       {/* Header */}
@@ -2924,7 +2927,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap }: {
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
         { id: "risks", label: "Risks" },
-        { id: `risk-${risk.uuid}`, label: trunc(risk.title, 40) },
+        { id: `risk-${risk.uuid}`, label: risk.title },
       ]} navigate={navigate} />
 
       {/* Header */}
@@ -3223,8 +3226,8 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
   },
   sidebar: {
-    width: 300,
-    minWidth: 300,
+    width: 320,
+    minWidth: 320,
     backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`,
     overflowY: "auto",

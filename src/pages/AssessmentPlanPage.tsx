@@ -32,6 +32,7 @@ import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useO
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import useIsMobile from "../hooks/useIsMobile";
+import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import { IcoAct, IcoHome, IcoRight, IcoSearch, IcoShield, IcoTask, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
@@ -1545,6 +1546,7 @@ export default function AssessmentPlanPage() {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const contentRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const sidebar = useResizableSidebar({ storageKey: "oscal-viewer.sidebar.assessmentPlan.width" });
   const [mobileShowContent, setMobileShowContent] = useState(false);
   useAnalyticsView("Assessment Plan", pageStateAnalyticsId(page));
 
@@ -1865,7 +1867,7 @@ export default function AssessmentPlanPage() {
 
       <div style={S.body}>
         {/* SIDEBAR */}
-        <nav style={S.sidebar}>
+        <nav className={`oscal-model-sidebar oscal-sidebar-label-${sidebar.labelMode}`} style={{ ...S.sidebar, ...sidebar.sidebarStyle }}>
           {/* Plan title & compact stats */}
           <div style={{ padding: "12px 14px 8px", borderBottom: `1px solid ${colors.bg}` }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans, marginBottom: 2 }}>
@@ -1958,6 +1960,7 @@ export default function AssessmentPlanPage() {
           {/* Controls panel */}
           <CtrlPanel allControls={allControls} onClick={() => navigate({ type: "controls" })} isActive={page?.type === "controls"} />
         </nav>
+        <div {...sidebar.resizeHandleProps} style={sidebar.resizeHandleStyle} />
 
         {/* CONTENT */}
         <div ref={contentRef} style={S.content}>
@@ -2023,7 +2026,7 @@ const S: Record<string, CSSProperties> = {
   },
   body: { display: "flex", flex: 1, overflow: "hidden" },
   sidebar: {
-    width: 280, minWidth: 280, backgroundColor: colors.card,
+    width: 320, minWidth: 320, backgroundColor: colors.card,
     borderRight: `1px solid ${colors.paleGray}`, overflowY: "auto" as const, flexShrink: 0,
     display: "flex", flexDirection: "column" as const,
   },
