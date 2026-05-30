@@ -71,6 +71,7 @@ import {
   IcoValidation,
 } from "../components/IconAliases";
 import {
+  OSCAL_NAMESPACE,
   assetTypeVisual,
   componentTypeVisual,
   findOscalProp,
@@ -79,6 +80,16 @@ import {
   propDisplayName as sharedPropDisplayName,
   resolveComponentVisual,
 } from "../utils/oscalVisuals";
+import {
+  collectControlOriginationIssues,
+  controlOriginationMeta,
+  controlOriginationSourceLabel,
+  isControlOrigination,
+  resolveControlOrigination,
+  rollupControlOrigination,
+  type ControlOriginationIssue,
+  type ControlOriginationResolution,
+} from "../utils/controlOrigination";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -227,6 +238,7 @@ interface SspStatement {
   uuid: string;
   description: string;
   remarks: string;
+  props: OscalProp[];
   byComponents: ByComponent[];
 }
 
@@ -305,6 +317,15 @@ interface SspParsed {
   controlImplementation: ControlImplementation;
   backMatter: SspResource[];
   importProfileHref: string;
+}
+
+interface CurrentSspExportEntry {
+  controlId: string;
+  statementId?: string;
+  byComponentUuid?: string;
+  componentUuid: string;
+  componentTitle: string;
+  export: ExportBlock;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -604,6 +625,7 @@ function parseSsp(raw: any): SspParsed {
       uuid: st.uuid,
       description: txt(st.description),
       remarks: txt(st.remarks),
+      props: st.props || [],
       byComponents: (st["by-components"] || []).map(parseByComp),
     })),
     setParameters: parseSetParams(ir["set-parameters"]),
@@ -760,8 +782,6 @@ function componentStatusColor(status: string): string {
   if (lower === "disposition") return colors.red;
   return colors.gray;
 }
-
-const OSCAL_NAMESPACE = "http://csrc.nist.gov/ns/oscal";
 
 function oscalNamespaceProps(props: OscalProp[]): OscalProp[] {
   return sharedOscalNamespaceProps(props);
@@ -1056,6 +1076,28 @@ function ImplStatusBadge({ status }: { status: string }) {
   );
 }
 
+function ControlOriginationBadge({ value, source, compact = false }: { value?: string; source?: ControlOriginationResolution["source"]; compact?: boolean }) {
+  const meta = controlOriginationMeta(value);
+  const invalid = value && !isControlOrigination(value) && value !== "mixed" && value !== "unspecified";
+  return (
+    <span
+      title={`Implementation Source: ${meta.description} (${controlOriginationSourceLabel(source)})${invalid ? " Invalid OSCAL value." : ""}`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        fontSize: compact ? 10 : 11, fontWeight: 700,
+        padding: compact ? "2px 8px" : "3px 10px",
+        borderRadius: radii.pill,
+        backgroundColor: meta.background,
+        color: meta.color,
+        border: `1px solid ${alpha(meta.color, invalid ? 32 : 18)}`,
+      }}
+    >
+      {navIcon(meta.icon, meta.color, compact ? 11 : 12)}
+      <span>{compact ? meta.label : `Source: ${meta.label}`}</span>
+    </span>
+  );
+}
+
 const CONTROL_STATUS_ORDER = ["implemented", "satisfied-by-provider", "partial", "planned", "alternative", "not-applicable", "unspecified", "missing"] as const;
 type KnownControlStatus = typeof CONTROL_STATUS_ORDER[number];
 const SATISFIED_CONTROL_STATUSES = new Set(["implemented", "satisfied-by-provider"]);
@@ -1085,6 +1127,9 @@ interface ControlStatusDashboardSummary {
   isProfileScoped: boolean;
   controlBuckets: StatusBucket[];
   componentBuckets: StatusBucket[];
+  controlOriginationBuckets: StatusBucket[];
+  implementationOriginationBuckets: StatusBucket[];
+  controlOriginationIssues: ControlOriginationIssue[];
   familySummaries: FamilyStatusSummary[];
 }
 
@@ -1113,6 +1158,12 @@ function statusSortValue(status: string): number {
   return 100;
 }
 
+function originationSortValue(value: string): number {
+  const order = ["system-specific", "organization", "inherited", "customer-configured", "customer-provided", "mixed", "unspecified"];
+  const idx = order.indexOf(value.toLowerCase());
+  return idx >= 0 ? idx : 100;
+}
+
 function isSatisfiedControlStatus(status: string): boolean {
   return SATISFIED_CONTROL_STATUSES.has(status.trim().toLowerCase());
 }
@@ -1124,6 +1175,16 @@ function buildStatusBuckets(counts: Record<string, number>): StatusBucket[] {
     .map(([status, count]) => {
       const meta = controlStatusMeta(status);
       return { status, label: statusLabel(status), count, ...meta };
+    });
+}
+
+function buildOriginationBuckets(counts: Record<string, number>): StatusBucket[] {
+  return Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .sort(([a, ac], [b, bc]) => originationSortValue(a) - originationSortValue(b) || bc - ac || a.localeCompare(b))
+    .map(([status, count]) => {
+      const meta = controlOriginationMeta(status);
+      return { status, label: meta.label, count, color: meta.color, background: meta.background, description: meta.description };
     });
 }
 
@@ -1168,6 +1229,8 @@ function buildControlStatusDashboard(
 ): ControlStatusDashboardSummary {
   const controlCounts: Record<string, number> = {};
   const componentCounts: Record<string, number> = {};
+  const controlOriginationCounts: Record<string, number> = {};
+  const implementationOriginationCounts: Record<string, number> = {};
   const familyCounts: Record<string, Record<string, number>> = {};
   let totalStatements = 0;
   let totalByComponentEntries = 0;
@@ -1188,6 +1251,12 @@ function buildControlStatusDashboard(
     totalByComponentEntries += ir.byComponents.length + ir.statements.reduce((sum, st) => sum + st.byComponents.length, 0);
     if (statuses.length === 0) incrementCount(componentCounts, "unspecified");
     else statuses.forEach((status) => incrementCount(componentCounts, status));
+
+    incrementCount(controlOriginationCounts, rollupControlOrigination(ir));
+    ir.byComponents.forEach((bc) => incrementCount(implementationOriginationCounts, resolveControlOrigination(ir.props, [], bc.props).value || "unspecified"));
+    ir.statements.forEach((st) => st.byComponents.forEach((bc) => {
+      incrementCount(implementationOriginationCounts, resolveControlOrigination(ir.props, st.props, bc.props).value || "unspecified");
+    }));
   });
 
   const familySummaries = Object.entries(familyCounts)
@@ -1208,6 +1277,9 @@ function buildControlStatusDashboard(
     isProfileScoped: profileControlIds.length > 0,
     controlBuckets: buildStatusBuckets(controlCounts),
     componentBuckets: buildStatusBuckets(componentCounts),
+    controlOriginationBuckets: buildOriginationBuckets(controlOriginationCounts),
+    implementationOriginationBuckets: buildOriginationBuckets(implementationOriginationCounts),
+    controlOriginationIssues: collectControlOriginationIssues(ssp),
     familySummaries,
   };
 }
@@ -1345,6 +1417,70 @@ function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusD
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {(summary.controlOriginationBuckets.length > 0 || summary.implementationOriginationBuckets.length > 0) && (
+        <div style={{ marginTop: 18, borderTop: `1px solid ${colors.paleGray}`, paddingTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: colors.navy, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Implementation source</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+            {summary.controlOriginationBuckets.length > 0 && (
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Control rollup</div>
+                <StatusDistributionBar buckets={summary.controlOriginationBuckets} total={summary.controlOriginationBuckets.reduce((sum, bucket) => sum + bucket.count, 0)} height={10} />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                  {summary.controlOriginationBuckets.map((bucket) => (
+                    <span key={bucket.status} title={bucket.description} style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: radii.pill, backgroundColor: bucket.background, color: bucket.color }}>
+                      {bucket.label}: {bucket.count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {summary.implementationOriginationBuckets.length > 0 && (
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Implementation entries</div>
+                <StatusDistributionBar buckets={summary.implementationOriginationBuckets} total={summary.implementationOriginationBuckets.reduce((sum, bucket) => sum + bucket.count, 0)} height={10} />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                  {summary.implementationOriginationBuckets.map((bucket) => (
+                    <span key={bucket.status} title={bucket.description} style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: radii.pill, backgroundColor: bucket.background, color: bucket.color }}>
+                      {bucket.label}: {bucket.count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <p style={{ fontSize: 11, color: colors.gray, lineHeight: 1.5, margin: "10px 0 0" }}>
+            Source rollups use the OSCAL control-origination property. Child values on statements and by-components override the implemented-requirement value.
+          </p>
+        </div>
+      )}
+
+      {summary.controlOriginationIssues.length > 0 && (
+        <div style={{ marginTop: 18, borderTop: `1px solid ${colors.paleGray}`, paddingTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <IcoAlertTriangle size={14} style={{ color: colors.orange }} />
+            <div style={{ fontSize: 12, fontWeight: 800, color: colors.navy, textTransform: "uppercase", letterSpacing: 0.6 }}>Control origination validation</div>
+            <span style={{ ...S.badge, marginLeft: 0 }}>{summary.controlOriginationIssues.length}</span>
+          </div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {summary.controlOriginationIssues.slice(0, 8).map((issue, i) => (
+              <div key={`${issue.controlId}-${issue.location}-${i}`} style={{ padding: "7px 10px", borderRadius: radii.sm, backgroundColor: colors.warningBg, borderLeft: `3px solid ${colors.orange}` }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: colors.navy, fontFamily: fonts.mono }}>{issue.controlId.toUpperCase()}</span>
+                  <span style={{ fontSize: 10.5, color: colors.gray }}>{issue.location}</span>
+                  <span style={{ fontSize: 10.5, color: colors.orange, fontFamily: fonts.mono }}>value: {issue.value}</span>
+                </div>
+                <div style={{ fontSize: 10.5, color: colors.gray, marginTop: 2 }}>{issue.message}</div>
+              </div>
+            ))}
+          </div>
+          {summary.controlOriginationIssues.length > 8 && (
+            <p style={{ fontSize: 11, color: colors.gray, margin: "8px 0 0" }}>
+              Showing 8 of {summary.controlOriginationIssues.length} control-origination issues.
+            </p>
+          )}
         </div>
       )}
     </Card>
@@ -1513,6 +1649,42 @@ function buildControlEntries(ssp: SspParsed, leveragedIndex: LeveragedIndex, pro
   ssp.controlImplementation.implementedRequirements.forEach((ir) => addControl(ir.controlId, profileControlIds.includes(ir.controlId)));
   for (const controlId of leveragedIndex.byControl.keys()) addControl(controlId, profileControlIds.includes(controlId));
   return [...byId.values()];
+}
+
+function collectCurrentSspExportEntries(ssp: SspParsed): CurrentSspExportEntry[] {
+  const componentTitles = new Map(ssp.systemImplementation.components.map((c) => [c.uuid, c.title || c.uuid.slice(0, 12)]));
+  const entries: CurrentSspExportEntry[] = [];
+  const addEntry = (controlId: string, bc: ByComponent, statementId?: string) => {
+    if (!bc.export) return;
+    if (bc.export.provided.length === 0 && bc.export.responsibilities.length === 0 && !bc.export.description && !bc.export.remarks) return;
+    entries.push({
+      controlId,
+      statementId,
+      byComponentUuid: bc.uuid,
+      componentUuid: bc.componentUuid,
+      componentTitle: componentTitles.get(bc.componentUuid) || bc.componentUuid?.slice(0, 12) || "Unknown component",
+      export: bc.export,
+    });
+  };
+
+  ssp.controlImplementation.implementedRequirements.forEach((ir) => {
+    ir.byComponents.forEach((bc) => addEntry(ir.controlId, bc));
+    ir.statements.forEach((st) => st.byComponents.forEach((bc) => addEntry(ir.controlId, bc, st.statementId)));
+  });
+
+  return entries;
+}
+
+function summarizeCurrentSspExports(entries: CurrentSspExportEntry[]) {
+  const controlIds = new Set(entries.map((entry) => entry.controlId));
+  const componentUuids = new Set(entries.map((entry) => entry.componentUuid).filter(Boolean));
+  return {
+    controls: controlIds.size,
+    components: componentUuids.size,
+    entries: entries.length,
+    provided: entries.reduce((sum, entry) => sum + entry.export.provided.length, 0),
+    responsibilities: entries.reduce((sum, entry) => sum + entry.export.responsibilities.length, 0),
+  };
 }
 
 /** Find a specific part by id anywhere in a control's part tree */
@@ -3735,6 +3907,9 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
   const ci = ssp.controlImplementation;
   const catalogSort = useCatalogSortIndex();
   const [scope, setScope] = useState("current");
+  const [originationFilter, setOriginationFilter] = useState("all");
+  const currentSspExports = useMemo(() => collectCurrentSspExportEntries(ssp), [ssp]);
+  const currentSspExportSummary = useMemo(() => summarizeCurrentSspExports(currentSspExports), [currentSspExports]);
   const profileControlIds = useMemo(
     () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
     [oscal.profile, oscal.catalog],
@@ -3747,16 +3922,36 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
     () => new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir])),
     [ssp],
   );
+  const originationBuckets = useMemo(() => {
+    const counts: Record<string, number> = {};
+    controlEntries.forEach((entry) => {
+      const ir = irById.get(entry.controlId);
+      if (ir) incrementCount(counts, rollupControlOrigination(ir));
+    });
+    return buildOriginationBuckets(counts);
+  }, [controlEntries, irById]);
+  useEffect(() => {
+    if (originationFilter !== "all" && !originationBuckets.some((bucket) => bucket.status === originationFilter)) {
+      setOriginationFilter("all");
+    }
+  }, [originationFilter, originationBuckets]);
+  const filteredControlEntries = useMemo(() => {
+    if (originationFilter === "all") return controlEntries;
+    return controlEntries.filter((entry) => {
+      const ir = irById.get(entry.controlId);
+      return !!ir && rollupControlOrigination(ir) === originationFilter;
+    });
+  }, [controlEntries, irById, originationFilter]);
   /* Group by family */
   const families = useMemo(() => {
     const map: Record<string, ControlNavEntry[]> = {};
-    controlEntries.forEach((entry) => {
+    filteredControlEntries.forEach((entry) => {
       const fam = getFamily(entry.controlId);
       (map[fam] ??= []).push(entry);
     });
     Object.values(map).forEach((entries) => entries.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
     return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
-  }, [controlEntries, catalogSort]);
+  }, [filteredControlEntries, catalogSort]);
 
   const satisfiedCount = controlEntries.filter((entry) => isSatisfiedControlStatus(dashboardStatusForEntry(entry, irById.get(entry.controlId)))).length;
   const missingCount = controlEntries.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length;
@@ -3809,7 +4004,26 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
           <StatChip value={satisfiedCount} label="Satisfied" color={colors.darkGreen} />
           <StatChip value={missingCount} label="Missing" color={colors.red} />
           <StatChip value={ci.implementedRequirements.reduce((n, r) => n + r.statements.length, 0)} label="Statements" color={colors.darkGreen} />
+          {currentSspExportSummary.controls > 0 && <StatChip value={currentSspExportSummary.controls} label="Offered Controls" color={colors.purple} />}
+          {currentSspExportSummary.provided > 0 && <StatChip value={currentSspExportSummary.provided} label="Provided" color={colors.cobalt} />}
+          {currentSspExportSummary.responsibilities > 0 && <StatChip value={currentSspExportSummary.responsibilities} label="Cust. Resp." color={colors.red} />}
         </div>
+        {currentSspExports.length > 0 && (
+          <div style={{ borderTop: `1px solid ${colors.paleGray}`, paddingTop: 12, marginTop: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: colors.navy }}>This SSP exports controls for reuse.</div>
+              <p style={{ fontSize: 11, color: colors.gray, margin: "3px 0 0" }}>
+                Browse all provided capabilities and customer responsibilities offered by the main SSP.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("ctrl-impl-offered")}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: radii.sm, border: `1px solid ${colors.purple}`, backgroundColor: alpha(colors.purple, 10), color: colors.purple, cursor: "pointer", fontSize: 12, fontWeight: 800 }}
+            >
+              <IcoShieldLayers size={13} /> View Offered Controls
+            </button>
+          </div>
+        )}
         <div style={{ borderTop: `1px solid ${colors.paleGray}`, paddingTop: 12 }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: colors.cobalt, marginBottom: 8 }}>
             Show controls from
@@ -3855,6 +4069,52 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
             </p>
           )}
         </div>
+        {currentScopeButton && originationBuckets.length > 0 && (
+          <div style={{ borderTop: `1px solid ${colors.paleGray}`, paddingTop: 12, marginTop: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: colors.cobalt, marginBottom: 8 }}>
+              Filter by implementation source
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={() => setOriginationFilter("all")}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: radii.pill,
+                  border: `1px solid ${originationFilter === "all" ? colors.cobalt : colors.paleGray}`,
+                  backgroundColor: originationFilter === "all" ? alpha(colors.cobalt, 8) : colors.card,
+                  color: originationFilter === "all" ? colors.cobalt : colors.gray,
+                  cursor: "pointer", fontSize: 11, fontWeight: 800,
+                }}
+              >
+                All sources <span style={{ ...S.badge, marginLeft: 0 }}>{controlEntries.length}</span>
+              </button>
+              {originationBuckets.map((bucket) => {
+                const active = originationFilter === bucket.status;
+                return (
+                  <button
+                    key={bucket.status}
+                    onClick={() => setOriginationFilter(bucket.status)}
+                    title={bucket.description}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: radii.pill,
+                      border: `1px solid ${active ? bucket.color : alpha(bucket.color, 24)}`,
+                      backgroundColor: active ? bucket.background : colors.card,
+                      color: bucket.color,
+                      cursor: "pointer", fontSize: 11, fontWeight: 800,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: bucket.color }} />
+                    {bucket.label} <span style={{ ...S.badge, marginLeft: 0 }}>{bucket.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {originationFilter !== "all" && (
+              <p style={{ fontSize: 11, color: colors.gray, margin: "8px 0 0" }}>
+                Showing {filteredControlEntries.length} of {controlEntries.length} current SSP control{controlEntries.length === 1 ? "" : "s"} by effective implementation source.
+              </p>
+            )}
+          </div>
+        )}
       </Card>
       {scope === "current" && families.map(([fam, entries]) => (
         <Card key={fam}>
@@ -3868,10 +4128,13 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {entries.map((entry) => {
               const color = controlSourceColor(entry.hasCurrent, entry.hasProvider);
+              const ir = irById.get(entry.controlId);
+              const origination = ir ? rollupControlOrigination(ir) : undefined;
+              const originationMeta = origination ? controlOriginationMeta(origination) : undefined;
               return (
                 <button key={entry.controlId}
                   onClick={() => navigate(`ctrl-${entry.controlId}`)}
-                  title={controlSourceTitle(entry.hasCurrent, entry.hasProvider)}
+                  title={`${controlSourceTitle(entry.hasCurrent, entry.hasProvider)}${originationMeta ? ` · Source: ${originationMeta.label}` : ""}`}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
                     padding: "3px 10px", borderRadius: radii.sm, fontSize: 11, fontWeight: 600,
@@ -3879,12 +4142,20 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
                     color, cursor: "pointer", transition: "all .12s",
                   }}>
                   <ControlSourceIcon hasCurrent={entry.hasCurrent} hasProvider={entry.hasProvider} size={10} />{entry.controlId.toUpperCase()}
+                  {originationMeta && <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: originationMeta.color }} />}
                 </button>
               );
             })}
           </div>
         </Card>
       ))}
+      {scope === "current" && filteredControlEntries.length === 0 && (
+        <Card>
+          <p style={{ fontSize: 13, color: colors.gray, margin: 0 }}>
+            No current SSP controls match the selected implementation source filter.
+          </p>
+        </Card>
+      )}
       {selectedProvider && (
         <>
           <Card>
@@ -3933,6 +4204,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
 function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { familyId: string; ssp: SspParsed; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
   const oscal = useOscal();
   const catalogSort = useCatalogSortIndex();
+  const [originationFilter, setOriginationFilter] = useState("all");
   const profileControlIds = useMemo(
     () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
     [oscal.profile, oscal.catalog],
@@ -3946,6 +4218,26 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
     () => new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir])),
     [ssp],
   );
+  const originationBuckets = useMemo(() => {
+    const counts: Record<string, number> = {};
+    familyControls.forEach((entry) => {
+      const ir = irById.get(entry.controlId);
+      if (ir) incrementCount(counts, rollupControlOrigination(ir));
+    });
+    return buildOriginationBuckets(counts);
+  }, [familyControls, irById]);
+  useEffect(() => {
+    if (originationFilter !== "all" && !originationBuckets.some((bucket) => bucket.status === originationFilter)) {
+      setOriginationFilter("all");
+    }
+  }, [originationFilter, originationBuckets]);
+  const visibleFamilyControls = useMemo(() => {
+    if (originationFilter === "all") return familyControls;
+    return familyControls.filter((entry) => {
+      const ir = irById.get(entry.controlId);
+      return !!ir && rollupControlOrigination(ir) === originationFilter;
+    });
+  }, [familyControls, irById, originationFilter]);
   const familyLabel = FAMILY_NAMES[familyId] || familyId.toUpperCase();
 
   return (
@@ -3963,12 +4255,59 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
           <StatChip value={familyControls.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length} label="Missing" color={colors.red} />
           <StatChip value={familyControls.reduce((n, entry) => n + (irById.get(entry.controlId)?.statements.length ?? 0), 0)} label="Statements" color={colors.cobalt} />
         </div>
+        {originationBuckets.length > 0 && (
+          <div style={{ borderTop: `1px solid ${colors.paleGray}`, paddingTop: 12, marginTop: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: colors.cobalt, marginBottom: 8 }}>
+              Filter by implementation source
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={() => setOriginationFilter("all")}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: radii.pill,
+                  border: `1px solid ${originationFilter === "all" ? colors.cobalt : colors.paleGray}`,
+                  backgroundColor: originationFilter === "all" ? alpha(colors.cobalt, 8) : colors.card,
+                  color: originationFilter === "all" ? colors.cobalt : colors.gray,
+                  cursor: "pointer", fontSize: 11, fontWeight: 800,
+                }}
+              >
+                All sources <span style={{ ...S.badge, marginLeft: 0 }}>{familyControls.length}</span>
+              </button>
+              {originationBuckets.map((bucket) => {
+                const active = originationFilter === bucket.status;
+                return (
+                  <button
+                    key={bucket.status}
+                    onClick={() => setOriginationFilter(bucket.status)}
+                    title={bucket.description}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: radii.pill,
+                      border: `1px solid ${active ? bucket.color : alpha(bucket.color, 24)}`,
+                      backgroundColor: active ? bucket.background : colors.card,
+                      color: bucket.color,
+                      cursor: "pointer", fontSize: 11, fontWeight: 800,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: bucket.color }} />
+                    {bucket.label} <span style={{ ...S.badge, marginLeft: 0 }}>{bucket.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {originationFilter !== "all" && (
+              <p style={{ fontSize: 11, color: colors.gray, margin: "8px 0 0" }}>
+                Showing {visibleFamilyControls.length} of {familyControls.length} {familyId.toUpperCase()} control{familyControls.length === 1 ? "" : "s"} by effective implementation source.
+              </p>
+            )}
+          </div>
+        )}
       </Card>
-      {familyControls.map((entry) => {
+      {visibleFamilyControls.map((entry) => {
         const ir = irById.get(entry.controlId);
+        const visibleProps = ir?.props.filter((p) => p.name !== "control-origination") ?? [];
         return (
         <Card key={entry.controlId} style={!entry.hasCurrent && !entry.hasProvider ? { borderLeft: `4px solid ${colors.red}` } : undefined}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", cursor: "pointer" }}
             onClick={() => navigate(`ctrl-${entry.controlId}`)}>
             <span title={controlSourceTitle(entry.hasCurrent, entry.hasProvider)} style={{ display: "inline-flex" }}>
               <ControlSourceIcon hasCurrent={entry.hasCurrent} hasProvider={entry.hasProvider} size={14} />
@@ -3994,6 +4333,7 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
                 {ir.statements.length} stmt{ir.statements.length !== 1 ? "s" : ""}
               </span>
             )}
+            {ir && <ControlOriginationBadge value={rollupControlOrigination(ir)} compact />}
           </div>
           {ir?.description && <MarkupBlock value={ir.description} style={{ fontSize: 12.5, marginTop: 4 }} />}
           {!ir && !entry.hasProvider && (
@@ -4001,9 +4341,9 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
               This control is selected by the resolved profile but has no implementation entry in the SSP.
             </p>
           )}
-          {ir && ir.props.length > 0 && (
+          {visibleProps.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-              {ir.props.map((p, i) => (
+              {visibleProps.map((p, i) => (
                 <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
                   {p.name}: {p.value}
                 </span>
@@ -4013,6 +4353,13 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
         </Card>
         );
       })}
+      {visibleFamilyControls.length === 0 && (
+        <Card>
+          <p style={{ fontSize: 13, color: colors.gray, margin: 0 }}>
+            No controls in this family match the selected implementation source filter.
+          </p>
+        </Card>
+      )}
     </>
   );
 }
@@ -4326,6 +4673,166 @@ function ByCompExports({ exp, size }: { exp: ExportBlock; size: "req" | "stmt" }
   );
 }
 
+function CurrentSspOfferedControlsView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: string) => void }) {
+  const catalogSort = useCatalogSortIndex();
+  const [offeredView, setOfferedView] = useState<"control" | "component">("control");
+  const entries = useMemo(() => collectCurrentSspExportEntries(ssp), [ssp]);
+  const summary = useMemo(() => summarizeCurrentSspExports(entries), [entries]);
+  const familyGroups = useMemo(() => {
+    const map: Record<string, { controlId: string; entries: CurrentSspExportEntry[] }[]> = {};
+    const byControl = new Map<string, CurrentSspExportEntry[]>();
+    entries.forEach((entry) => {
+      const current = byControl.get(entry.controlId) ?? [];
+      current.push(entry);
+      byControl.set(entry.controlId, current);
+    });
+    [...byControl.entries()].forEach(([controlId, controlEntries]) => {
+      const fam = getFamily(controlId);
+      (map[fam] ??= []).push({
+        controlId,
+        entries: controlEntries.sort((a, b) => a.componentTitle.localeCompare(b.componentTitle) || (a.statementId ?? "").localeCompare(b.statementId ?? "")),
+      });
+    });
+    Object.values(map).forEach((controls) => controls.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
+    return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
+  }, [entries, catalogSort]);
+  const componentGroups = useMemo(() => {
+    const map = new Map<string, { componentUuid: string; componentTitle: string; entries: CurrentSspExportEntry[]; provided: number; responsibilities: number }>();
+    entries.forEach((entry) => {
+      const key = entry.componentUuid || entry.componentTitle;
+      const group = map.get(key) ?? { componentUuid: entry.componentUuid, componentTitle: entry.componentTitle, entries: [], provided: 0, responsibilities: 0 };
+      group.entries.push(entry);
+      group.provided += entry.export.provided.length;
+      group.responsibilities += entry.export.responsibilities.length;
+      map.set(key, group);
+    });
+    return [...map.values()]
+      .map((group) => ({ ...group, entries: group.entries.sort((a, b) => catalogSort.compare(a.controlId, b.controlId) || (a.statementId ?? "").localeCompare(b.statementId ?? "")) }))
+      .sort((a, b) => a.componentTitle.localeCompare(b.componentTitle));
+  }, [entries, catalogSort]);
+
+  const renderExportEntry = (entry: CurrentSspExportEntry) => (
+    <div key={`${entry.controlId}-${entry.byComponentUuid ?? entry.componentUuid}-${entry.statementId ?? "requirement"}`} style={{ padding: 12, border: `1px solid ${alpha(colors.purple, 14)}`, borderRadius: radii.md, backgroundColor: colors.card }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <IcoCube size={13} style={{ color: colors.purple }} />
+        <span style={{ fontSize: 12, fontWeight: 800, color: colors.navy }}>{entry.componentTitle}</span>
+        {entry.statementId && <span style={{ fontSize: 10, fontFamily: fonts.mono, color: colors.gray, padding: "2px 6px", borderRadius: radii.sm, backgroundColor: colors.bg }}>{entry.statementId}</span>}
+        <span style={{ marginLeft: "auto", fontSize: 10, color: colors.cobalt }}>{entry.export.provided.length} provided</span>
+        <span style={{ fontSize: 10, color: colors.orange }}>{entry.export.responsibilities.length} responsibilities</span>
+      </div>
+      <ByCompExports exp={entry.export} size="stmt" />
+    </div>
+  );
+
+  return (
+    <>
+      <Card>
+        <SectionLabel>Offered Controls</SectionLabel>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: colors.navy, margin: "0 0 6px" }}>Controls exported by this SSP</h2>
+        <p style={{ fontSize: 13, color: colors.gray, lineHeight: 1.5, margin: "0 0 14px" }}>
+          These are the main SSP&apos;s own by-component export entries: provided capabilities that other systems can inherit and customer responsibilities they may need to satisfy.
+        </p>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: entries.length > 0 ? 14 : 0 }}>
+          <StatChip value={summary.controls} label="Offered Controls" color={colors.purple} />
+          <StatChip value={summary.entries} label="Export Entries" color={colors.orange} />
+          <StatChip value={summary.components} label="Components" color={colors.cobalt} />
+          <StatChip value={summary.provided} label="Provided" color={colors.darkGreen} />
+          <StatChip value={summary.responsibilities} label="Cust. Resp." color={colors.red} />
+        </div>
+        {entries.length > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {(["control", "component"] as const).map((mode) => {
+              const active = offeredView === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setOfferedView(mode)}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: radii.sm, border: `1px solid ${active ? colors.purple : colors.paleGray}`, backgroundColor: active ? alpha(colors.purple, 10) : colors.card, color: active ? colors.purple : colors.black, cursor: "pointer", fontSize: 12, fontWeight: 800 }}
+                >
+                  {mode === "control" ? <IcoShield size={12} /> : <IcoCube size={12} />}
+                  By {mode === "control" ? "Control" : "Component"}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {entries.length === 0 ? (
+        <Card>
+          <p style={{ fontSize: 13, color: colors.gray, margin: 0 }}>
+            No export.provided or export.responsibilities entries were found in this SSP&apos;s control implementation.
+          </p>
+        </Card>
+      ) : offeredView === "control" ? (
+        familyGroups.map(([fam, controls]) => (
+          <Card key={fam}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <IcoFolder size={14} style={{ color: colors.purple }} />
+              <span style={{ fontSize: 13, fontWeight: 800, color: colors.navy }}>{fam.toUpperCase()}</span>
+              <span style={{ fontSize: 12, color: colors.gray }}>{FAMILY_NAMES[fam] || fam}</span>
+              <span style={S.badge}>{controls.length}</span>
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {controls.map(({ controlId, entries: controlEntries }) => {
+                const provided = controlEntries.reduce((sum, entry) => sum + entry.export.provided.length, 0);
+                const responsibilities = controlEntries.reduce((sum, entry) => sum + entry.export.responsibilities.length, 0);
+                return (
+                  <div key={controlId} style={{ padding: 12, borderRadius: radii.md, backgroundColor: alpha(colors.purple, 4), border: `1px solid ${alpha(colors.purple, 14)}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                      <IcoShieldLayers size={14} style={{ color: colors.purple }} />
+                      <span style={{ fontSize: 13, fontWeight: 800, fontFamily: fonts.mono, color: colors.navy }}>{controlId.toUpperCase()}</span>
+                      <span style={{ fontSize: 10, color: colors.darkGreen }}>{provided} provided</span>
+                      <span style={{ fontSize: 10, color: colors.orange }}>{responsibilities} responsibilities</span>
+                      <button
+                        onClick={() => navigate(`ctrl-${controlId}`)}
+                        style={{ marginLeft: "auto", background: "none", border: `1px solid ${colors.purple}`, borderRadius: radii.sm, padding: "2px 8px", fontSize: 10, color: colors.purple, cursor: "pointer", fontWeight: 800 }}
+                      >
+                        View Detail
+                      </button>
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>{controlEntries.map(renderExportEntry)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        ))
+      ) : (
+        componentGroups.map((group) => (
+          <Card key={group.componentUuid || group.componentTitle}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <IcoCube size={14} style={{ color: colors.purple }} />
+              <span style={{ fontSize: 13, fontWeight: 800, color: colors.navy, flex: "1 1 220px", minWidth: 0 }}>{group.componentTitle}</span>
+              <span style={{ fontSize: 10, color: colors.darkGreen }}>{group.provided} provided</span>
+              <span style={{ fontSize: 10, color: colors.orange }}>{group.responsibilities} responsibilities</span>
+              <span style={S.badge}>{group.entries.length}</span>
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {group.entries.map((entry) => (
+                <div key={`${entry.controlId}-${entry.byComponentUuid ?? entry.componentUuid}-${entry.statementId ?? "requirement"}`} style={{ padding: 12, borderRadius: radii.md, backgroundColor: alpha(colors.purple, 4), border: `1px solid ${alpha(colors.purple, 14)}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                    <IcoShield size={13} style={{ color: colors.orange }} />
+                    <span style={{ fontSize: 12, fontWeight: 800, fontFamily: fonts.mono, color: colors.navy }}>{entry.controlId.toUpperCase()}</span>
+                    {entry.statementId && <span style={{ fontSize: 10, fontFamily: fonts.mono, color: colors.gray }}>{entry.statementId}</span>}
+                    <button
+                      onClick={() => navigate(`ctrl-${entry.controlId}`)}
+                      style={{ marginLeft: "auto", background: "none", border: `1px solid ${colors.purple}`, borderRadius: radii.sm, padding: "2px 8px", fontSize: 10, color: colors.purple, cursor: "pointer", fontWeight: 800 }}
+                    >
+                      View Detail
+                    </button>
+                  </div>
+                  <ByCompExports exp={entry.export} size="stmt" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))
+      )}
+    </>
+  );
+}
+
 function ByCompInherited({ entries, size, leveragedIndex }: { entries: InheritedEntry[]; size: "req" | "stmt"; leveragedIndex: LeveragedIndex }) {
   const isReq = size === "req";
   const itemPad = isReq ? "8px 12px" : "6px 10px";
@@ -4446,6 +4953,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
 
   /* Status from props */
   const status = ir.props.find((p) => p.name === "implementation-status")?.value ?? "unknown";
+  const origination = rollupControlOrigination(ir);
   const familyLabel = FAMILY_NAMES[getFamily(ir.controlId)] || "";
   const implementationAttachmentCount = useMemo(
     () => base64BackMatterAttachmentCount(ir.links, ssp.backMatter),
@@ -4488,6 +4996,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
     }
   }, [activeProviderExport, providerExportGroups]);
   const selectedProviderExport = providerExportGroups.find((group) => group.title === activeProviderExport) ?? providerExportGroups[0];
+  const visibleProps = ir.props.filter((p) => p.name !== "control-origination");
 
   return (
     <>
@@ -4501,9 +5010,10 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
             {ir.controlId.toUpperCase()}{familyLabel ? ` ${familyLabel}` : ""}
           </h1>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
           <span style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{ir.uuid}</span>
           <StatusBadge status={status} />
+          <ControlOriginationBadge value={origination} />
         </div>
       </Card>
 
@@ -4595,6 +5105,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
 
             /* Requirement-level by-component for this component */
             const reqBc = ir.byComponents.find((bc) => bc.componentUuid === compUuid);
+            const reqOrigination = reqBc ? resolveControlOrigination(ir.props, [], reqBc.props) : undefined;
 
             /* Statement-level by-components for this component */
             const stmtEntries = ir.statements
@@ -4607,10 +5118,11 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
             return (
               <div>
                 {/* Component info bar: status + implementation-status */}
-                {activeComp && (activeComp.status || reqBc?.implementationStatus) && (
+                {activeComp && (activeComp.status || reqBc?.implementationStatus || reqOrigination?.value) && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                     {activeComp.status && <ComponentStateBadge state={activeComp.status} />}
                     {reqBc?.implementationStatus && <ImplStatusBadge status={reqBc.implementationStatus} />}
+                    {reqOrigination?.value && <ControlOriginationBadge value={reqOrigination.value} source={reqOrigination.source} compact />}
                   </div>
                 )}
 
@@ -4656,10 +5168,14 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
                               {st.statementId}
                             </div>
                           )}
-                          {/* Statement-level implementation-status */}
-                          {bc.implementationStatus && (
-                            <div style={{ marginBottom: 6 }}>
-                              <ImplStatusBadge status={bc.implementationStatus} />
+                          {/* Statement-level implementation-status and effective origination */}
+                          {(bc.implementationStatus || resolveControlOrigination(ir.props, st.props, bc.props).value) && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                              {bc.implementationStatus && <ImplStatusBadge status={bc.implementationStatus} />}
+                              {(() => {
+                                const stmtOrigination = resolveControlOrigination(ir.props, st.props, bc.props);
+                                return stmtOrigination.value ? <ControlOriginationBadge value={stmtOrigination.value} source={stmtOrigination.source} compact /> : null;
+                              })()}
                             </div>
                           )}
                           {/* Component's implementation for this statement (tabbed disclosure) */}
@@ -4842,11 +5358,11 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
       )}
 
       {/* Props */}
-      {ir.props.length > 0 && (
+      {visibleProps.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {ir.props.map((p, i) => (
+            {visibleProps.map((p, i) => (
               <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
                 {p.name}: {p.value}
               </span>
@@ -5332,6 +5848,7 @@ function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }:
   if (view === "sys-impl-inventory") return <InventoryView ssp={ssp} />;
   if (view === "sys-impl-leveraged") return <LeveragedView ssp={ssp} navigate={navigate} sourceUrl={sourceUrl} />;
   if (view === "ctrl-impl") return <ControlImplementationView ssp={ssp} navigate={navigate} leveragedIndex={leveragedIndex} />;
+  if (view === "ctrl-impl-offered") return <CurrentSspOfferedControlsView ssp={ssp} navigate={navigate} />;
   if (view === "back-matter") return <BackMatterView ssp={ssp} sourceUrl={sourceUrl} />;
 
   /* leveraged-auth-<index> — individual leveraged authorization detail */
@@ -5651,6 +6168,20 @@ export default function SspPage() {
 
     /* Control Implementation — group by family */
     items.push({ id: "ctrl-impl", label: "Control Implementation", icon: "shield", color: colors.orange, depth: 0 });
+
+    const currentExportSummary = summarizeCurrentSspExports(collectCurrentSspExportEntries(ssp));
+    if (currentExportSummary.entries > 0) {
+      items.push({
+        id: "ctrl-impl-offered",
+        label: "Offered Controls",
+        icon: "shield-layers",
+        color: colors.purple,
+        depth: 1,
+        parent: "ctrl-impl",
+        childCount: currentExportSummary.controls,
+        title: `${currentExportSummary.provided} provided · ${currentExportSummary.responsibilities} customer responsibilities`,
+      });
+    }
 
     /* Build the control family map from the resolved profile controls first,
        then decorate / extend it with current SSP implementations and provider
