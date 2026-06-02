@@ -1450,7 +1450,9 @@ function childControlIds(catalog: OscalCatalog | null, controlId: string): strin
 }
 
 function addProfileControlSelection(target: Set<string>, selection: SspProfileIncludeControl, catalog: OscalCatalog | null) {
-  const includeChildren = selection["with-child-controls"] !== "no";
+  // Per OSCAL spec, the default for `with-child-controls` is "no" — child
+  // controls (enhancements) are NOT included unless the profile explicitly opts in.
+  const includeChildren = selection["with-child-controls"] === "yes";
   selection["with-ids"]?.forEach((id) => {
     target.add(id);
     if (includeChildren) childControlIds(catalog, id).forEach((childId) => target.add(childId));
