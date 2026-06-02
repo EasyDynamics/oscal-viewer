@@ -17,6 +17,13 @@ import {
   Cpu,
   Database,
   Download,
+  Flame,
+  HardDrive,
+  Mail,
+  Phone,
+  Router,
+  ServerCog,
+  UserCog,
   ExternalLink,
   Eye,
   FileCode,
@@ -109,6 +116,13 @@ export const IcoTask = createAppIcon(ClipboardList);
 export const IcoRight = createAppIcon(ChevronRight, 14);
 export const IcoCloud = createAppIcon(Cloud);
 export const IcoFileCode = createAppIcon(FileCode);
+export const IcoHardDrive = createAppIcon(HardDrive);
+export const IcoMail = createAppIcon(Mail);
+export const IcoPhone = createAppIcon(Phone);
+export const IcoRouter = createAppIcon(Router);
+export const IcoServerCog = createAppIcon(ServerCog);
+export const IcoUserCog = createAppIcon(UserCog);
+export const IcoFlame = createAppIcon(Flame);
 
 export function IcoChev({ open, style }: { open: boolean; style?: CSSProperties }) {
   return <ChevronRight size={12} style={{ ...style, transform: open ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s", flexShrink: 0 }} strokeWidth={2.5} />;

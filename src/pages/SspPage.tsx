@@ -42,23 +42,29 @@ import {
   IcoDatabase,
   IcoExternalSystem,
   IcoFileCode,
+  IcoFlame,
   IcoFolder,
   IcoFolderLayers,
   IcoFolderShieldLayers,
   IcoGuidance,
+  IcoHardDrive,
   IcoHardware,
   IcoHome,
   IcoInfo,
   IcoInterconnection,
   IcoLayers,
   IcoLink,
+  IcoMail,
   IcoNetwork,
   IcoPaperclip,
+  IcoPhone,
   IcoPhysical,
   IcoPlan,
   IcoPolicy,
   IcoProcessProcedure,
+  IcoRouter,
   IcoServer,
+  IcoServerCog,
   IcoService,
   IcoShield,
   IcoShieldLayers,
@@ -67,6 +73,7 @@ import {
   IcoTag,
   IcoThisSystem,
   IcoUpload,
+  IcoUserCog,
   IcoUsers,
   IcoValidation,
 } from "../components/IconAliases";
@@ -886,6 +893,17 @@ function navIcon(icon: string, color: string, size = 14): ReactNode {
     case "validation": return <IcoValidation size={size} style={st} />;
     case "missing-control": return <IcoAlertTriangle size={size} style={st} />;
     case "network": return <IcoNetwork size={size} style={st} />;
+    case "operating-system": return <IcoServerCog size={size} style={st} />;
+    case "web-server": return <IcoServer size={size} style={st} />;
+    case "dns-server": return <IcoNetwork size={size} style={st} />;
+    case "email-server": return <IcoMail size={size} style={st} />;
+    case "directory-server": return <IcoUserCog size={size} style={st} />;
+    case "pbx": return <IcoPhone size={size} style={st} />;
+    case "firewall": return <IcoFlame size={size} style={st} />;
+    case "router": return <IcoRouter size={size} style={st} />;
+    case "switch": return <IcoNetwork size={size} style={st} />;
+    case "storage-array": return <IcoHardDrive size={size} style={st} />;
+    case "appliance": return <IcoHardware size={size} style={st} />;
     default: return <IcoBook size={size} style={st} />;
   }
 }
@@ -1164,7 +1182,8 @@ function buildControlStatusDashboard(
   ssp: SspParsed,
   catalogSort: ReturnType<typeof useCatalogSortIndex>,
   leveragedIndex: LeveragedIndex,
-  profileControlIds: string[],
+  expectedControlIds: string[],
+  isProfileLoaded: boolean,
 ): ControlStatusDashboardSummary {
   const controlCounts: Record<string, number> = {};
   const componentCounts: Record<string, number> = {};
@@ -1173,7 +1192,7 @@ function buildControlStatusDashboard(
   let totalByComponentEntries = 0;
   const irById = new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir]));
 
-  buildControlEntries(ssp, leveragedIndex, profileControlIds).forEach((entry) => {
+  buildControlEntries(ssp, leveragedIndex, expectedControlIds).forEach((entry) => {
     const ir = irById.get(entry.controlId);
     const controlStatus = dashboardStatusForEntry(entry, ir);
     incrementCount(controlCounts, controlStatus);
@@ -1205,7 +1224,7 @@ function buildControlStatusDashboard(
     totalComponents: ssp.systemImplementation.components.length,
     totalStatements,
     totalByComponentEntries,
-    isProfileScoped: profileControlIds.length > 0,
+    isProfileScoped: isProfileLoaded,
     controlBuckets: buildStatusBuckets(controlCounts),
     componentBuckets: buildStatusBuckets(componentCounts),
     familySummaries,
@@ -1478,6 +1497,17 @@ function extractProfileControlIds(rawProfile: unknown, catalog: OscalCatalog | n
   }
 
   return [...ids];
+}
+
+/** Returns the set of controls expected to be implemented by the SSP.
+ *  - If a profile is loaded, the resolved profile control set is used (so controls
+ *    excluded by the profile are not flagged as "missing").
+ *  - Otherwise, fall back to all controls in the loaded catalog so that missing
+ *    implementations are still surfaced.
+ *  - When neither is loaded, returns an empty list. */
+function getExpectedControlIds(rawProfile: unknown, catalog: OscalCatalog | null): string[] {
+  if (rawProfile) return extractProfileControlIds(rawProfile, catalog);
+  return collectCatalogControlIds(catalog);
 }
 
 function controlHasImplementation(ir?: ImplementedRequirement): boolean {
@@ -1923,13 +1953,14 @@ function OverviewView({ ssp, leveragedIndex, navigate }: {
   const oscal = useOscal();
   const { metadata: md, systemCharacteristics: sc, systemImplementation: si, controlImplementation: ci, backMatter: bm } = ssp;
   const catalogSort = useCatalogSortIndex();
-  const profileControlIds = useMemo(
-    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+  const isProfileLoaded = !!oscal.profile?.data;
+  const expectedControlIds = useMemo(
+    () => getExpectedControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
     [oscal.profile, oscal.catalog],
   );
   const dashboardSummary = useMemo(
-    () => buildControlStatusDashboard(ssp, catalogSort, leveragedIndex, profileControlIds),
-    [ssp, catalogSort, leveragedIndex, profileControlIds],
+    () => buildControlStatusDashboard(ssp, catalogSort, leveragedIndex, expectedControlIds, isProfileLoaded),
+    [ssp, catalogSort, leveragedIndex, expectedControlIds, isProfileLoaded],
   );
   return (
     <>
@@ -3735,13 +3766,14 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
   const ci = ssp.controlImplementation;
   const catalogSort = useCatalogSortIndex();
   const [scope, setScope] = useState("current");
-  const profileControlIds = useMemo(
-    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+  const isProfileLoaded = !!oscal.profile?.data;
+  const expectedControlIds = useMemo(
+    () => getExpectedControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
     [oscal.profile, oscal.catalog],
   );
   const controlEntries = useMemo(
-    () => buildControlEntries(ssp, leveragedIndex, profileControlIds),
-    [ssp, leveragedIndex, profileControlIds],
+    () => buildControlEntries(ssp, leveragedIndex, expectedControlIds),
+    [ssp, leveragedIndex, expectedControlIds],
   );
   const irById = useMemo(
     () => new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir])),
@@ -3805,7 +3837,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
         {ci.description && <MarkupBlock value={ci.description} style={{ marginBottom: 12 }} />}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
           <StatChip value={families.length} label="Families" color={colors.cobalt} />
-          <StatChip value={controlEntries.length} label={profileControlIds.length > 0 ? "Profile Controls" : "Controls"} color={colors.orange} />
+          <StatChip value={controlEntries.length} label={isProfileLoaded ? "Profile Controls" : "Controls"} color={colors.orange} />
           <StatChip value={satisfiedCount} label="Satisfied" color={colors.darkGreen} />
           <StatChip value={missingCount} label="Missing" color={colors.red} />
           <StatChip value={ci.implementedRequirements.reduce((n, r) => n + r.statements.length, 0)} label="Statements" color={colors.darkGreen} />
@@ -3933,15 +3965,15 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
 function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { familyId: string; ssp: SspParsed; navigate: (id: string) => void; leveragedIndex: LeveragedIndex }) {
   const oscal = useOscal();
   const catalogSort = useCatalogSortIndex();
-  const profileControlIds = useMemo(
-    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+  const expectedControlIds = useMemo(
+    () => getExpectedControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
     [oscal.profile, oscal.catalog],
   );
   const familyControls = useMemo(() => {
-    return buildControlEntries(ssp, leveragedIndex, profileControlIds)
+    return buildControlEntries(ssp, leveragedIndex, expectedControlIds)
       .filter((entry) => getFamily(entry.controlId) === familyId)
       .sort((a, b) => catalogSort.compare(a.controlId, b.controlId));
-  }, [ssp, leveragedIndex, profileControlIds, familyId, catalogSort]);
+  }, [ssp, leveragedIndex, expectedControlIds, familyId, catalogSort]);
   const irById = useMemo(
     () => new Map(ssp.controlImplementation.implementedRequirements.map((ir) => [ir.controlId, ir])),
     [ssp],
@@ -5317,7 +5349,7 @@ interface ViewRouterProps {
 function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }: ViewRouterProps) {
   const oscal = useOscal();
   const profileControlIds = useMemo(
-    () => extractProfileControlIds(oscal.profile?.data, catalog),
+    () => getExpectedControlIds(oscal.profile?.data, catalog),
     [oscal.profile, catalog],
   );
   if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} navigate={navigate} />;
@@ -5560,7 +5592,7 @@ export default function SspPage() {
   }, []);
 
   const profileControlIds = useMemo(
-    () => extractProfileControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
+    () => getExpectedControlIds(oscal.profile?.data, (oscal.catalog?.data as OscalCatalog) ?? null),
     [oscal.profile, oscal.catalog],
   );
 
@@ -5687,15 +5719,24 @@ export default function SspPage() {
       Object.values(enhancementMap).forEach((arr) => arr.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)));
 
       const providerCount = entries.filter((entry) => entry.hasProvider).length;
+      const currentCount = entries.filter((entry) => entry.hasCurrent).length;
       const allLeveraged = entries.length > 0 && providerCount === entries.length;
       const mixedLeveraged = providerCount > 0 && !allLeveraged;
       const allMissing = entries.length > 0 && entries.every((entry) => !entry.hasCurrent && !entry.hasProvider);
+      const familyHasProvider = providerCount > 0;
+      const familyHasCurrent = currentCount > 0;
+      const familyIcon = familyHasProvider
+        ? controlSourceIconKey(familyHasCurrent, familyHasProvider)
+        : allMissing ? "missing-control" : "folder";
+      const familyColor = familyHasProvider
+        ? controlSourceColor(familyHasCurrent, familyHasProvider)
+        : allMissing ? colors.red : colors.cobalt;
 
       items.push({
         id: famId,
         label: `${fam.toUpperCase()} — ${FAMILY_NAMES[fam] || fam}`,
-        icon: allLeveraged ? "folder-layers" : mixedLeveraged ? "folder-shield-layers" : allMissing ? "missing-control" : "folder",
-        color: allLeveraged ? colors.purple : mixedLeveraged ? colors.cobalt : allMissing ? colors.red : colors.cobalt,
+        icon: familyIcon,
+        color: familyColor,
         depth: 1,
         parent: "ctrl-impl",
         childCount: baseEntries.length,

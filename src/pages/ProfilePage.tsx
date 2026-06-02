@@ -1018,7 +1018,7 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
                   >
                     {enhs.length > 0
                       ? <IcoChev open={!isCtrlCollapsed} style={{ marginRight: 4, flexShrink: 0 }} />
-                      : <span style={{ width: 18, flexShrink: 0 }} />}
+                      : <span style={{ width: 16, flexShrink: 0 }} />}
                     <IcoShield size={13} style={{ color: colors.brightBlue }} />
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {controlLabel(cid)}
@@ -1048,6 +1048,7 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
                           color: view === `ctrl-${enhId}` ? colors.orange : colors.black,
                         }}
                       >
+                        <span style={{ width: 16, flexShrink: 0 }} />
                         <IcoTag size={12} style={{ color: colors.orange }} />
                         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {controlLabel(enhId)}

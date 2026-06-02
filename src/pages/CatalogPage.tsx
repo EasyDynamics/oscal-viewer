@@ -495,7 +495,7 @@ function NavRow({ id: _id, label, icon, active, onClick, depth, badge, hasChildr
     >
       {hasChildren
         ? <IcoChev open={!!expanded} style={{ marginRight: 4, flexShrink: 0 }} />
-        : reserveChevron && <span style={{ width: 18, flexShrink: 0 }} />}
+        : reserveChevron && <span style={{ width: 16, flexShrink: 0 }} />}
       {icon}
       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {label}
@@ -599,6 +599,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
               active={view === `ctrl-${enh.id}`}
               onClick={() => navigate(`ctrl-${enh.id}`)}
               depth={depth + 1}
+              reserveChevron
             />
           );
         })}
