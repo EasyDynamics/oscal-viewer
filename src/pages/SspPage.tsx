@@ -5929,10 +5929,12 @@ export default function SspPage() {
             const isActive = view === item.id;
             const isCollapsed = !!mergedCollapsed[item.id];
 
-            /* Determine if sibling items at this depth (same parent) have children
-               — if so, leaf items need a spacer to align with the chevron */
-            const siblingsHaveChildren = item.depth >= 2 && !hasChildren &&
-              visibleNav.some((n) => n.parent === item.parent && !!childCounts[n.id]);
+            /* Reserve the chevron column with a spacer for any non-chevron item
+               at depth >= 2 so icons align in a consistent column regardless of
+               whether siblings (or the parent) have a chevron. Without this,
+               leaf children of a chevron-bearing parent visually collapse into
+               the same column as the parent icon. */
+            const siblingsHaveChildren = item.depth >= 2 && !hasChildren;
 
             return (
               <div
