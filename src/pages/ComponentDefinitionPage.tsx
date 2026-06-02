@@ -39,20 +39,26 @@ import {
   IcoCube,
   IcoDatabase,
   IcoFileCode,
+  IcoFlame,
   IcoGuidance,
+  IcoHardDrive,
   IcoHardware,
   IcoHome,
   IcoInfo,
   IcoInterconnection,
   IcoLayers,
   IcoLink,
+  IcoMail,
   IcoNetwork,
   IcoPaperclip,
+  IcoPhone,
   IcoPhysical,
   IcoPlan,
   IcoPolicy,
   IcoProcessProcedure,
+  IcoRouter,
   IcoServer,
+  IcoServerCog,
   IcoService,
   IcoShield,
   IcoShieldLayers,
@@ -61,6 +67,7 @@ import {
   IcoTag,
   IcoTarget,
   IcoUpload,
+  IcoUserCog,
   IcoValidation,
 } from "../components/IconAliases";
 import {
@@ -473,6 +480,17 @@ function cdefVisualIcon(iconKey: string, size = 16, color?: string): ReactNode {
     case "file-code": return <IcoFileCode size={size} style={st} />;
     case "target": return <IcoTarget size={size} style={st} />;
     case "network": return <IcoNetwork size={size} style={st} />;
+    case "operating-system": return <IcoServerCog size={size} style={st} />;
+    case "web-server": return <IcoServer size={size} style={st} />;
+    case "dns-server": return <IcoNetwork size={size} style={st} />;
+    case "email-server": return <IcoMail size={size} style={st} />;
+    case "directory-server": return <IcoUserCog size={size} style={st} />;
+    case "pbx": return <IcoPhone size={size} style={st} />;
+    case "firewall": return <IcoFlame size={size} style={st} />;
+    case "router": return <IcoRouter size={size} style={st} />;
+    case "switch": return <IcoNetwork size={size} style={st} />;
+    case "storage-array": return <IcoHardDrive size={size} style={st} />;
+    case "appliance": return <IcoHardware size={size} style={st} />;
     default: return cdefComponentTypeIcon(iconKey, size, color);
   }
 }

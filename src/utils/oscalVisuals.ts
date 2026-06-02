@@ -100,18 +100,18 @@ export function isCanonicalAssetType(assetType?: string): assetType is string {
 
 export function assetTypeVisual(assetType: string): VisualMeta {
   switch (assetType.toLowerCase()) {
-    case "operating-system": return { iconKey: "software", color: colors.brightBlue, label: "Operating system" };
+    case "operating-system": return { iconKey: "operating-system", color: colors.brightBlue, label: "Operating system" };
     case "database": return { iconKey: "database", color: colors.cobalt, label: "Database" };
-    case "web-server": return { iconKey: "software", color: colors.brightBlue, label: "Web server" };
-    case "dns-server": return { iconKey: "network", color: colors.purple, label: "DNS server" };
-    case "email-server": return { iconKey: "service", color: colors.mint, label: "Email server" };
-    case "directory-server": return { iconKey: "service", color: colors.mint, label: "Directory server" };
-    case "pbx": return { iconKey: "hardware", color: colors.blueGray, label: "PBX" };
-    case "firewall": return { iconKey: "network", color: colors.red, label: "Firewall" };
-    case "router": return { iconKey: "network", color: colors.purple, label: "Router" };
-    case "switch": return { iconKey: "network", color: colors.purple, label: "Switch" };
-    case "storage-array": return { iconKey: "database", color: colors.darkGreen, label: "Storage array" };
-    case "appliance": return { iconKey: "hardware", color: colors.blueGray, label: "Appliance" };
+    case "web-server": return { iconKey: "web-server", color: colors.brightBlue, label: "Web server" };
+    case "dns-server": return { iconKey: "dns-server", color: colors.purple, label: "DNS server" };
+    case "email-server": return { iconKey: "email-server", color: colors.mint, label: "Email server" };
+    case "directory-server": return { iconKey: "directory-server", color: colors.mint, label: "Directory server" };
+    case "pbx": return { iconKey: "pbx", color: colors.blueGray, label: "PBX" };
+    case "firewall": return { iconKey: "firewall", color: colors.red, label: "Firewall" };
+    case "router": return { iconKey: "router", color: colors.purple, label: "Router" };
+    case "switch": return { iconKey: "switch", color: colors.purple, label: "Switch" };
+    case "storage-array": return { iconKey: "storage-array", color: colors.darkGreen, label: "Storage array" };
+    case "appliance": return { iconKey: "appliance", color: colors.blueGray, label: "Appliance" };
     default: return { iconKey: "box", color: colors.darkGreen };
   }
 }
