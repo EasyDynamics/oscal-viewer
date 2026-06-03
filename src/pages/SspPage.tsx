@@ -1537,7 +1537,7 @@ function buildControlEntries(ssp: SspParsed, leveragedIndex: LeveragedIndex, pro
     entry.hasImplementationRecord = entry.hasImplementationRecord || !!ir;
     entry.hasCurrent = entry.hasCurrent || controlHasImplementation(ir);
     entry.hasProvider = entry.hasProvider || leveragedIndex.byControl.has(controlId);
-    if (ir && !alreadyHadImplementationRecord) entry.attachmentCount += base64BackMatterAttachmentCount(ir.links, ssp.backMatter);
+    if (ir && !alreadyHadImplementationRecord) entry.attachmentCount += countImplementationAttachments(ir, ssp.backMatter);
     byId.set(controlId, entry);
   };
 
@@ -2216,16 +2216,25 @@ function artifactFromLink(link: SspLink, backMatter: SspResource[], sourceUrl?: 
   };
 }
 
-function base64BackMatterAttachmentCount(links: SspLink[], backMatter: SspResource[]): number {
+function backMatterAttachmentCount(links: SspLink[], backMatter: SspResource[]): number {
   return links.reduce((count, link) => {
     if (!link.href?.startsWith("#")) return count;
     const resource = backMatter.find((r) => r.uuid === link.href.slice(1));
-    return resource?.base64 ? count + 1 : count;
+    return resource?.base64 || resource?.rlinks?.length ? count + 1 : count;
   }, 0);
 }
 
+function countImplementationAttachments(ir: ImplementedRequirement, backMatter: SspResource[]): number {
+  let count = backMatterAttachmentCount(ir.links, backMatter);
+  ir.byComponents.forEach((bc) => { count += backMatterAttachmentCount(bc.links, backMatter); });
+  ir.statements.forEach((st) => {
+    st.byComponents.forEach((bc) => { count += backMatterAttachmentCount(bc.links, backMatter); });
+  });
+  return count;
+}
+
 function attachmentTitle(count: number): string {
-  return count === 1 ? "1 embedded attachment" : `${count} embedded attachments`;
+  return count === 1 ? "1 attachment" : `${count} attachments`;
 }
 
 function linkDisplayText(link: SspLink, backMatter: SspResource[]): string {
@@ -4104,7 +4113,7 @@ function MissingControlView({ controlId, catalog, hasProvider, navigate }: { con
 
 type ByCompTabKey = "impl" | "exports" | "inherited" | "satisfied";
 
-function ByComponentTabs({ bc, size, leveragedIndex }: { bc: ByComponent; size: "req" | "stmt"; leveragedIndex: LeveragedIndex }) {
+function ByComponentTabs({ bc, size, leveragedIndex, backMatter, sourceUrl, onOpenArtifact }: { bc: ByComponent; size: "req" | "stmt"; leveragedIndex: LeveragedIndex; backMatter: SspResource[]; sourceUrl?: string | null; onOpenArtifact: (artifact: ArtifactItem) => void }) {
   const isReq = size === "req";
 
   const exportCount = bc.export
@@ -4133,7 +4142,7 @@ function ByComponentTabs({ bc, size, leveragedIndex }: { bc: ByComponent; size: 
 
   // No optional buckets — render implementation body inline, no tab strip.
   if (tabs.length === 1) {
-    return <ByCompImplementation bc={bc} size={size} />;
+    return <ByCompImplementation bc={bc} size={size} backMatter={backMatter} sourceUrl={sourceUrl} onOpenArtifact={onOpenArtifact} />;
   }
 
   const tabPad = isReq ? "6px 14px" : "4px 10px";
@@ -4183,7 +4192,7 @@ function ByComponentTabs({ bc, size, leveragedIndex }: { bc: ByComponent; size: 
         })}
       </div>
 
-      {activeTab.key === "impl" && <ByCompImplementation bc={bc} size={size} />}
+      {activeTab.key === "impl" && <ByCompImplementation bc={bc} size={size} backMatter={backMatter} sourceUrl={sourceUrl} onOpenArtifact={onOpenArtifact} />}
       {activeTab.key === "exports" && bc.export && <ByCompExports exp={bc.export} size={size} />}
       {activeTab.key === "inherited" && <ByCompInherited entries={bc.inherited} size={size} leveragedIndex={leveragedIndex} />}
       {activeTab.key === "satisfied" && <ByCompSatisfied entries={bc.satisfied} size={size} leveragedIndex={leveragedIndex} />}
@@ -4191,12 +4200,12 @@ function ByComponentTabs({ bc, size, leveragedIndex }: { bc: ByComponent; size: 
   );
 }
 
-function ByCompImplementation({ bc, size }: { bc: ByComponent; size: "req" | "stmt" }) {
+function ByCompImplementation({ bc, size, backMatter, sourceUrl, onOpenArtifact }: { bc: ByComponent; size: "req" | "stmt"; backMatter: SspResource[]; sourceUrl?: string | null; onOpenArtifact: (artifact: ArtifactItem) => void }) {
   const isReq = size === "req";
   const descFs = isReq ? 13 : 12.5;
 
   const hasAny =
-    bc.description || bc.remarks ||
+    bc.description || bc.remarks || bc.links.length > 0 ||
     (isReq && bc.setParameters.length > 0) ||
     (isReq && bc.responsibleRoles.length > 0);
 
@@ -4243,6 +4252,20 @@ function ByCompImplementation({ bc, size }: { bc: ByComponent; size: "req" | "st
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {bc.links.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <LinkChips
+            label={null}
+            links={bc.links.map((l) => {
+              const artifact = artifactFromLink(l, backMatter, sourceUrl);
+              return artifact
+                ? { text: linkDisplayText(l, backMatter), rel: l.rel, onClick: () => onOpenArtifact(artifact) }
+                : { text: linkDisplayText(l, backMatter), href: l.href, rel: l.rel };
+            })}
+          />
         </div>
       )}
     </div>
@@ -4482,8 +4505,8 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
   const status = ir.props.find((p) => p.name === "implementation-status")?.value ?? "unknown";
   const familyLabel = FAMILY_NAMES[getFamily(ir.controlId)] || "";
   const implementationAttachmentCount = useMemo(
-    () => base64BackMatterAttachmentCount(ir.links, ssp.backMatter),
-    [ir.links, ssp.backMatter],
+    () => countImplementationAttachments(ir, ssp.backMatter),
+    [ir, ssp.backMatter],
   );
 
   const providerExportsForControl = useMemo(
@@ -4654,7 +4677,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: colors.cobalt, letterSpacing: 0.5, marginBottom: 6 }}>
                       Component Implementation
                     </div>
-                    <ByComponentTabs key={reqBc.uuid} bc={reqBc} size="req" leveragedIndex={leveragedIndex} />
+                    <ByComponentTabs key={reqBc.uuid} bc={reqBc} size="req" leveragedIndex={leveragedIndex} backMatter={ssp.backMatter} sourceUrl={sourceUrl} onOpenArtifact={setActiveArtifact} />
                   </div>
                 )}
 
@@ -4697,7 +4720,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
                             </div>
                           )}
                           {/* Component's implementation for this statement (tabbed disclosure) */}
-                          <ByComponentTabs key={bc.uuid} bc={bc} size="stmt" leveragedIndex={leveragedIndex} />
+                          <ByComponentTabs key={bc.uuid} bc={bc} size="stmt" leveragedIndex={leveragedIndex} backMatter={ssp.backMatter} sourceUrl={sourceUrl} onOpenArtifact={setActiveArtifact} />
                         </div>
                       );
                     })}
