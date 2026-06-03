@@ -1108,13 +1108,14 @@ interface ControlStatusDashboardSummary {
 
 function statusLabel(status: string): string {
   if (!status) return "Unspecified";
+  if (status.toLowerCase() === "satisfied-by-provider") return "Provider Offered";
   return status.split(/[-_\s]+/).filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
 }
 
 function controlStatusMeta(status: string): { color: string; background: string; description: string } {
   const lower = status.toLowerCase();
   if (lower === "implemented") return { color: colors.darkGreen, background: colors.successBg, description: "The control is fully implemented." };
-  if (lower === "satisfied-by-provider") return { color: colors.purple, background: alpha(colors.purple, 10), description: "The control is satisfied by a loaded leveraged authorization." };
+  if (lower === "satisfied-by-provider") return { color: colors.purple, background: alpha(colors.purple, 10), description: "A loaded leveraged authorization offers implementation coverage for this control." };
   if (lower === "partial") return { color: colors.dangerFg, background: colors.dangerBg, description: "The control is partially implemented." };
   if (lower === "planned") return { color: colors.brightBlue, background: alpha(colors.brightBlue, 10), description: "A plan exists for implementing the control." };
   if (lower === "alternative") return { color: colors.cobalt, background: alpha(colors.cobalt, 10), description: "An alternative implementation is described." };
@@ -1133,6 +1134,10 @@ function statusSortValue(status: string): number {
 
 function isSatisfiedControlStatus(status: string): boolean {
   return SATISFIED_CONTROL_STATUSES.has(status.trim().toLowerCase());
+}
+
+function primaryStatusCount(buckets: StatusBucket[], status: string): number {
+  return buckets.find((bucket) => bucket.status === status)?.count ?? 0;
 }
 
 function buildStatusBuckets(counts: Record<string, number>): StatusBucket[] {
@@ -1268,10 +1273,10 @@ function StatusDonut({ buckets, total, label = "Controls" }: { buckets: StatusBu
 }
 
 function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusDashboardSummary; navigate: (id: string) => void }) {
-  const satisfied = summary.controlBuckets.reduce((sum, bucket) => sum + (isSatisfiedControlStatus(bucket.status) ? bucket.count : 0), 0);
-  const notSatisfied = summary.totalControls - satisfied;
-  const implementationRate = summary.totalControls > 0 ? Math.round((satisfied / summary.totalControls) * 100) : 0;
-  const progressColor = notSatisfied > 0 ? colors.orange : colors.darkGreen;
+  const covered = summary.controlBuckets.reduce((sum, bucket) => sum + (isSatisfiedControlStatus(bucket.status) ? bucket.count : 0), 0);
+  const uncovered = summary.totalControls - covered;
+  const implementationRate = summary.totalControls > 0 ? Math.round((covered / summary.totalControls) * 100) : 0;
+  const progressColor = uncovered > 0 ? colors.orange : colors.darkGreen;
   const controlScopeLabel = summary.isProfileScoped ? "Profile Controls" : "SSP Controls";
 
   return (
@@ -1282,11 +1287,11 @@ function ControlStatusDashboard({ summary, navigate }: { summary: ControlStatusD
           <StatusDonut buckets={summary.controlBuckets} total={summary.totalControls} label={controlScopeLabel} />
           <div style={{ minWidth: 180, flex: 1 }}>
             <div style={{ fontSize: 28, fontWeight: 800, color: progressColor, lineHeight: 1 }}>{implementationRate}%</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: colors.navy, marginTop: 3 }}>{controlScopeLabel.toLowerCase()} satisfied</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: colors.navy, marginTop: 3 }}>implementation coverage</div>
             <p style={{ fontSize: 12, color: colors.gray, lineHeight: 1.6, margin: "8px 0 0" }}>
               {summary.isProfileScoped
                 ? `The ${summary.totalControls} total is the resolved profile requirement set. The current SSP contains ${summary.totalSspControls} implemented-requirement record${summary.totalSspControls === 1 ? "" : "s"}.`
-                : "Rollup status is based on the current SSP implemented-requirement controls."} Only fully implemented controls and controls satisfied by a loaded leveraged authorization count as satisfied.
+                : "Rollup status is based on the current SSP implemented-requirement controls."} Coverage is derived from implementation-status values; loaded provider SSPs are shown as Provider Offered where applicable.
             </p>
           </div>
         </div>
@@ -2021,7 +2026,7 @@ function OverviewView({ ssp, leveragedIndex, navigate }: {
                 {exports > 0 && <StatChip value={exports} label="Provided" color={colors.cobalt} />}
                 {responsibilities > 0 && <StatChip value={responsibilities} label="Cust. Resp." color={colors.red} />}
                 {inherited > 0 && <StatChip value={inherited} label={hasResolutions ? `Inherited (${inheritedResolved} resolved)` : "Inherited"} color={colors.darkGreen} />}
-                {satisfied > 0 && <StatChip value={satisfied} label={hasResolutions ? `Satisfied (${satisfiedResolved} resolved)` : "Satisfied"} color={colors.purple} />}
+                {satisfied > 0 && <StatChip value={satisfied} label={hasResolutions ? `Resp. Met (${satisfiedResolved} resolved)` : "Resp. Met"} color={colors.purple} />}
               </>
             );
           })()}
@@ -3801,7 +3806,6 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
     return Object.entries(map).sort(([a], [b]) => catalogSort.compare(a, b));
   }, [controlEntries, catalogSort]);
 
-  const satisfiedCount = controlEntries.filter((entry) => isSatisfiedControlStatus(dashboardStatusForEntry(entry, irById.get(entry.controlId)))).length;
   const missingCount = controlEntries.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length;
 
   const providerScopes = useMemo(() => {
@@ -3840,6 +3844,21 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
   }, [selectedProvider, catalogSort]);
 
   const currentScopeButton = scope === "current";
+  const controlStatusBuckets = useMemo(() => {
+    const counts: Record<string, number> = {};
+    controlEntries.forEach((entry) => incrementCount(counts, dashboardStatusForEntry(entry, irById.get(entry.controlId))));
+    return buildStatusBuckets(counts);
+  }, [controlEntries, irById]);
+  const componentStatusBuckets = useMemo(() => {
+    const counts: Record<string, number> = {};
+    ci.implementedRequirements.forEach((ir) => {
+      const statuses = collectImplementationStatuses(ir);
+      if (statuses.length === 0) incrementCount(counts, "unspecified");
+      else statuses.forEach((status) => incrementCount(counts, status));
+    });
+    return buildStatusBuckets(counts);
+  }, [ci.implementedRequirements]);
+  const byComponentCount = ci.implementedRequirements.reduce((n, r) => n + r.byComponents.length + r.statements.reduce((sum, st) => sum + st.byComponents.length, 0), 0);
 
   return (
     <>
@@ -3849,10 +3868,35 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
           <StatChip value={families.length} label="Families" color={colors.cobalt} />
           <StatChip value={controlEntries.length} label={isProfileLoaded ? "Profile Controls" : "Controls"} color={colors.orange} />
-          <StatChip value={satisfiedCount} label="Satisfied" color={colors.darkGreen} />
+          <StatChip value={primaryStatusCount(controlStatusBuckets, "implemented")} label="Implemented" color={colors.darkGreen} />
+          <StatChip value={primaryStatusCount(controlStatusBuckets, "partial")} label="Partial" color={colors.dangerFg} />
+          <StatChip value={primaryStatusCount(controlStatusBuckets, "planned")} label="Planned" color={colors.brightBlue} />
           <StatChip value={missingCount} label="Missing" color={colors.red} />
           <StatChip value={ci.implementedRequirements.reduce((n, r) => n + r.statements.length, 0)} label="Statements" color={colors.darkGreen} />
+          <StatChip value={byComponentCount} label="Impl Entries" color={colors.purple} />
         </div>
+        {controlStatusBuckets.length > 0 && (
+          <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+            <StatusDistributionBar buckets={controlStatusBuckets} total={controlEntries.length} height={12} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {controlStatusBuckets.map((bucket) => (
+                <span key={bucket.status} title={bucket.description} style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: radii.pill, backgroundColor: bucket.background, color: bucket.color }}>
+                  {bucket.label}: {bucket.count}
+                </span>
+              ))}
+            </div>
+            {componentStatusBuckets.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>By-component implementation-status</span>
+                {componentStatusBuckets.map((bucket) => (
+                  <span key={bucket.status} style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: radii.pill, backgroundColor: bucket.background, color: bucket.color }}>
+                    {bucket.label}: {bucket.count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ borderTop: `1px solid ${colors.paleGray}`, paddingTop: 12 }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: colors.cobalt, marginBottom: 8 }}>
             Show controls from
@@ -3990,6 +4034,49 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
     [ssp],
   );
   const familyLabel = FAMILY_NAMES[familyId] || familyId.toUpperCase();
+  const familyStatusBuckets = useMemo(() => {
+    const counts: Record<string, number> = {};
+    familyControls.forEach((entry) => incrementCount(counts, dashboardStatusForEntry(entry, irById.get(entry.controlId))));
+    return buildStatusBuckets(counts);
+  }, [familyControls, irById]);
+  const familyIrs = useMemo(() => familyControls.map((entry) => irById.get(entry.controlId)).filter(Boolean) as ImplementedRequirement[], [familyControls, irById]);
+  const familyDetails = useMemo(() => {
+    const componentUuids = new Set<string>();
+    let byComponents = 0;
+    let statements = 0;
+    let setParameters = 0;
+    let links = 0;
+    let inherited = 0;
+    let responsibilitiesMet = 0;
+    let provided = 0;
+    let customerResponsibilities = 0;
+    familyIrs.forEach((ir) => {
+      statements += ir.statements.length;
+      setParameters += ir.setParameters.length;
+      links += ir.links.length;
+      ir.byComponents.forEach((bc) => {
+        byComponents += 1;
+        componentUuids.add(bc.componentUuid);
+        setParameters += bc.setParameters.length;
+        links += bc.links.length;
+        inherited += bc.inherited.length;
+        responsibilitiesMet += bc.satisfied.length;
+        if (bc.export) { provided += bc.export.provided.length; customerResponsibilities += bc.export.responsibilities.length; }
+      });
+      ir.statements.forEach((st) => {
+        st.byComponents.forEach((bc) => {
+          byComponents += 1;
+          componentUuids.add(bc.componentUuid);
+          setParameters += bc.setParameters.length;
+          links += bc.links.length;
+          inherited += bc.inherited.length;
+          responsibilitiesMet += bc.satisfied.length;
+          if (bc.export) { provided += bc.export.provided.length; customerResponsibilities += bc.export.responsibilities.length; }
+        });
+      });
+    });
+    return { components: componentUuids.size, byComponents, statements, setParameters, links, inherited, responsibilitiesMet, provided, customerResponsibilities };
+  }, [familyIrs]);
 
   return (
     <>
@@ -4002,10 +4089,36 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <StatChip value={familyControls.length} label="Controls" color={colors.orange} />
-          <StatChip value={familyControls.filter((entry) => isSatisfiedControlStatus(dashboardStatusForEntry(entry, irById.get(entry.controlId)))).length} label="Satisfied" color={colors.darkGreen} />
+          <StatChip value={primaryStatusCount(familyStatusBuckets, "implemented")} label="Implemented" color={colors.darkGreen} />
+          <StatChip value={primaryStatusCount(familyStatusBuckets, "partial")} label="Partial" color={colors.dangerFg} />
+          <StatChip value={primaryStatusCount(familyStatusBuckets, "planned")} label="Planned" color={colors.brightBlue} />
           <StatChip value={familyControls.filter((entry) => !entry.hasCurrent && !entry.hasProvider).length} label="Missing" color={colors.red} />
-          <StatChip value={familyControls.reduce((n, entry) => n + (irById.get(entry.controlId)?.statements.length ?? 0), 0)} label="Statements" color={colors.cobalt} />
+          <StatChip value={familyDetails.statements} label="Statements" color={colors.cobalt} />
+          <StatChip value={familyDetails.byComponents} label="Impl Entries" color={colors.purple} />
+          <StatChip value={familyDetails.components} label="Components" color={colors.orange} />
         </div>
+        {familyStatusBuckets.length > 0 && (
+          <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
+            <StatusDistributionBar buckets={familyStatusBuckets} total={familyControls.length} height={12} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {familyStatusBuckets.map((bucket) => (
+                <span key={bucket.status} title={bucket.description} style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: radii.pill, backgroundColor: bucket.background, color: bucket.color }}>
+                  {bucket.label}: {bucket.count}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {(familyDetails.setParameters > 0 || familyDetails.links > 0 || familyDetails.inherited > 0 || familyDetails.responsibilitiesMet > 0 || familyDetails.provided > 0 || familyDetails.customerResponsibilities > 0) && (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${colors.paleGray}`, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {familyDetails.setParameters > 0 && <span style={S.badge}>{familyDetails.setParameters} parameter values</span>}
+            {familyDetails.links > 0 && <span style={S.badge}>{familyDetails.links} links</span>}
+            {familyDetails.inherited > 0 && <span style={S.badge}>{familyDetails.inherited} inherited</span>}
+            {familyDetails.responsibilitiesMet > 0 && <span style={S.badge}>{familyDetails.responsibilitiesMet} responsibilities met</span>}
+            {familyDetails.provided > 0 && <span style={S.badge}>{familyDetails.provided} provided</span>}
+            {familyDetails.customerResponsibilities > 0 && <span style={S.badge}>{familyDetails.customerResponsibilities} customer responsibilities</span>}
+          </div>
+        )}
       </Card>
       {familyControls.map((entry) => {
         const ir = irById.get(entry.controlId);
@@ -4029,9 +4142,10 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
             )}
             {entry.hasProvider && !entry.hasCurrent && (
               <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.sm, background: alpha(colors.purple, 8), color: colors.purple, fontWeight: 700 }}>
-                satisfied by provider
+                provider offered
               </span>
             )}
+            {ir && <ImplStatusBadge status={dashboardStatusForEntry(entry, ir)} />}
             {ir && ir.statements.length > 0 && (
               <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.sm, background: colors.bg, color: colors.gray }}>
                 {ir.statements.length} stmt{ir.statements.length !== 1 ? "s" : ""}
@@ -4072,7 +4186,7 @@ function MissingControlView({ controlId, catalog, hasProvider, navigate }: { con
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: colors.navy, margin: 0, fontFamily: fonts.mono }}>{controlId.toUpperCase()}</h2>
             <div style={{ fontSize: 12, color: hasProvider ? colors.purple : colors.red, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              {hasProvider ? "Satisfied by leveraged authorization" : "Missing implementation statements"}
+              {hasProvider ? "Offered by leveraged authorization" : "Missing implementation statements"}
             </div>
           </div>
         </div>
@@ -4130,7 +4244,7 @@ function ByComponentTabs({ bc, size, leveragedIndex, backMatter, sourceUrl, onOp
   ];
   if (hasExport) tabs.push({ key: "exports", label: "Exports", count: exportCount, color: colors.brightBlue });
   if (hasInherited) tabs.push({ key: "inherited", label: "Inherited", count: bc.inherited.length, color: colors.darkGreen });
-  if (hasSatisfied) tabs.push({ key: "satisfied", label: "Satisfied", count: bc.satisfied.length, color: colors.purple });
+  if (hasSatisfied) tabs.push({ key: "satisfied", label: "Responsibilities Met", count: bc.satisfied.length, color: colors.purple });
 
   const [active, setActive] = useState<ByCompTabKey>("impl");
 
