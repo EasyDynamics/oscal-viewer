@@ -1495,7 +1495,7 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
         {[
           { label: "Selected Controls", value: totalControls, color: colors.cobalt },
           { label: "Control Families", value: familyGroups.length, color: colors.navy },
-          { label: "Parameter Constraints", value: setParamCount, color: colors.brightBlue },
+          { label: "Parameters", value: setParamCount, color: colors.brightBlue },
           { label: "Altered Controls", value: alterCount, color: colors.orange },
           { label: "Add Operations", value: addCount, color: colors.successFg },
           { label: "Remove Operations", value: removeCount, color: colors.red },
@@ -1796,6 +1796,18 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
     return map;
   }, [catalog, catalogControl, controlId, setParams]);
 
+  const catalogParams = useMemo(() => {
+    const map: Record<string, Param> = {};
+    if (catalog && catalogControl) {
+      const parent = findParentControlInCatalog(catalog, controlId);
+      if (parent) (parent.params ?? []).forEach((p) => { map[p.id] = p; });
+      (catalogControl.params ?? []).forEach((p) => { map[p.id] = p; });
+      (catalogControl.controls ?? []).forEach((enh) =>
+        (enh.params ?? []).forEach((p) => { map[p.id] = p; }));
+    }
+    return map;
+  }, [catalog, catalogControl, controlId]);
+
   // Resolve parts with profile alterations
   const resolvedParts = useMemo(() => {
     if (!catalogControl) return [];
@@ -1901,42 +1913,60 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
         );
       })}
 
-      {/* Set-Parameters */}
       {setParams.length > 0 && (
         <Card style={{ borderLeft: `4px solid ${colors.brightBlue}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <IcoSliders size={18} style={{ color: colors.brightBlue }} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: colors.brightBlue }}>Parameter Constraints</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: colors.brightBlue }}>Parameters</span>
             <span style={{ fontSize: 11, color: colors.gray, marginLeft: "auto" }}>{setParams.length} parameter(s)</span>
           </div>
-          {setParams.map((sp) => (
-            <div key={sp["param-id"]} style={{ padding: "8px 0", borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{
-                  fontSize: 12, fontFamily: fonts.mono, fontWeight: 600,
-                  color: colors.orange, backgroundColor: alpha(colors.orange, 7),
-                  padding: "1px 6px", borderRadius: radii.sm,
-                  border: `1px solid ${alpha(colors.orange, 20)}`,
-                }}>
-                  {sp["param-id"]}
-                </span>
-                {sp.label && <span style={{ fontSize: 12, color: colors.gray }}>({sp.label})</span>}
-              </div>
-              {sp.constraints && sp.constraints.map((c, ci) => (
-                <div key={ci} style={{ fontSize: 13, color: colors.black, marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${alpha(colors.brightBlue, 20)}` }}>
-                  {c.description ?? "No description"}
+          {setParams.map((sp) => {
+            const cp = catalogParams[sp["param-id"]];
+            const catalogLabel = cp?.label;
+            const values = sp.values && sp.values.length > 0 ? sp.values : null;
+            const constraintDescs = (sp.constraints ?? []).map((c) => c.description).filter((d): d is string => !!d);
+            const select = sp.select ?? cp?.select;
+            const selectText = select?.choice && select.choice.length > 0 ? `Selection: ${select.choice.join("; ")}` : null;
+            // value assignment > constraint > label
+            let kind: "Value" | "Constraint" | "Label";
+            let shown: string[];
+            if (values) { kind = "Value"; shown = values; }
+            else if (constraintDescs.length > 0) { kind = "Constraint"; shown = constraintDescs; }
+            else if (selectText) { kind = "Constraint"; shown = [selectText]; }
+            else { kind = "Label"; shown = [catalogLabel ?? sp.label ?? sp["param-id"]]; }
+            const kindColor = kind === "Value" ? colors.successFg : kind === "Constraint" ? colors.brightBlue : colors.gray;
+            return (
+              <div key={sp["param-id"]} style={{ padding: "8px 0", borderBottom: `1px solid ${colors.bg}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span style={{
+                    fontSize: 12, fontFamily: fonts.mono, fontWeight: 600,
+                    color: colors.orange, backgroundColor: alpha(colors.orange, 7),
+                    padding: "1px 6px", borderRadius: radii.sm,
+                    border: `1px solid ${alpha(colors.orange, 20)}`,
+                  }}>
+                    {sp["param-id"]}
+                  </span>
+                  {catalogLabel && kind !== "Label" && <span style={{ fontSize: 12, color: colors.gray }}>{catalogLabel}</span>}
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4,
+                    color: kindColor, backgroundColor: alpha(kindColor, 10),
+                    padding: "1px 6px", borderRadius: radii.sm, marginLeft: "auto",
+                  }}>
+                    {kind}
+                  </span>
                 </div>
-              ))}
-              {sp.values && sp.values.length > 0 && (
-                <div style={{ marginTop: 4, paddingLeft: 8 }}>
-                  <span style={{ fontSize: 11, color: colors.gray }}>Values: </span>
-                  {sp.values.map((v, vi) => (
-                    <span key={vi} style={{ fontSize: 12, fontFamily: fonts.mono, marginRight: 6 }}>{v}</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingLeft: 8 }}>
+                  {shown.map((d, di) => (
+                    <span key={di} style={kind === "Value"
+                      ? { fontSize: 12, fontFamily: fonts.mono, padding: "2px 8px", borderRadius: radii.sm, backgroundColor: alpha(colors.successFg, 8), color: colors.successFg, border: `1px solid ${alpha(colors.successFg, 20)}` }
+                      : { fontSize: 13, color: colors.black }}>
+                      {d}
+                    </span>
                   ))}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </Card>
       )}
 
