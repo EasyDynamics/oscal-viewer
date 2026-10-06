@@ -28,7 +28,7 @@ import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
-import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
 import {
   IcoBook,
@@ -1596,7 +1596,7 @@ function MetadataView({
       {parties.length > 0 && (
         <Card>
           <SectionLabel>Parties</SectionLabel>
-          <PartyCardGrid parties={parties} />
+          <PartyCardGrid parties={parties} resources={cdef["back-matter"]?.resources} />
         </Card>
       )}
 
@@ -2418,7 +2418,7 @@ function RequirementView({
             };
           }
           if (!lk.href.startsWith("#")) {
-            return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
+            return { text: linkLabel(lk, undefined, lk.href), href: lk.href, rel: lk.rel };
           }
           return null;
         }).filter(Boolean) as ResolvedLink[];

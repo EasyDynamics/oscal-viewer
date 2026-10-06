@@ -23,7 +23,7 @@ import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
-import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { linkLabel, linkTooltip, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import { backMatterBase64Link, backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
@@ -1155,6 +1155,7 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
   const roles = meta.roles ?? [];
   const props = meta.props ?? [];
   const links = meta.links ?? [];
+  const resources = cat["back-matter"]?.resources ?? [];
   const responsibleParties: ResponsibleParty[] = (meta["responsible-parties"] ?? []) as ResponsibleParty[];
 
   return (
@@ -1226,7 +1227,7 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
       {parties.length > 0 && (
         <Card>
           <SectionLabel>Parties</SectionLabel>
-          <PartyCardGrid parties={parties} />
+          <PartyCardGrid parties={parties} resources={resources} />
         </Card>
       )}
 
@@ -1253,27 +1254,31 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
         <Card>
           <SectionLabel>Links</SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {links.map((lnk, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {lnk.rel && (
-                  <span style={{
-                    fontSize: 10, padding: "1px 6px", borderRadius: radii.pill,
-                    backgroundColor: colors.paleGray, color: colors.gray, fontWeight: 600,
-                    textTransform: "uppercase", flexShrink: 0,
-                  }}>
-                    {lnk.rel}
-                  </span>
-                )}
-                <a
-                  href={lnk.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: 12, color: colors.brightBlue, textDecoration: "none", wordBreak: "break-all" }}
-                >
-                  {lnk.text ?? lnk.href}
-                </a>
-              </div>
-            ))}
+            {links.map((lnk, i) => {
+              const res = lnk.href.startsWith("#") ? resources.find((r) => r.uuid === lnk.href.slice(1)) : undefined;
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {lnk.rel && (
+                    <span style={{
+                      fontSize: 10, padding: "1px 6px", borderRadius: radii.pill,
+                      backgroundColor: colors.paleGray, color: colors.gray, fontWeight: 600,
+                      textTransform: "uppercase", flexShrink: 0,
+                    }}>
+                      {lnk.rel}
+                    </span>
+                  )}
+                  <a
+                    href={lnk.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: colors.brightBlue, textDecoration: "none", wordBreak: "break-all" }}
+                    title={resourceLinkTooltip(lnk, res)}
+                  >
+                    {resourceLinkLabel(lnk, res, lnk.href)}
+                  </a>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
@@ -1826,10 +1831,12 @@ function ControlView({ control, catalog, navigate }: {
           if (lk.href.startsWith("#")) {
             const refId = lk.href.replace("#", "");
             const frag = lk["resource-fragment"];
-            const text = frag ? `${refId.toUpperCase()} — ${frag}` : refId.toUpperCase();
-            return { text, rel: lk.rel, onClick: () => navigate(`ctrl-${refId}`) };
+            const controlLabel = refId.toUpperCase();
+            const baseText = linkLabel(lk, controlLabel, controlLabel);
+            const text = frag ? `${baseText} — ${frag}` : baseText;
+            return { text, title: linkTooltip(lk, controlLabel), rel: lk.rel, onClick: () => navigate(`ctrl-${refId}`) };
           }
-          return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
+          return { text: linkLabel(lk, undefined, lk.href), href: lk.href, rel: lk.rel };
         });
         return chips.length > 0 ? (
           <Card>
@@ -1945,21 +1952,25 @@ function PartTree({ part, depth, paramMap, resMap, navigate }: {
                 );
               }
               // Maybe an internal control ref
+              const controlLabel = refId.toUpperCase();
+              const controlText = linkLabel(lk, controlLabel, controlLabel);
               return (
                 <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4 }}>
                   <IcoLink size={11} style={{ color: colors.brightBlue }} />
                   <span
                     onClick={(e) => { e.stopPropagation(); navigate(`ctrl-${refId}`); }}
                     style={{ fontSize: 11, color: colors.brightBlue, cursor: "pointer", textDecoration: "underline" }}
+                    title={linkTooltip(lk, controlLabel)}
                   >
-                    {frag ? `${refId.toUpperCase()} — ${frag}` : refId.toUpperCase()}
+                    {frag ? `${controlText} — ${frag}` : controlText}
                   </span>
                 </span>
               );
             }
 
             // External links
-            const display = frag ? `${safeString(lk.text ?? lk.href)} — ${safeString(frag)}` : safeString(lk.text ?? lk.href);
+            const externalText = safeString(linkLabel(lk, undefined, lk.href));
+            const display = frag ? `${externalText} — ${safeString(frag)}` : externalText;
             return (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4 }}>
                 <IcoLink size={11} style={{ color: colors.brightBlue }} />

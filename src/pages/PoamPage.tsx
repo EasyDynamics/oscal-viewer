@@ -24,6 +24,7 @@ import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useO
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { catalogLinkDisplay, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { IcoAlert, IcoBook, IcoBulb, IcoCalendar, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFlag, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
@@ -33,6 +34,7 @@ import type {
   Part as CatalogPart,
   Param as CatalogParam,
   OscalProp as CatalogOscalProp,
+  Resource as CatalogResource,
 } from "../context/OscalContext";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
@@ -177,6 +179,7 @@ interface PoamItem {
 interface Resource {
   uuid: string;
   title?: string;
+  citation?: { text?: string };
   rlinks?: { href: string; "media-type"?: string }[];
   remarks?: string;
 }
@@ -378,7 +381,9 @@ function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<st
 }
 
 /* ── PartTree — recursive hierarchical rendering of a control Part ── */
-function CtrlPartTree({ part, depth, paramMap }: { part: CatalogPart; depth: number; paramMap: Record<string, CatalogParam> }) {
+function CtrlPartTree({ part, depth, paramMap, resMap }: {
+  part: CatalogPart; depth: number; paramMap: Record<string, CatalogParam>; resMap: Record<string, CatalogResource>;
+}) {
   const subParts = part.parts ?? [];
   const partLabel = getCatalogLabel(part.props);
   const depthColors = [colors.navy, colors.brightBlue, colors.cobalt, colors.gray, colors.blueGray];
@@ -400,12 +405,13 @@ function CtrlPartTree({ part, depth, paramMap }: { part: CatalogPart; depth: num
         <div style={{ marginTop: 4 }}>
           {part.links.map((lk, i) => {
             const frag = lk["resource-fragment"];
-            const display = frag ? `${lk.text ?? lk.href} — ${frag}` : (lk.text ?? lk.href);
+            const { label, tooltip } = catalogLinkDisplay(lk, resMap);
+            const display = frag ? `${label} — ${frag}` : label;
             return (
               <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
                 <IcoLink size={11} style={{ color: colors.brightBlue }} />
                 <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: colors.brightBlue }}>{display}</a>
+                  style={{ fontSize: 11, color: colors.brightBlue }} title={tooltip}>{display}</a>
               </div>
             );
           })}
@@ -414,7 +420,7 @@ function CtrlPartTree({ part, depth, paramMap }: { part: CatalogPart; depth: num
       {subParts.length > 0 && (
         <div style={{ marginTop: 6 }}>
           {subParts.map((sp, i) => (
-            <CtrlPartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} />
+            <CtrlPartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} resMap={resMap} />
           ))}
         </div>
       )}
@@ -443,6 +449,10 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
     enhancements.forEach((enh) => (enh.params ?? []).forEach((p) => { map[p.id] = p; }));
     return map;
   }, [catalog, control, params, enhancements]);
+
+  // Catalog parts link to the catalog's back matter
+  const catalogResMap: Record<string, CatalogResource> = {};
+  (catalog["back-matter"]?.resources ?? []).forEach((r) => { catalogResMap[r.uuid] = r; });
 
   const sectionParts: Record<string, CatalogPart[]> = {};
   PART_SECTIONS.forEach((s) => {
@@ -501,7 +511,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
                   <span style={{ fontSize: 14, fontWeight: 700, color: sec.color }}>{sec.label}</span>
                 </div>
                 {pts.map((part, i) => (
-                  <CtrlPartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} />
+                  <CtrlPartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} resMap={catalogResMap} />
                 ))}
               </div>
             );
@@ -1190,28 +1200,28 @@ function ViewRouter({ view, poam, navigate, obsMap, riskMap, findingMap, resMap,
   if (view.startsWith("poam-")) {
     const uuid = view.slice(5);
     const item = poam["poam-items"].find((pi) => pi.uuid === uuid);
-    if (item) return <PoamItemView item={item} navigate={navigate} obsMap={obsMap} riskMap={riskMap} findingMap={findingMap} />;
+    if (item) return <PoamItemView item={item} navigate={navigate} obsMap={obsMap} riskMap={riskMap} findingMap={findingMap} resMap={resMap} />;
   }
 
   // risk-<uuid>
   if (view.startsWith("risk-")) {
     const uuid = view.slice(5);
     const risk = (poam.risks ?? []).find((r) => r.uuid === uuid);
-    if (risk) return <RiskView risk={risk} navigate={navigate} obsMap={obsMap} />;
+    if (risk) return <RiskView risk={risk} navigate={navigate} obsMap={obsMap} resMap={resMap} />;
   }
 
   // finding-<uuid>
   if (view.startsWith("finding-")) {
     const uuid = view.slice(8);
     const finding = (poam.findings ?? []).find((f) => f.uuid === uuid);
-    if (finding) return <FindingView finding={finding} navigate={navigate} obsMap={obsMap} riskMap={riskMap} catalog={catalog} />;
+    if (finding) return <FindingView finding={finding} navigate={navigate} obsMap={obsMap} riskMap={riskMap} catalog={catalog} resMap={resMap} />;
   }
 
   // obs-<uuid>
   if (view.startsWith("obs-")) {
     const uuid = view.slice(4);
     const obs = (poam.observations ?? []).find((o) => o.uuid === uuid);
-    if (obs) return <ObservationView obs={obs} navigate={navigate} />;
+    if (obs) return <ObservationView obs={obs} navigate={navigate} resMap={resMap} />;
   }
 
   return <NotFoundView navigate={navigate} />;
@@ -1662,7 +1672,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
       {meta.parties && meta.parties.length > 0 && (
         <Card>
           <SectionLabel>Parties ({meta.parties.length})</SectionLabel>
-          <PartyCardGrid parties={meta.parties} />
+          <PartyCardGrid parties={meta.parties} resources={poam["back-matter"]?.resources} />
         </Card>
       )}
 
@@ -1736,9 +1746,10 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
    POAM ITEM VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function PoamItemView({ item, navigate, obsMap, riskMap, findingMap }: {
+function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
   item: PoamItem; navigate: (id: string) => void;
   obsMap: Record<string, Observation>; riskMap: Record<string, Risk>; findingMap: Record<string, Finding>;
+  resMap: Record<string, Resource>;
 }) {
   const poamId = getProp(item.props, "poam-id");
   const relRisks = (item["related-risks"] ?? []).map((rr) => riskMap[rr["risk-uuid"]]).filter(Boolean);
@@ -1844,7 +1855,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap }: {
       )}
 
       {/* Links */}
-      {item.links && item.links.length > 0 && <LinksCard links={item.links} />}
+      {item.links && item.links.length > 0 && <LinksCard links={item.links} resMap={resMap} />}
     </div>
   );
 }
@@ -1853,8 +1864,8 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap }: {
    RISK VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function RiskView({ risk, navigate, obsMap }: {
-  risk: Risk; navigate: (id: string) => void; obsMap: Record<string, Observation>;
+function RiskView({ risk, navigate, obsMap, resMap }: {
+  risk: Risk; navigate: (id: string) => void; obsMap: Record<string, Observation>; resMap: Record<string, Resource>;
 }) {
   const relObs = (risk["related-observations"] ?? []).map((ro) => obsMap[ro["observation-uuid"]]).filter(Boolean);
   const facets = risk.characterizations?.flatMap((c) => c.facets) ?? [];
@@ -2014,7 +2025,7 @@ function RiskView({ risk, navigate, obsMap }: {
       )}
 
       {/* Links */}
-      {risk.links && risk.links.length > 0 && <LinksCard links={risk.links} />}
+      {risk.links && risk.links.length > 0 && <LinksCard links={risk.links} resMap={resMap} />}
     </div>
   );
 }
@@ -2023,10 +2034,10 @@ function RiskView({ risk, navigate, obsMap }: {
    FINDING VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function FindingView({ finding, navigate, obsMap, riskMap, catalog }: {
+function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
   finding: Finding; navigate: (id: string) => void;
   obsMap: Record<string, Observation>; riskMap: Record<string, Risk>;
-  catalog: OscalCatalog | null;
+  catalog: OscalCatalog | null; resMap: Record<string, Resource>;
 }) {
   const relObs = (finding["related-observations"] ?? []).map((ro) => obsMap[ro["observation-uuid"]]).filter(Boolean);
   const relRisks = (finding["related-risks"] ?? []).map((rr) => riskMap[rr["risk-uuid"]]).filter(Boolean);
@@ -2136,7 +2147,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog }: {
       )}
 
       {/* Links */}
-      {finding.links && finding.links.length > 0 && <LinksCard links={finding.links} />}
+      {finding.links && finding.links.length > 0 && <LinksCard links={finding.links} resMap={resMap} />}
     </div>
   );
 }
@@ -2145,8 +2156,8 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog }: {
    OBSERVATION VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ObservationView({ obs, navigate }: {
-  obs: Observation; navigate: (id: string) => void;
+function ObservationView({ obs, navigate, resMap }: {
+  obs: Observation; navigate: (id: string) => void; resMap: Record<string, Resource>;
 }) {
   return (
     <div>
@@ -2244,7 +2255,7 @@ function ObservationView({ obs, navigate }: {
       )}
 
       {/* Links */}
-      {obs.links && obs.links.length > 0 && <LinksCard links={obs.links} />}
+      {obs.links && obs.links.length > 0 && <LinksCard links={obs.links} resMap={resMap} />}
     </div>
   );
 }
@@ -2253,14 +2264,15 @@ function ObservationView({ obs, navigate }: {
    LINKS CARD — resolves resource-fragment and renders LinkChips
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function LinksCard({ links }: { links: OscalLink[] }) {
+function LinksCard({ links, resMap }: { links: OscalLink[]; resMap: Record<string, Resource> }) {
   const chips: ResolvedLink[] = links.map((lk) => {
     const frag = lk["resource-fragment"];
-    const baseText = lk.text ?? lk.href;
+    const res = lk.href.startsWith("#") ? resMap[lk.href.slice(1)] : undefined;
+    const baseText = resourceLinkLabel(lk, res, lk.href);
     const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
     const baseHref = lk.href.startsWith("#") ? undefined : lk.href;
     const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
-    return { text, href, rel: lk.rel };
+    return { text, title: resourceLinkTooltip(lk, res), href, rel: lk.rel };
   });
   if (chips.length === 0) return null;
   return (
