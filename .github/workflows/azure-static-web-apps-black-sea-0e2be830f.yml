@@ -10,36 +10,73 @@ on:
       - main
 
 jobs:
-  build_and_deploy_job:
-    # Skip on fork PRs: GitHub does not issue OIDC tokens to workflows
-    # triggered from forks (security policy), so the deploy step cannot
-    # acquire credentials. Push events and org-internal PRs still run.
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository)
+  # Builds the site without any credentials. This runs for every PR,
+  # including Dependabot and fork PRs, so dependency updates are still
+  # proven to build even when they cannot deploy a preview.
+  build_job:
+    if: github.event_name == 'push' || github.event.action != 'closed'
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+    name: Build Job
     permissions:
-       id-token: write
-       contents: read
-       pull-requests: write
+      contents: read
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Build
         run: npm run build
-      - name: Install OIDC Client from Core Package
-        run: npm install @actions/core@1.6.0 @actions/http-client
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+
+  # Deploys the prebuilt artifact. It never installs or runs project
+  # dependencies, so the deploy token and OIDC token are not exposed to
+  # third-party install scripts.
+  #
+  # Skipped where secrets are unavailable: fork PRs (no OIDC tokens or
+  # secrets for forks) and Dependabot-triggered runs (Dependabot cannot
+  # read Actions secrets).
+  build_and_deploy_job:
+    needs: build_job
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    # One deploy per environment at a time: a newer push to main or to the
+    # same PR supersedes the older one, which Azure would otherwise cancel
+    # and report as a failure.
+    concurrency:
+      group: swa-deploy-${{ github.event_name == 'push' && 'production' || github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
       - name: Get Id Token
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: idtoken
         with:
-           script: |
-               const coredemo = require('@actions/core')
-               return await coredemo.getIDToken()
-           result-encoding: string
+          script: return await core.getIDToken()
+          result-encoding: string
       - name: Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -53,10 +90,12 @@ jobs:
           github_id_token: ${{ steps.idtoken.outputs.result }}
       - name: Comment preview URL on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.builddeploy.outputs.static_web_app_url }}
         with:
           script: |
-            const url = '${{ steps.builddeploy.outputs.static_web_app_url }}';
+            const url = process.env.PREVIEW_URL;
             if (!url) return;
             const body = `🚀 **Preview ready!**\n\nYour preview can be viewed at: ${url}`;
             const { data: comments } = await github.rest.issues.listComments({
@@ -82,24 +121,27 @@ jobs:
             }
 
   close_pull_request_job:
-    # Same fork-PR guard as build_and_deploy_job — a fork PR never
-    # deployed a preview, so there is nothing to close.
-    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    # Same fork and Dependabot guards as build_and_deploy_job: those PRs
+    # never deployed a preview, and the run would have no secrets.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     name: Close Pull Request Job
+    concurrency:
+      group: swa-deploy-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       id-token: write
       contents: read
     steps:
-      - name: Install OIDC Client from Core Package
-        run: npm install @actions/core@1.6.0 @actions/http-client
       - name: Get Id Token
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: idtoken
         with:
-          script: |
-              const coredemo = require('@actions/core')
-              return await coredemo.getIDToken()
+          script: return await core.getIDToken()
           result-encoding: string
       - name: Close Pull Request
         id: closepullrequest
@@ -109,4 +151,3 @@ jobs:
           action: "close"
           app_location: "/"
           github_id_token: ${{ steps.idtoken.outputs.result }}
-
