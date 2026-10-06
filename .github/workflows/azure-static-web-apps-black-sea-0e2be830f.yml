@@ -9,6 +9,20 @@ on:
     branches:
       - main
 
+# One run per environment at a time, so Azure never sees overlapping
+# deploys (it cancels the older one and reports it as a failure).
+#
+# This is set on the workflow, not on the deploy job: runs join the group
+# in push order, whereas a job-level group is joined when each build
+# finishes, which let an older commit deploy last and overwrite a newer one.
+#
+# Production lets the in-flight deploy finish and keeps only the newest
+# pending run, so the last push always deploys last. PR previews are
+# disposable, so a new push (or closing the PR) cancels them outright.
+concurrency:
+  group: swa-${{ github.event_name == 'push' && 'production' || github.event.pull_request.number }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Builds the site without any credentials. This runs for every PR,
   # including Dependabot and fork PRs, so dependency updates are still
@@ -55,12 +69,6 @@ jobs:
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     name: Build and Deploy Job
-    # One deploy per environment at a time: a newer push to main or to the
-    # same PR supersedes the older one, which Azure would otherwise cancel
-    # and report as a failure.
-    concurrency:
-      group: swa-deploy-${{ github.event_name == 'push' && 'production' || github.event.pull_request.number }}
-      cancel-in-progress: true
     permissions:
       id-token: write
       contents: read
@@ -130,9 +138,6 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     name: Close Pull Request Job
-    concurrency:
-      group: swa-deploy-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
     permissions:
       id-token: write
       contents: read
