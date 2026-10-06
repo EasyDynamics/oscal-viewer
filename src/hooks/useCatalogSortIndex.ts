@@ -45,7 +45,7 @@ function buildSortMap(catalog: Catalog): Map<string, string> {
 
   function visitGroup(grp: Group) {
     const sid = sortIdFromProps(grp.props);
-    if (sid) m.set(grp.id, sid);
+    if (sid && grp.id) m.set(grp.id, sid);
     grp.controls?.forEach(visitControl);
     grp.groups?.forEach(visitGroup);
   }
