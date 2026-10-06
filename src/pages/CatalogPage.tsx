@@ -847,7 +847,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
             borderBottom: `1px solid ${colors.bg}`, fontWeight: 500, minHeight: 44,
           }}
         >
-          \u2190 Back
+          ← Back
         </div>
       )}
 
