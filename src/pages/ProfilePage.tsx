@@ -29,6 +29,7 @@ import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
+import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2058,11 +2059,11 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {resolvedLinks.map((x, i) => {
                 const text = x.resource
-                  ? (x.resource.title ?? x.resource.citation?.text ?? "Untitled")
+                  ? resourceLinkLabel(x.lk, x.resource, "Untitled")
                   : (x.lk.text ?? x.lk.href);
                 const href = x.resource?.rlinks?.[0]?.href ?? (x.lk.href.startsWith("#") ? undefined : x.lk.href);
                 return (
-                  <span key={i} style={{
+                  <span key={i} title={x.resource ? resourceLinkTooltip(x.lk, x.resource) : undefined} style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
                     fontSize: 11, padding: "3px 10px", borderRadius: radii.pill,
                     backgroundColor: alpha(colors.brightBlue, 7), color: colors.brightBlue,

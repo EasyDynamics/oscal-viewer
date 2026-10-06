@@ -23,6 +23,7 @@ import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import { backMatterBase64Link, backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
@@ -1815,11 +1816,12 @@ function ControlView({ control, catalog, navigate }: {
           if (lk.resource) {
             const r = lk.resource;
             const frag = lk["resource-fragment"];
-            const baseTitle = r.title ?? r.citation?.text ?? "Untitled";
+            const baseTitle = resourceLinkLabel(lk, r, "Untitled");
             const text = frag ? `${baseTitle} — ${frag}` : baseTitle;
             const baseHref = r.rlinks?.[0]?.href;
             const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
-            return { text, href, rel: lk.rel, onClick: () => navigate(`resource-${r.uuid}`) };
+            const title = resourceLinkTooltip(lk, r);
+            return { text, title, href, rel: lk.rel, onClick: () => navigate(`resource-${r.uuid}`) };
           }
           if (lk.href.startsWith("#")) {
             const refId = lk.href.replace("#", "");
@@ -1918,7 +1920,7 @@ function PartTree({ part, depth, paramMap, resMap, navigate }: {
               const refId = hashMatch[1];
               const res = resMap[refId];
               if (res) {
-                const baseTitle = res.title ?? res.citation?.text ?? refId;
+                const baseTitle = resourceLinkLabel(lk, res, refId);
                 const display = frag ? `${baseTitle} — ${frag}` : baseTitle;
                 const externalHref = res.rlinks?.[0]?.href;
                 const fullHref = externalHref && frag ? `${externalHref}#${frag}` : externalHref;
@@ -1928,6 +1930,7 @@ function PartTree({ part, depth, paramMap, resMap, navigate }: {
                     <span
                       onClick={(e) => { e.stopPropagation(); navigate(`resource-${res.uuid}`); }}
                       style={{ fontSize: 11, color: colors.brightBlue, cursor: "pointer", textDecoration: "underline" }}
+                      title={resourceLinkTooltip(lk, res)}
                     >
                       {display}
                     </span>
