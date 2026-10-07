@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { colors, fonts, radii, shadows } from "../theme/tokens";
 
 export interface ArtifactItem {
+  /** A plain-text label: give an OSCAL title to markupLineText() first. */
   title: string;
   href: string;
   mediaType?: string;

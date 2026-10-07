@@ -28,8 +28,9 @@ import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
 import type { ResolvedLink } from "../components/LinkChips";
-import MarkupBlock, { InlineMarkup } from "../components/MarkupBlock";
+import MarkupBlock, { InlineMarkup, MarkupLine } from "../components/MarkupBlock";
 import { linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { markupLineText } from "../utils/markup";
 import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
 import {
   IcoBook,
@@ -594,10 +595,10 @@ export default function ComponentDefinitionPage() {
     onResolved: handleResolved,
   });
 
-  /** Title from the resolved catalog, used to replace GUID/filename in nav labels */
+  /** Title from the resolved catalog (plain text), used to replace GUID/filename in nav labels */
   const resolvedCatalogTitle = useMemo(() => {
-    const cat = oscal.catalog?.data;
-    return cat?.metadata?.title ?? null;
+    const title = oscal.catalog?.data?.metadata?.title;
+    return title == null ? null : markupLineText(title);
   }, [oscal.catalog]);
 
   /** Look up a resolved title for a control-implementation source */
@@ -621,7 +622,7 @@ export default function ComponentDefinitionPage() {
     comps.forEach((comp, ci) => {
       const compId = `comp-${ci}`;
       const visual = resolveComponentVisual(comp);
-      items.push({ id: compId, label: comp.title, icon: visual.iconKey, color: visual.color, depth: 0 });
+      items.push({ id: compId, label: markupLineText(comp.title), icon: visual.iconKey, color: visual.color, depth: 0 });
 
       const impls = comp["control-implementations"] ?? [];
       impls.forEach((impl, ii) => {
@@ -683,7 +684,7 @@ export default function ComponentDefinitionPage() {
         resources.forEach((r) => {
           items.push({
             id: `res-${r.uuid}`,
-            label: r.title ?? "Untitled",
+            label: markupLineText(r.title ?? "Untitled"),
             icon: meta.iconKey,
             color: meta.color,
             depth: 2,
@@ -1132,7 +1133,7 @@ function MField({
   mono,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   mono?: boolean;
 }) {
   return (
@@ -1400,7 +1401,7 @@ function OverviewView({
   return (
     <div>
       <h1 style={{ fontSize: 22, color: colors.navy, marginBottom: 4 }}>
-        {cdef.metadata.title}
+        <MarkupLine text={cdef.metadata.title} />
       </h1>
       <p style={{ fontSize: 13, color: colors.gray, marginBottom: 20 }}>
         Version {cdef.metadata.version ?? "—"} · OSCAL{" "}
@@ -1497,7 +1498,7 @@ function OverviewView({
               <div
                 style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}
               >
-                {comp.title}
+                <MarkupLine text={comp.title} />
               </div>
               <div style={{ fontSize: 12, color: colors.gray }}>
                 Type: {comp.type} ·{" "}
@@ -1554,7 +1555,7 @@ function MetadataView({
             gap: 16,
           }}
         >
-          <MField label="Title" value={meta.title} />
+          <MField label="Title" value={meta.title && <MarkupLine text={meta.title} />} />
           <MField label="Version" value={meta.version ?? "—"} />
           <MField label="Last Modified" value={fmtDate(meta["last-modified"])} />
           <MField label="OSCAL Version" value={meta["oscal-version"] ?? "—"} />
@@ -1585,7 +1586,7 @@ function MetadataView({
                   fontWeight: 500,
                 }}
               >
-                {r.title} ({r.id})
+                <MarkupLine text={r.title} /> ({r.id})
               </span>
             ))}
           </div>
@@ -1636,7 +1637,7 @@ function ComponentView({
       <Breadcrumbs
         items={[
           { id: "overview", label: "Overview" },
-          { id: `comp-${compIdx}`, label: comp.title },
+          { id: `comp-${compIdx}`, label: markupLineText(comp.title) },
         ]}
         navigate={navigate}
       />
@@ -1650,7 +1651,7 @@ function ComponentView({
       >
         {cdefVisualIcon(visual.iconKey, 22, visual.color)}
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
-          {comp.title}
+          <MarkupLine text={comp.title} />
         </h1>
       </div>
 
@@ -1813,7 +1814,7 @@ function ControlImplView({
       <Breadcrumbs
         items={[
           { id: "overview", label: "Overview" },
-          { id: `comp-${compIdx}`, label: comp.title },
+          { id: `comp-${compIdx}`, label: markupLineText(comp.title) },
           {
             id: `comp-${compIdx}-ci-${implIdx}`,
             label: implLabel(impl, implIdx, resolvedTitleForSource(impl.source)),
@@ -2048,7 +2049,7 @@ function CatalogControlCard({
         <span>
           Catalog Control{" "}
           <span style={{ fontFamily: fonts.mono, color: colors.brightBlue }}>
-            {label ? `${label} — ` : ""}{title}
+            {label ? `${label} — ` : ""}<MarkupLine text={title} />
           </span>
         </span>
       </SectionLabel>
@@ -2173,7 +2174,7 @@ function RequirementView({
       <Breadcrumbs
         items={[
           { id: "overview", label: "Overview" },
-          { id: `comp-${compIdx}`, label: comp.title },
+          { id: `comp-${compIdx}`, label: markupLineText(comp.title) },
           {
             id: `comp-${compIdx}-ci-${implIdx}`,
             label: impl ? implLabel(impl, implIdx, resolvedTitleForSource(impl.source)) : `Control Implementation ${implIdx + 1}`,
@@ -2478,7 +2479,7 @@ function BackMatterView({
                     fontWeight: 500,
                   }}
                 >
-                  {r.title ?? "Untitled"}
+                  <MarkupLine text={r.title ?? "Untitled"} />
                 </span>
               </div>
             );
@@ -2510,7 +2511,7 @@ function ResourceView({
         items={[
           { id: "overview", label: "Overview" },
           { id: "references", label: "References" },
-          { id: `res-${res.uuid}`, label: res.title ?? "Resource" },
+          { id: `res-${res.uuid}`, label: markupLineText(res.title ?? "Resource") },
         ]}
         navigate={navigate}
       />
@@ -2526,7 +2527,7 @@ function ResourceView({
           color: meta?.color ?? colors.navy,
         })}
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
-          {res.title ?? "Untitled Resource"}
+          <MarkupLine text={res.title ?? "Untitled Resource"} />
         </h1>
       </div>
 

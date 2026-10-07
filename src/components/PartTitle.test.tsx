@@ -3,10 +3,10 @@ import { render } from "@testing-library/react";
 import PartTitle from "./PartTitle";
 
 describe("<PartTitle />", () => {
-  it("shows the title as plain text", () => {
-    const { container } = render(<PartTitle title="  Control <b>Statement</b>  " />);
-    expect(container).toHaveTextContent("Control <b>Statement</b>");
-    expect(container.querySelector("b")).toBeNull();
+  it("shows the title with its inline formatting", () => {
+    const { container } = render(<PartTitle title="  Control **Statement**  " />);
+    expect(container).toHaveTextContent("Control Statement");
+    expect(container.querySelector("strong")?.textContent).toBe("Statement");
   });
 
   it.each([undefined, null, "", "   ", 42])("renders nothing for %j", (title) => {

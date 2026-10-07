@@ -13,6 +13,7 @@ import { useAuth, isValidBearerTokenFormat } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { Lock, Moon, Sun, Unlock } from "lucide-react";
 import useIsMobile from "../hooks/useIsMobile";
+import { markupLineText } from "../utils/markup";
 import CookieBanner from "./CookieBanner";
 
 export default function Layout() {
@@ -481,7 +482,7 @@ function documentDisplayName(entry: { data: unknown; fileName: string; sourceUrl
   const raw = entry.data as Record<string, unknown> | null;
   const model = unwrapOscalModel(raw);
   const metadata = model?.metadata as Record<string, unknown> | undefined;
-  const title = typeof metadata?.title === "string" ? metadata.title : "";
+  const title = typeof metadata?.title === "string" ? markupLineText(metadata.title) : "";
   const source = entry.sourceUrl ? ` — ${entry.sourceUrl}` : "";
   return title && title !== entry.fileName ? `${title} (${entry.fileName})${source}` : `${entry.fileName}${source}`;
 }

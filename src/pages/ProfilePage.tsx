@@ -29,8 +29,10 @@ import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import PartTitle from "../components/PartTitle";
+import { MarkupLine } from "../components/MarkupBlock";
 import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import { catalogLinkDisplay, linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { markupLineText } from "../utils/markup";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -972,7 +974,7 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
 
   function familyHasMatch(fg: FamilyGroup): boolean {
     if (!lowerSearch) return true;
-    if (fg.name.toLowerCase().includes(lowerSearch)) return true;
+    if (markupLineText(fg.name).toLowerCase().includes(lowerSearch)) return true;
     if (fg.prefix.toLowerCase().includes(lowerSearch)) return true;
     return fg.allIds.some(controlMatches);
   }
@@ -989,7 +991,7 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
           <div key={fg.prefix}>
             <NavRow
               id={fId}
-              label={`${fg.prefix.toUpperCase()} ${fg.name}`}
+              label={`${fg.prefix.toUpperCase()} ${markupLineText(fg.name)}`}
               icon={<IcoFolder size={14} style={{ color: colors.cobalt }} />}
               active={view === fId}
               onClick={() => navigate(fId)}
@@ -1118,7 +1120,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
     for (const fg of familyGroups) {
       nodes.push({
         id: `family-${fg.prefix}`,
-        label: `${fg.prefix.toUpperCase()} ${fg.name}`,
+        label: `${fg.prefix.toUpperCase()} ${markupLineText(fg.name)}`,
         icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
         isBranch: true,
         badge: fg.allIds.length,
@@ -1134,7 +1136,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
     // Family overview
     nodes.push({
       id: `__family-${prefix}`,
-      label: `${fg.prefix.toUpperCase()} ${fg.name} — Overview`,
+      label: `${fg.prefix.toUpperCase()} ${markupLineText(fg.name)} — Overview`,
       icon: <IcoInfo size={16} style={{ color: colors.cobalt }} />,
       isBranch: false,
     });
@@ -1204,7 +1206,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
       if (nodeId.startsWith("family-")) {
         const prefix = nodeId.replace("family-", "");
         const fg = familyGroups.find((f) => f.prefix === prefix);
-        crumbs.push({ label: fg ? `${fg.prefix.toUpperCase()} ${fg.name}` : prefix });
+        crumbs.push({ label: fg ? `${fg.prefix.toUpperCase()} ${markupLineText(fg.name)}` : prefix });
       } else if (nodeId.startsWith("ctrl-")) {
         crumbs.push({ label: controlLabel(nodeId.replace("ctrl-", "")) });
       }
@@ -1349,7 +1351,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function MField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MField({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 500, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
@@ -1489,7 +1491,7 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, color: colors.navy, marginBottom: 4 }}>{profile.metadata.title}</h1>
+      <h1 style={{ fontSize: 22, color: colors.navy, marginBottom: 4 }}><MarkupLine text={profile.metadata.title} /></h1>
       <p style={{ fontSize: 13, color: colors.gray, marginBottom: 20 }}>
         Version {profile.metadata.version ?? "—"} · OSCAL {profile.metadata["oscal-version"] ?? "—"} · Last modified {fmtDate(profile.metadata["last-modified"])}
       </p>
@@ -1520,7 +1522,7 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
           return (
             <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${colors.bg}` }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
-                {resolved.title ?? resolved.url ?? imp.href}
+                {resolved.title !== null ? <MarkupLine text={resolved.title} /> : (resolved.url ?? imp.href)}
               </div>
               {resolved.url && (
                 <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono, marginTop: 2 }}>
@@ -1552,7 +1554,7 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
             <IcoFolder size={16} style={{ color: colors.cobalt }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
-                {fg.prefix.toUpperCase()} {fg.name}
+                {fg.prefix.toUpperCase()} <MarkupLine text={fg.name} />
               </div>
             </div>
             <span style={{ fontSize: 12, color: colors.gray }}>{fg.allIds.length} controls</span>
@@ -1580,7 +1582,7 @@ function MetadataView({ profile, navigate }: { profile: Profile; navigate: (id: 
 
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 16 }}>
-          <MField label="Title" value={meta.title} />
+          <MField label="Title" value={<MarkupLine text={meta.title || "—"} />} />
           <MField label="Version" value={meta.version ?? "—"} />
           <MField label="Published" value={fmtDate((meta as unknown as Record<string, unknown>)["published"] as string)} />
           <MField label="Last Modified" value={fmtDate(meta["last-modified"])} />
@@ -1602,7 +1604,7 @@ function MetadataView({ profile, navigate }: { profile: Profile; navigate: (id: 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {roles.map((r) => (
               <span key={r.id} style={{ fontSize: 12, padding: "4px 12px", borderRadius: radii.pill, backgroundColor: colors.navy, color: colors.white, fontWeight: 500 }}>
-                {r.title}
+                <MarkupLine text={r.title} />
               </span>
             ))}
           </div>
@@ -1634,7 +1636,7 @@ function ImportsView({ profile, controlIds, navigate }: { profile: Profile; cont
         return (
           <Card key={i}>
             <SectionLabel>Source Catalog {profile.imports.length > 1 ? `#${i + 1}` : ""}</SectionLabel>
-            <MField label="Title" value={resolved.title ?? "—"} />
+            <MField label="Title" value={<MarkupLine text={resolved.title || "—"} />} />
             {resolved.url && <MField label="URL" value={resolved.url} mono />}
             {resolved.resourceUuid && <MField label="Resource UUID" value={resolved.resourceUuid} mono />}
             <MField label="Selection Method" value={
@@ -1681,7 +1683,7 @@ function FamilyView({ familyGroup: fg, alterMap, setParamMap, navigate }: {
 }) {
   const crumbs = [
     { id: "overview", label: "Overview" },
-    { id: `family-${fg.prefix}`, label: `${fg.prefix.toUpperCase()} ${fg.name}` },
+    { id: `family-${fg.prefix}`, label: `${fg.prefix.toUpperCase()} ${markupLineText(fg.name)}` },
   ];
 
   return (
@@ -1690,7 +1692,7 @@ function FamilyView({ familyGroup: fg, alterMap, setParamMap, navigate }: {
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <IcoFolder size={22} style={{ color: colors.cobalt }} />
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
-          {fg.prefix.toUpperCase()} {fg.name}
+          {fg.prefix.toUpperCase()} <MarkupLine text={fg.name} />
         </h1>
       </div>
 
@@ -1871,7 +1873,7 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <IcoShield size={22} style={{ color: colors.navy }} />
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
-          {displayLabel}{controlTitle || controlLabel(controlId)}
+          {displayLabel}<MarkupLine text={controlTitle || controlLabel(controlId)} />
         </h1>
         {coreAdd && (
           <span style={{
@@ -1892,7 +1894,7 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: colors.successFg }}>
               <AddBadge size={16} />
               <span style={{ fontWeight: 700 }}>{add["by-id"] ? `Title change for ${add["by-id"]}:` : "Title change:"}</span>
-              <span>{add.title}</span>
+              <span><MarkupLine text={add.title} /></span>
             </div>
           ))}
         </div>
@@ -2121,7 +2123,7 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
                   {eLbl || enh.id.toUpperCase()}
                 </span>
                 <span style={{ fontSize: 13, color: colors.black, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {enh.title}
+                  <MarkupLine text={enh.title} />
                 </span>
                 {enhHasAlter && (
                   <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.successBg, color: colors.successFg, fontWeight: 600 }}>
@@ -2288,7 +2290,7 @@ function FallbackAddedPartTree({ part, depth }: { part: ProfilePart; depth: numb
           {(part.title || partLabel) && (
             <div style={{ fontSize: 13, fontWeight: 700, color: colors.successFg, marginBottom: 2 }}>
               {partLabel && <span style={{ fontFamily: fonts.mono, marginRight: 6 }}>{partLabel}</span>}
-              {part.title && <span>{part.title}</span>}
+              {part.title && <span><MarkupLine text={part.title} /></span>}
             </div>
           )}
           {part.prose && (

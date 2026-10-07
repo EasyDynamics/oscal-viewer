@@ -30,9 +30,10 @@ import { useAuth } from "../context/AuthContext";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
-import SharedMarkupBlock from "../components/MarkupBlock";
+import SharedMarkupBlock, { MarkupLine } from "../components/MarkupBlock";
 import PartTitle from "../components/PartTitle";
 import { linkLabel, linkTooltip, resourceName, type LinkedResourceLike } from "../utils/linkDisplay";
+import { markupLineText } from "../utils/markup";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
@@ -344,10 +345,10 @@ function findTaskPath(tasks: TaskParsed[], uuid: string): TaskParsed[] | null {
 function filterTasksRecursive(tasks: TaskParsed[], q: string): TaskParsed[] {
   const result: TaskParsed[] = [];
   for (const t of tasks) {
-    const matchesSelf = t.title.toLowerCase().includes(q) || t.type.toLowerCase().includes(q);
+    const matchesSelf = markupLineText(t.title).toLowerCase().includes(q) || t.type.toLowerCase().includes(q);
     const filteredChildren = filterTasksRecursive(t.tasks, q);
     const matchesActivities = t.associatedActivities.some(
-      (a) => a.title.toLowerCase().includes(q) || a.steps.some((s) => s.title.toLowerCase().includes(q)),
+      (a) => markupLineText(a.title).toLowerCase().includes(q) || a.steps.some((s) => markupLineText(s.title).toLowerCase().includes(q)),
     );
     if (matchesSelf || filteredChildren.length > 0 || matchesActivities) {
       result.push({ ...t, tasks: matchesSelf ? t.tasks : filteredChildren });
@@ -622,7 +623,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
         <IcoRight size={12} style={{ color: colors.purple, transform: expanded ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s" }} />
         <IcoShield size={13} style={{ color: colors.purple }} />
         <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, fontFamily: fonts.mono }}>{lbl ? `${lbl} ` : ""}</span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: colors.black }}>{control.title}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: colors.black }}><MarkupLine text={control.title} /></span>
         <span style={{ fontSize: 10, color: colors.gray, fontFamily: fonts.mono, marginLeft: "auto" }}>{control.id}</span>
       </div>
 
@@ -672,7 +673,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
                 return (
                   <div key={enh.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0", fontSize: 11.5 }}>
                     <span style={{ fontWeight: 600, color: colors.navy, fontFamily: fonts.mono, minWidth: 70 }}>{eLbl || enh.id}</span>
-                    <span style={{ color: colors.black }}>{enh.title}</span>
+                    <span style={{ color: colors.black }}><MarkupLine text={enh.title} /></span>
                   </div>
                 );
               })}
@@ -763,7 +764,7 @@ function StepTableWithDetail({ activity, hCtrl, onCtrl }: {
                 color: isOpen ? colors.brightBlue : colors.navy,
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>
-                {step.title}
+                <MarkupLine text={step.title} />
               </span>
               <MethTag v={step.method} />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "flex-end" }}>
@@ -830,7 +831,7 @@ function ActivityHeader({ activity, hCtrl, onCtrl }: {
         border: `1px solid ${colors.border}`, borderTopWidth: 3, borderTopColor: colors.orange,
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, fontFamily: fonts.sans, margin: 0, color: colors.navy }}>{activity.title}</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, fontFamily: fonts.sans, margin: 0, color: colors.navy }}><MarkupLine text={activity.title} /></h2>
           {activity.description && (
             <MarkupBlock value={activity.description} style={{ fontSize: 12, margin: "2px 0 0", fontFamily: fonts.sans, color: colors.blueGray }} />
           )}
@@ -883,7 +884,7 @@ function ActivitySubheader({ activity, hCtrl, onCtrl }: {
       }}>
         <IcoAct size={14} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans }}>{activity.title}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans }}><MarkupLine text={activity.title} /></span>
           {activity.description && (
             <MarkupBlock value={activity.description} style={{ fontSize: 12, color: colors.blueGray, margin: "2px 0 0", fontFamily: fonts.sans }} />
           )}
@@ -995,7 +996,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
       {/* Metadata header */}
       <Card>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans, marginBottom: 4 }}>
-          {plan.title}
+          <MarkupLine text={plan.title} />
         </h1>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12, color: colors.gray, fontFamily: fonts.sans, marginBottom: 14 }}>
           {plan.version && <span>Version: <strong style={{ color: colors.black }}>{plan.version}</strong></span>}
@@ -1049,7 +1050,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
               <IcoTask size={16} style={{ color: colors.purple, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, fontFamily: fonts.sans }}>{t.title}</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, fontFamily: fonts.sans }}><MarkupLine text={t.title} /></h3>
                 {t.description && (
                   <MarkupBlock value={t.description} style={{ fontSize: 12, color: colors.blueGray, margin: "2px 0 0", fontFamily: fonts.sans, maxHeight: 40, overflow: "hidden" }} />
                 )}
@@ -1082,7 +1083,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
               <IcoAct size={16} style={{ color: colors.navy, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, fontFamily: fonts.sans }}>{a.title}</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, fontFamily: fonts.sans }}><MarkupLine text={a.title} /></h3>
                 {a.description && (
                   <MarkupBlock value={a.description} style={{ fontSize: 12, color: colors.blueGray, margin: "2px 0 0", fontFamily: fonts.sans, maxHeight: 40, overflow: "hidden" }} />
                 )}
@@ -1112,7 +1113,7 @@ function ActivityView({ activity, planTitle, hCtrl, onCtrl, onHome, catalog }: {
 }) {
   return (
     <>
-      <BreadcrumbHeader planTitle={planTitle} crumbs={[activity.title]} onHome={onHome} />
+      <BreadcrumbHeader planTitle={markupLineText(planTitle)} crumbs={[markupLineText(activity.title)]} onHome={onHome} />
       <ActivityHeader activity={activity} hCtrl={hCtrl} onCtrl={onCtrl} />
       <StepTableWithDetail activity={activity} hCtrl={hCtrl} onCtrl={onCtrl} />
       {activity.relatedControls.length > 0 && (
@@ -1134,17 +1135,17 @@ function TaskView({ task, planTitle, planTasks, hCtrl, onCtrl, onHome, catalog, 
   catalog: OscalCatalog | null; onNavigateTask: (uuid: string) => void;
 }) {
   const path = useMemo(() => findTaskPath(planTasks, task.uuid) ?? [task], [planTasks, task]);
-  const crumbs = path.map((t) => t.title);
+  const crumbs = path.map((t) => markupLineText(t.title));
 
   return (
     <>
-      <BreadcrumbHeader planTitle={planTitle} crumbs={crumbs} onHome={onHome} />
+      <BreadcrumbHeader planTitle={markupLineText(planTitle)} crumbs={crumbs} onHome={onHome} />
 
       {/* Task info card */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <IcoTask size={18} style={{ color: colors.purple }} />
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: 0 }}>{task.title}</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: 0 }}><MarkupLine text={task.title} /></h2>
         </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
           <MField label="Type" value={task.type} />
@@ -1173,7 +1174,7 @@ function TaskView({ task, planTitle, planTasks, hCtrl, onCtrl, onHome, catalog, 
             >
               <IcoTask size={14} style={{ color: colors.navy, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{st.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={st.title} /></div>
                 {st.description && (
                   <MarkupBlock value={st.description} style={{ fontSize: 11.5, color: colors.blueGray, marginTop: 2, maxHeight: 36, overflow: "hidden" }} />
                 )}
@@ -1241,7 +1242,7 @@ function ControlsView({ plan, allControls, allActivitiesList, catalog, hCtrl, on
       if (c.toLowerCase().includes(q)) return true;
       if (catalog) {
         const ctrl = findCatalogControl(catalog, c);
-        if (ctrl && ctrl.title.toLowerCase().includes(q)) return true;
+        if (ctrl && markupLineText(ctrl.title).toLowerCase().includes(q)) return true;
       }
       return false;
     });
@@ -1249,7 +1250,7 @@ function ControlsView({ plan, allControls, allActivitiesList, catalog, hCtrl, on
 
   return (
     <>
-      <BreadcrumbHeader planTitle={plan.title} crumbs={["Controls"]} onHome={onHome} />
+      <BreadcrumbHeader planTitle={markupLineText(plan.title)} crumbs={["Controls"]} onHome={onHome} />
 
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -1333,7 +1334,7 @@ function ControlEntry({ controlId, label, title, catalog, activities, isActive, 
         <ControlBadge control={controlId} active={isActive} onClick={onCtrl} />
         <div style={{ flex: 1, minWidth: 0 }}>
           {title && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: colors.black }}>{label ? `${label} ` : ""}{title}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: colors.black }}>{label ? `${label} ` : ""}<MarkupLine text={title} /></span>
           )}
         </div>
         <span style={{
@@ -1370,7 +1371,7 @@ function ControlEntry({ controlId, label, title, catalog, activities, isActive, 
               >
                 <IcoAct size={13} style={{ color: colors.navy, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.navy }}>{activity.title}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.navy }}><MarkupLine text={activity.title} /></div>
                   <div style={{ fontSize: 10, color: colors.gray, fontFamily: fonts.mono }}>
                     {activity.steps.length} steps
                     {via === "related" && (
@@ -1480,7 +1481,7 @@ function TaskTreeNavItem({ task, depth, activePage, onNavigate, expandedTasks, o
           lineHeight: 1.3, overflow: "hidden", display: "-webkit-box",
           WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
         }}>
-          {task.title}
+          {markupLineText(task.title)}
         </span>
       </button>
 
@@ -1514,7 +1515,7 @@ function TaskTreeNavItem({ task, depth, activePage, onNavigate, expandedTasks, o
             lineHeight: 1.3, overflow: "hidden", display: "-webkit-box",
             WebkitLineClamp: 2, WebkitBoxOrient: "vertical", flex: 1,
           }}>
-            {act.title}
+            {markupLineText(act.title)}
           </span>
           <span style={{
             fontSize: 9, fontWeight: 600, background: colors.surfaceSubtle,
@@ -1718,7 +1719,7 @@ export default function AssessmentPlanPage() {
     const q = search.toLowerCase();
     if (!q) return plan.activities;
     return plan.activities.filter(
-      (a) => a.title.toLowerCase().includes(q) || a.relatedControls.some((c) => c.toLowerCase().includes(q)) || a.steps.some((s) => s.title.toLowerCase().includes(q) || s.controls.some((c) => c.toLowerCase().includes(q))),
+      (a) => markupLineText(a.title).toLowerCase().includes(q) || a.relatedControls.some((c) => c.toLowerCase().includes(q)) || a.steps.some((s) => markupLineText(s.title).toLowerCase().includes(q) || s.controls.some((c) => c.toLowerCase().includes(q))),
     );
   }, [plan, search, hasTasks]);
 
@@ -1792,7 +1793,7 @@ export default function AssessmentPlanPage() {
         {/* Plan title + stats */}
         <div style={{ padding: "10px 12px 6px", borderBottom: `1px solid ${colors.bg}`, backgroundColor: colors.card }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans, marginBottom: 2 }}>
-            {trunc(plan.title, 40)}
+            {trunc(markupLineText(plan.title), 40)}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 12px", fontSize: 10, color: colors.gray, fontFamily: fonts.sans, marginBottom: 6 }}>
             {plan.version && <span>Version: <strong style={{ color: colors.black }}>{plan.version}</strong></span>}
@@ -1840,7 +1841,7 @@ export default function AssessmentPlanPage() {
               {filteredActivities.map((a) => (
                 <NavItem
                   key={a.uuid}
-                  label={a.title}
+                  label={markupLineText(a.title)}
                   isActive={false}
                   stepCount={a.steps.length}
                   onClick={() => navigate({ type: "activity", uuid: a.uuid })}
@@ -1880,7 +1881,7 @@ export default function AssessmentPlanPage() {
           {/* Plan title & compact stats */}
           <div style={{ padding: "12px 14px 8px", borderBottom: `1px solid ${colors.bg}` }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans, marginBottom: 2 }}>
-              {trunc(plan.title, 40)}
+              {trunc(markupLineText(plan.title), 40)}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 12px", fontSize: 10, color: colors.gray, fontFamily: fonts.sans, marginBottom: 6 }}>
               {plan.version && <span>Version: <strong style={{ color: colors.black }}>{plan.version}</strong></span>}
@@ -1950,7 +1951,7 @@ export default function AssessmentPlanPage() {
                 {filteredActivities.map((a) => (
                   <NavItem
                     key={a.uuid}
-                    label={a.title}
+                    label={markupLineText(a.title)}
                     isActive={page?.type === "activity" && page.uuid === a.uuid}
                     stepCount={a.steps.length}
                     onClick={() => navigate({ type: "activity", uuid: a.uuid })}

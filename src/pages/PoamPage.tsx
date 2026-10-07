@@ -24,8 +24,10 @@ import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useO
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
+import { MarkupLine } from "../components/MarkupBlock";
 import type { ResolvedLink } from "../components/LinkChips";
 import { catalogLinkDisplay, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { markupLineText } from "../utils/markup";
 import { IcoAlert, IcoBook, IcoBulb, IcoCalendar, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFlag, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
@@ -474,7 +476,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
         <IcoChev open={expanded} style={{ color: colors.navy }} />
         <IcoShield size={16} style={{ color: colors.navy }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: colors.navy }}>
-          {lbl ? `${lbl} ` : ""}{control.title}
+          {lbl ? `${lbl} ` : ""}<MarkupLine text={control.title} />
         </span>
         <span style={{
           fontSize: 11, padding: "1px 8px", borderRadius: radii.pill,
@@ -563,7 +565,7 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
                   return (
                     <div key={enh.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12 }}>
                       <span style={{ fontWeight: 600, color: colors.navy, minWidth: 70 }}>{eLbl || enh.id.toUpperCase()}</span>
-                      <span style={{ color: colors.black }}>{enh.title}</span>
+                      <span style={{ color: colors.black }}><MarkupLine text={enh.title} /></span>
                     </div>
                   );
                 })}
@@ -736,7 +738,7 @@ export default function PoamPage() {
     if (!poam) return [];
     if (!lowerSearch) return poam["poam-items"];
     return poam["poam-items"].filter((pi) =>
-      pi.title.toLowerCase().includes(lowerSearch) ||
+      markupLineText(pi.title).toLowerCase().includes(lowerSearch) ||
       pi.description.toLowerCase().includes(lowerSearch) ||
       getProp(pi.props, "poam-id").toLowerCase().includes(lowerSearch)
     );
@@ -746,7 +748,7 @@ export default function PoamPage() {
     if (!poam) return [];
     if (!lowerSearch) return poam.risks ?? [];
     return (poam.risks ?? []).filter((r) =>
-      r.title.toLowerCase().includes(lowerSearch) ||
+      markupLineText(r.title).toLowerCase().includes(lowerSearch) ||
       r.description.toLowerCase().includes(lowerSearch) ||
       r.status.toLowerCase().includes(lowerSearch)
     );
@@ -756,7 +758,7 @@ export default function PoamPage() {
     if (!poam) return [];
     if (!lowerSearch) return poam.findings ?? [];
     return (poam.findings ?? []).filter((f) =>
-      f.title.toLowerCase().includes(lowerSearch) ||
+      markupLineText(f.title).toLowerCase().includes(lowerSearch) ||
       f.description.toLowerCase().includes(lowerSearch)
     );
   }, [poam, lowerSearch]);
@@ -765,7 +767,7 @@ export default function PoamPage() {
     if (!poam) return [];
     if (!lowerSearch) return poam.observations ?? [];
     return (poam.observations ?? []).filter((o) =>
-      o.title.toLowerCase().includes(lowerSearch) ||
+      markupLineText(o.title).toLowerCase().includes(lowerSearch) ||
       o.description.toLowerCase().includes(lowerSearch)
     );
   }, [poam, lowerSearch]);
@@ -829,24 +831,24 @@ export default function PoamPage() {
       if (section === "sec-poam-items") {
         return filteredPoamItems.map((pi) => {
           const poamId = getProp(pi.props, "poam-id");
-          return { id: `__poam-${pi.uuid}`, label: poamId ? `${poamId}: ${pi.title}` : pi.title, icon: <StatusDot color={colors.red} />, isBranch: false };
+          return { id: `__poam-${pi.uuid}`, label: poamId ? `${poamId}: ${markupLineText(pi.title)}` : markupLineText(pi.title), icon: <StatusDot color={colors.red} />, isBranch: false };
         });
       }
       if (section === "sec-risks") {
         return filteredRisks.map((risk) => {
           const sc = RISK_STATUS_COLORS[risk.status];
-          return { id: `__risk-${risk.uuid}`, label: risk.title, icon: <StatusDot color={sc?.border ?? colors.gray} />, isBranch: false, statusColor: sc?.border };
+          return { id: `__risk-${risk.uuid}`, label: markupLineText(risk.title), icon: <StatusDot color={sc?.border ?? colors.gray} />, isBranch: false, statusColor: sc?.border };
         });
       }
       if (section === "sec-findings") {
         return filteredFindings.map((f) => {
           const state = f.target?.status?.state;
           const fsc = FINDING_STATUS_COLORS[state ?? ""];
-          return { id: `__finding-${f.uuid}`, label: f.title, icon: <StatusDot color={fsc?.border ?? colors.cobalt} />, isBranch: false, statusColor: fsc?.border };
+          return { id: `__finding-${f.uuid}`, label: markupLineText(f.title), icon: <StatusDot color={fsc?.border ?? colors.cobalt} />, isBranch: false, statusColor: fsc?.border };
         });
       }
       if (section === "sec-observations") {
-        return filteredObservations.map((obs) => ({ id: `__obs-${obs.uuid}`, label: obs.title, icon: <StatusDot color={colors.brightBlue} />, isBranch: false }));
+        return filteredObservations.map((obs) => ({ id: `__obs-${obs.uuid}`, label: markupLineText(obs.title), icon: <StatusDot color={colors.brightBlue} />, isBranch: false }));
       }
       return [];
     };
@@ -991,7 +993,7 @@ export default function PoamPage() {
                 <NavRow
                   key={pi.uuid}
                   id={piViewId}
-                  label={poamId ? `${poamId}: ${pi.title}` : pi.title}
+                  label={poamId ? `${poamId}: ${markupLineText(pi.title)}` : markupLineText(pi.title)}
                   icon={<StatusDot color={colors.red} />}
                   active={view === piViewId}
                   onClick={() => navigate(piViewId)}
@@ -1017,7 +1019,7 @@ export default function PoamPage() {
                   <NavRow
                     key={risk.uuid}
                     id={rViewId}
-                    label={risk.title}
+                    label={markupLineText(risk.title)}
                     icon={<StatusDot color={sc?.border ?? colors.gray} />}
                     active={view === rViewId}
                     onClick={() => navigate(rViewId)}
@@ -1045,7 +1047,7 @@ export default function PoamPage() {
                   <NavRow
                     key={finding.uuid}
                     id={fViewId}
-                    label={finding.title}
+                    label={markupLineText(finding.title)}
                     icon={<StatusDot color={fsc?.border ?? colors.cobalt} />}
                     active={view === fViewId}
                     onClick={() => navigate(fViewId)}
@@ -1071,7 +1073,7 @@ export default function PoamPage() {
                   <NavRow
                     key={obs.uuid}
                     id={oViewId}
-                    label={obs.title}
+                    label={markupLineText(obs.title)}
                     icon={<StatusDot color={colors.brightBlue} />}
                     active={view === oViewId}
                     onClick={() => navigate(oViewId)}
@@ -1268,7 +1270,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function MField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MField({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 500, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
@@ -1489,7 +1491,7 @@ function OverviewView({ poam, navigate, riskStatusCounts, obsMap, riskMap, findi
       {/* Title */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <IcoAlert size={22} style={{ color: colors.red }} />
-        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{poam.metadata.title}</h1>
+        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}><MarkupLine text={poam.metadata.title} /></h1>
       </div>
       <div style={{ fontSize: 12, color: colors.gray, marginBottom: 20 }}>
         {poam.metadata.version && <span>Version {poam.metadata.version} &middot; </span>}
@@ -1547,7 +1549,7 @@ function OverviewView({ poam, navigate, riskStatusCounts, obsMap, riskMap, findi
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 {poamId && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.red, color: colors.white }}>{poamId}</span>}
-                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{pi.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={pi.title} /></span>
               </div>
               <div style={{ fontSize: 12, color: colors.gray, marginBottom: 6 }}>{trunc(pi.description, 120)}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1588,14 +1590,14 @@ function OverviewView({ poam, navigate, riskStatusCounts, obsMap, riskMap, findi
                     backgroundColor: overdue ? colors.red : colors.cobalt, border: `2px solid ${colors.white}`,
                   }} />
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{ms.title}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={ms.title} /></span>
                     {endDate && <DeadlineBadge deadline={endDate} />}
                   </div>
                   <div
                     onClick={() => navigate(`risk-${ms.riskUuid}`)}
                     style={{ fontSize: 11, color: colors.brightBlue, cursor: "pointer", marginTop: 2 }}
                   >
-                    {trunc(ms.riskTitle, 70)}
+                    {trunc(markupLineText(ms.riskTitle), 70)}
                   </div>
                   {ms.start && ms.end && (
                     <div style={{ fontSize: 10, color: colors.gray, marginTop: 2 }}>
@@ -1641,7 +1643,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
 
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <MField label="Title" value={meta.title} />
+          <MField label="Title" value={meta.title && <MarkupLine text={meta.title} />} />
           <MField label="Version" value={meta.version ?? "—"} />
           <MField label="Last Modified" value={fmtDate(meta["last-modified"])} />
           <MField label="OSCAL Version" value={meta["oscal-version"] ?? "—"} />
@@ -1690,7 +1692,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
                 backgroundColor: colors.bg, color: colors.navy, fontWeight: 500,
                 border: `1px solid ${colors.paleGray}`,
               }}>
-                {r.title} <span style={{ color: colors.gray }}>({r.id})</span>
+                <MarkupLine text={r.title} /> <span style={{ color: colors.gray }}>({r.id})</span>
               </span>
             ))}
           </div>
@@ -1710,7 +1712,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
           <SectionLabel>Revisions ({meta.revisions.length})</SectionLabel>
           {meta.revisions.map((rev, i) => (
             <div key={i} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{rev.title ?? `Revision ${rev.version ?? i + 1}`}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{rev.title != null ? <MarkupLine text={rev.title} /> : `Revision ${rev.version ?? i + 1}`}</div>
               <div style={{ fontSize: 11, color: colors.gray }}>
                 {rev.version && `v${rev.version} · `}
                 {fmtDate(rev["last-modified"])}
@@ -1728,7 +1730,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
           <SectionLabel>Back Matter Resources ({poam["back-matter"].resources.length})</SectionLabel>
           {poam["back-matter"].resources.map((res) => (
             <div key={res.uuid} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{res.title ?? "Untitled"}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={res.title ?? "Untitled"} /></div>
               <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{res.uuid}</div>
               {res.remarks && <div style={{ fontSize: 12, color: colors.black, marginTop: 4 }}>{res.remarks}</div>}
               {res.rlinks && res.rlinks.map((rl, j) => (
@@ -1763,12 +1765,12 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
     <div>
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
-        { id: `poam-${item.uuid}`, label: poamId || trunc(item.title, 40) },
+        { id: `poam-${item.uuid}`, label: poamId || trunc(markupLineText(item.title), 40) },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <IcoClipboard size={22} style={{ color: colors.red }} />
-        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{item.title}</h1>
+        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}><MarkupLine text={item.title} /></h1>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {poamId && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: radii.pill, backgroundColor: colors.red, color: colors.white }}>{poamId}</span>}
@@ -1803,7 +1805,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <RiskStatusBadge status={risk.status} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{risk.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={risk.title} /></span>
               </div>
               <div style={{ fontSize: 12, color: colors.gray }}>{trunc(risk.description, 120)}</div>
               {risk.deadline && (
@@ -1828,7 +1830,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 {finding.target?.status?.state && <FindingStatusBadge state={finding.target.status.state} />}
-                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{finding.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={finding.title} /></span>
               </div>
               <div style={{ fontSize: 12, color: colors.gray }}>{trunc(finding.description, 120)}</div>
             </div>
@@ -1848,7 +1850,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <IcoEye size={14} style={{ color: colors.brightBlue }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{obs.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={obs.title} /></span>
                 <span style={{ fontSize: 11, color: colors.gray }}>{fmtDate(obs.collected)}</span>
               </div>
               <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>{trunc(obs.description, 120)}</div>
@@ -1877,12 +1879,12 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
     <div>
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
-        { id: `risk-${risk.uuid}`, label: risk.title },
+        { id: `risk-${risk.uuid}`, label: markupLineText(risk.title) },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <IcoAlert size={22} style={{ color: RISK_STATUS_COLORS[risk.status]?.border ?? colors.gray }} />
-        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{risk.title}</h1>
+        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}><MarkupLine text={risk.title} /></h1>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <RiskStatusBadge status={risk.status} />
@@ -1934,7 +1936,7 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
               <div key={rem.uuid} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${colors.bg}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <IcoFlag size={14} style={{ color: colors.cobalt }} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{rem.title}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}><MarkupLine text={rem.title} /></span>
                   <span style={{
                     fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: radii.pill,
                     backgroundColor: alpha(colors.cobalt, 8), color: colors.cobalt, textTransform: "capitalize",
@@ -1964,7 +1966,7 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
                         <div key={task.uuid} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colors.bg}` }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                             <IcoCheckCircle size={14} style={{ color: colors.cobalt }} />
-                            <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{task.title}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={task.title} /></span>
                             <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: alpha(colors.brightBlue, 8), color: colors.brightBlue }}>
                               {task.type}
                             </span>
@@ -2008,7 +2010,7 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <IcoEye size={14} style={{ color: colors.brightBlue }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{obs.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={obs.title} /></span>
                 <span style={{ fontSize: 11, color: colors.gray }}>{fmtDate(obs.collected)}</span>
               </div>
               <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>{trunc(obs.description, 120)}</div>
@@ -2049,12 +2051,12 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
     <div>
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
-        { id: `finding-${finding.uuid}`, label: finding.title },
+        { id: `finding-${finding.uuid}`, label: markupLineText(finding.title) },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <IcoTarget size={22} style={{ color: colors.cobalt }} />
-        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{finding.title}</h1>
+        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}><MarkupLine text={finding.title} /></h1>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {finding.target?.status?.state && <FindingStatusBadge state={finding.target.status.state} />}
@@ -2077,7 +2079,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
         <Card>
           <SectionLabel>Target</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            {finding.target.title && <MField label="Title" value={finding.target.title} />}
+            {finding.target.title && <MField label="Title" value={<MarkupLine text={finding.target.title} />} />}
             <MField label="Type" value={finding.target.type} />
             <MField label="Target ID" value={finding.target["target-id"]?.toUpperCase() ?? "—"} />
             {finding.target.status && (
@@ -2112,7 +2114,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <RiskStatusBadge status={risk.status} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{risk.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={risk.title} /></span>
               </div>
               {risk.deadline && <div style={{ marginTop: 4 }}><DeadlineBadge deadline={risk.deadline} /></div>}
             </div>
@@ -2132,7 +2134,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <IcoEye size={14} style={{ color: colors.brightBlue }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{obs.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={obs.title} /></span>
                 <span style={{ fontSize: 11, color: colors.gray }}>{fmtDate(obs.collected)}</span>
               </div>
             </div>
@@ -2167,12 +2169,12 @@ function ObservationView({ obs, navigate, resMap }: {
     <div>
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
-        { id: `obs-${obs.uuid}`, label: obs.title },
+        { id: `obs-${obs.uuid}`, label: markupLineText(obs.title) },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <IcoEye size={22} style={{ color: colors.brightBlue }} />
-        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{obs.title}</h1>
+        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}><MarkupLine text={obs.title} /></h1>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {obs.methods.map((m) => (
@@ -2241,7 +2243,7 @@ function ObservationView({ obs, navigate, resMap }: {
           <SectionLabel>Subjects ({obs.subjects.length})</SectionLabel>
           {obs.subjects.map((sub, i) => (
             <div key={i} style={{ display: "flex", gap: 12, marginBottom: 6 }}>
-              {sub.title && <MField label="Title" value={sub.title} />}
+              {sub.title && <MField label="Title" value={<MarkupLine text={sub.title} />} />}
               <MField label="Type" value={sub.type} />
               <MField label="Subject UUID" value={sub["subject-uuid"]} mono />
             </div>

@@ -25,8 +25,9 @@ import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useO
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
-import MarkupBlock from "../components/MarkupBlock";
+import MarkupBlock, { MarkupLine } from "../components/MarkupBlock";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { markupLineText } from "../utils/markup";
 import { IcoAlert, IcoAlertTriangle, IcoBook, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFolder, IcoHome, IcoInfo, IcoSearch, IcoShield, IcoTarget, IcoTool, IcoUpload, IcoXCircle } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
@@ -556,7 +557,7 @@ export default function AssessmentResultsPage() {
       const group = getControlGroup(obs);
       (groups[group] ??= []).push(obs);
     });
-    Object.values(groups).forEach((obs) => obs.sort((a, b) => getSortKey(a.title).localeCompare(getSortKey(b.title))));
+    Object.values(groups).forEach((obs) => obs.sort((a, b) => getSortKey(markupLineText(a.title)).localeCompare(getSortKey(markupLineText(b.title)))));
     return groups;
   }, [allObservations]);
 
@@ -717,7 +718,7 @@ export default function AssessmentResultsPage() {
       const visible = observations.filter((obs) => {
         if (statusFilter !== "all" && getStatus(obs) !== statusFilter) return false;
         if (lowerSearch) {
-          if ((obs.title ?? "").toLowerCase().includes(lowerSearch)) return true;
+          if (markupLineText(obs.title).toLowerCase().includes(lowerSearch)) return true;
           if ((obs.description ?? "").toLowerCase().includes(lowerSearch)) return true;
           if (groupName.toLowerCase().includes(lowerSearch)) return true;
           return false;
@@ -760,7 +761,7 @@ export default function AssessmentResultsPage() {
         ar!.results.forEach((result, ri) => {
           items.push({
             id: `result-${ri}`,
-            label: result.title,
+            label: markupLineText(result.title),
             icon: <IcoClipboard size={14} style={{ color: colors.cobalt }} />,
             isBranch: true,
             badge: result.observations?.length,
@@ -810,7 +811,7 @@ export default function AssessmentResultsPage() {
         const sc = STATUS_COLORS[status];
         return {
           id: `__obs-${obs.uuid}`,
-          label: obs.title ?? "Untitled",
+          label: markupLineText(obs.title ?? "Untitled"),
           icon: <StatusDot status={status} />,
           isBranch: false,
           statusColor: sc?.border,
@@ -843,7 +844,7 @@ export default function AssessmentResultsPage() {
         const rc = RISK_LEVEL_COLORS[level];
         return {
           id: `__risk-${r.uuid}`,
-          label: r.title,
+          label: markupLineText(r.title),
           icon: <IcoAlertTriangle size={12} style={{ color: rc?.fg ?? colors.gray }} />,
           isBranch: false,
           statusColor: rc?.border,
@@ -859,7 +860,7 @@ export default function AssessmentResultsPage() {
     mobilePath.forEach((seg, i) => {
       if (seg.startsWith("result-")) {
         const ri = parseInt(seg.slice(7));
-        crumbs.push({ label: ar?.results[ri]?.title ?? `Result ${ri}`, depth: i + 1 });
+        crumbs.push({ label: markupLineText(ar?.results[ri]?.title ?? `Result ${ri}`), depth: i + 1 });
       } else if (seg.startsWith("group-")) {
         crumbs.push({ label: seg.slice(6), depth: i + 1 });
       } else if (seg === "findings-section") {
@@ -1093,7 +1094,7 @@ export default function AssessmentResultsPage() {
                 <div key={ri}>
                   <NavRow
                     id={resultId}
-                    label={result.title}
+                    label={markupLineText(result.title)}
                     icon={<IcoClipboard size={14} style={{ color: colors.cobalt }} />}
                     active={view === resultId}
                     onClick={() => navigate(resultId)}
@@ -1185,7 +1186,7 @@ export default function AssessmentResultsPage() {
                     <NavRow
                       key={r.uuid}
                       id={`risk-${r.uuid}`}
-                      label={r.title}
+                      label={markupLineText(r.title)}
                       icon={<IcoAlertTriangle size={12} style={{ color: rc?.fg ?? colors.gray }} />}
                       active={view === `risk-${r.uuid}`}
                       onClick={() => navigate(`risk-${r.uuid}`)}
@@ -1313,7 +1314,7 @@ function SidebarGroupTree({ groupedObservations, groupNames, view, collapsed, se
         const visible = observations.filter((obs) => {
           if (statusFilter !== "all" && getStatus(obs) !== statusFilter) return false;
           if (lowerSearch) {
-            if ((obs.title ?? "").toLowerCase().includes(lowerSearch)) return true;
+            if (markupLineText(obs.title).toLowerCase().includes(lowerSearch)) return true;
             if ((obs.description ?? "").toLowerCase().includes(lowerSearch)) return true;
             if (groupName.toLowerCase().includes(lowerSearch)) return true;
             return false;
@@ -1347,7 +1348,7 @@ function SidebarGroupTree({ groupedObservations, groupNames, view, collapsed, se
                 <NavRow
                   key={obs.uuid}
                   id={obsId}
-                  label={obs.title ?? "Untitled"}
+                  label={markupLineText(obs.title ?? "Untitled")}
                   icon={<StatusDot status={status} />}
                   active={view === obsId}
                   onClick={() => navigate(obsId)}
@@ -1541,7 +1542,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function MField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MField({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 500, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
@@ -1721,7 +1722,7 @@ function OverviewView({ ar, navigate, allObservations, allFindings, allRisks, gr
       {/* Title */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <IcoCheck size={22} style={{ color: colors.orange }} />
-        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{ar.metadata.title}</h1>
+        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}><MarkupLine text={ar.metadata.title} /></h1>
       </div>
       <div style={{ fontSize: 12, color: colors.gray, marginBottom: 20 }}>
         {ar.metadata.version && <span>Version {ar.metadata.version} &middot; </span>}
@@ -1890,7 +1891,7 @@ function OverviewView({ ar, navigate, allObservations, allFindings, allRisks, gr
             >
               <IcoClipboard size={14} style={{ color: colors.cobalt }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{result.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={result.title} /></div>
                 <div style={{ fontSize: 11, color: colors.gray }}>{result.observations?.length ?? 0} observations</div>
               </div>
             </div>
@@ -1932,7 +1933,7 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
 
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <MField label="Title" value={meta.title} />
+          <MField label="Title" value={meta.title && <MarkupLine text={meta.title} />} />
           <MField label="Version" value={meta.version ?? "—"} />
           <MField label="Last Modified" value={fmtDate(meta["last-modified"])} />
           <MField label="OSCAL Version" value={meta["oscal-version"] ?? "—"} />
@@ -1968,7 +1969,7 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
                 backgroundColor: colors.bg, color: colors.navy, fontWeight: 500,
                 border: `1px solid ${colors.paleGray}`,
               }}>
-                {r.title} <span style={{ color: colors.gray }}>({r.id})</span>
+                <MarkupLine text={r.title} /> <span style={{ color: colors.gray }}>({r.id})</span>
               </span>
             ))}
           </div>
@@ -1988,7 +1989,7 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
           <SectionLabel>Back Matter Resources ({ar["back-matter"].resources.length})</SectionLabel>
           {ar["back-matter"].resources.map((res) => (
             <div key={res.uuid} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{res.title ?? "Untitled"}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={res.title ?? "Untitled"} /></div>
               <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{res.uuid}</div>
               {res.remarks && <div style={{ fontSize: 12, color: colors.black, marginTop: 4 }}>{res.remarks}</div>}
               {res.rlinks && res.rlinks.map((rl, i) => (
@@ -2018,10 +2019,10 @@ function ResultView({ result, resultIdx, navigate, catalog }: {
 
   return (
     <div>
-      <Breadcrumbs items={[{ id: "overview", label: "Overview" }, { id: `result-${resultIdx}`, label: result.title }]} navigate={navigate} />
+      <Breadcrumbs items={[{ id: "overview", label: "Overview" }, { id: `result-${resultIdx}`, label: markupLineText(result.title) }]} navigate={navigate} />
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <IcoClipboard size={22} style={{ color: colors.cobalt }} />
-        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{result.title}</h1>
+        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}><MarkupLine text={result.title} /></h1>
       </div>
       <div style={{ fontSize: 12, color: colors.gray, marginBottom: 16, fontFamily: fonts.mono }}>
         {result.uuid}
@@ -2175,7 +2176,7 @@ function ObservationTable({ observations, navigate, obsNistMap }: {
           >
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy, marginBottom: 2 }}>
-                {obs.title ?? "Untitled"}
+                <MarkupLine text={obs.title ?? "Untitled"} />
               </div>
               <div style={{ fontSize: 11, color: colors.gray }}>{getControlGroup(obs)}</div>
             </div>
@@ -2223,13 +2224,13 @@ function ObservationView({ obs, navigate, catalog, nistControls, resources }: {
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
         { id: `group-${controlGroup}`, label: controlGroup },
-        { id: `obs-${obs.uuid}`, label: obs.title ?? "Untitled" },
+        { id: `obs-${obs.uuid}`, label: markupLineText(obs.title ?? "Untitled") },
       ]} navigate={navigate} />
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <IcoShield size={22} style={{ color: sc.border }} />
-        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{obs.title ?? "Untitled"}</h1>
+        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}><MarkupLine text={obs.title ?? "Untitled"} /></h1>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
@@ -2332,7 +2333,7 @@ function CatalogContextCard({ catalog }: { catalog: OscalCatalog | null }) {
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: colors.cobalt }}>Catalog Loaded</div>
           <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>
-            The loaded catalog ({catalog.metadata.title}) is available for cross-referencing.
+            The loaded catalog (<MarkupLine text={catalog.metadata.title} />) is available for cross-referencing.
             ScubaGear policy IDs (e.g., MS.AAD.x.y) use a vendor-specific naming convention that does not directly map to NIST SP 800-53 control IDs.
             When assessed controls reference standard control IDs, they will be linked automatically.
           </div>
@@ -2570,7 +2571,7 @@ function FindingsListView({ findings, navigate, findingNistMap }: {
                 </span>
                 <FindingStateBadge state={state} />
                 <div>
-                  {f.title && <div style={{ fontSize: 12, fontWeight: 600, color: colors.black }}>{f.title}</div>}
+                  {f.title && <div style={{ fontSize: 12, fontWeight: 600, color: colors.black }}><MarkupLine text={f.title} /></div>}
                   {f.description && <div style={{ fontSize: 11, color: colors.gray }}>{trunc(f.description, 80)}</div>}
                   {!f.title && !f.description && f.remarks && <div style={{ fontSize: 11, color: colors.gray }}>{trunc(f.remarks, 80)}</div>}
                 </div>
@@ -2680,7 +2681,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
         </h1>
       </div>
       {finding.target.title && (
-        <div style={{ fontSize: 14, color: colors.gray, marginBottom: 8 }}>{finding.target.title}</div>
+        <div style={{ fontSize: 14, color: colors.gray, marginBottom: 8 }}><MarkupLine text={finding.target.title} /></div>
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
@@ -2704,7 +2705,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
       {/* Title + Description */}
       {(finding.title || finding.description) && (
         <Card style={{ borderLeft: `4px solid ${fc.border}` }}>
-          {finding.title && <div style={{ fontSize: 14, fontWeight: 700, color: colors.navy, marginBottom: 6 }}>{finding.title}</div>}
+          {finding.title && <div style={{ fontSize: 14, fontWeight: 700, color: colors.navy, marginBottom: 6 }}><MarkupLine text={finding.title} /></div>}
           {finding.description && <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{finding.description}</div>}
         </Card>
       )}
@@ -2757,7 +2758,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
               >
                 <IcoEye size={14} style={{ color: colors.cobalt }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{obs.title}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={obs.title} /></div>
                   {obs.remarks && <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{trunc(obs.remarks, 120)}</div>}
                 </div>
                 <NistChipsInline controls={obsNistMap?.[obs.uuid] ?? []} />
@@ -2790,7 +2791,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
               >
                 <IcoAlertTriangle size={14} style={{ color: rc.fg }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{risk.title}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={risk.title} /></div>
                   <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{trunc(risk.description, 120)}</div>
                 </div>
                 <RiskLevelBadge level={level} />
@@ -2886,7 +2887,7 @@ function RisksListView({ risks, navigate, riskLevelCounts, riskStatusCounts, ris
             >
               <IcoAlertTriangle size={18} style={{ color: rc.fg, flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: colors.navy, marginBottom: 4 }}>{risk.title}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: colors.navy, marginBottom: 4 }}><MarkupLine text={risk.title} /></div>
                 <div style={{ fontSize: 12, color: colors.gray, lineHeight: 1.6, marginBottom: 8 }}>{trunc(risk.description, 180)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <RiskLevelBadge level={level} />
@@ -2943,13 +2944,13 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
         { id: "risks", label: "Risks" },
-        { id: `risk-${risk.uuid}`, label: risk.title },
+        { id: `risk-${risk.uuid}`, label: markupLineText(risk.title) },
       ]} navigate={navigate} />
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <IcoAlertTriangle size={22} style={{ color: rc.fg }} />
-        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}>{risk.title}</h1>
+        <h1 style={{ fontSize: 18, color: colors.navy, margin: 0, lineHeight: 1.4 }}><MarkupLine text={risk.title} /></h1>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
@@ -3048,7 +3049,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
                   {f.target["target-id"].toUpperCase()}
                 </span>
                 <FindingStateBadge state={fState} />
-                {f.title && <span style={{ fontSize: 12, color: colors.gray }}>{f.title}</span>}
+                {f.title && <span style={{ fontSize: 12, color: colors.gray }}><MarkupLine text={f.title} /></span>}
               </div>
             );
           })}
@@ -3095,7 +3096,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <IcoTool size={14} style={{ color: lcColor }} />
-                  <span style={{ fontSize: 14, fontWeight: 700, color: colors.navy }}>{rem.title}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: colors.navy }}><MarkupLine text={rem.title} /></span>
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: radii.pill,
                     backgroundColor: alpha(lcColor, 10), color: lcColor, textTransform: "capitalize",
@@ -3116,7 +3117,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
                         padding: "8px 12px", marginBottom: 4, borderRadius: radii.sm,
                         backgroundColor: colors.bg, borderLeft: `2px solid ${colors.paleGray}`,
                       }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: colors.navy }}>{task.title}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: colors.navy }}><MarkupLine text={task.title} /></div>
                         <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{task.description}</div>
                         {task.timing?.["within-date-range"] && (
                           <div style={{ fontSize: 10, color: colors.gray, marginTop: 4 }}>
