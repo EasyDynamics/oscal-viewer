@@ -15,7 +15,6 @@ import {
   type ReactNode,
   type WheelEvent,
 } from "react";
-import { Marked } from "marked";
 import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useAuth } from "../context/AuthContext";
@@ -27,8 +26,10 @@ import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
+import MarkupBlock, { InlineMarkup } from "../components/MarkupBlock";
 import PartTitle from "../components/PartTitle";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { sanitizeSvg } from "../utils/markup";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
@@ -681,26 +682,6 @@ function chooseProviderSspFile(onFile: (file: File) => void) {
 /* ═══════════════════════════════════════════════════════════════════════════
    MARKUP RENDERER
    ═══════════════════════════════════════════════════════════════════════════ */
-
-const markedInstance = new Marked({ async: false, gfm: true, breaks: false });
-function renderMarkup(text: string): string {
-  const html = markedInstance.parse(text) as string;
-  const trimmed = html.trim();
-  if (trimmed.startsWith("<p>") && trimmed.endsWith("</p>") && trimmed.indexOf("<p>", 1) === -1)
-    return trimmed.slice(3, -4);
-  return trimmed;
-}
-
-function MarkupBlock({ value, style }: { value: unknown; style?: CSSProperties }) {
-  const raw = txt(value);
-  if (!raw) return null;
-  return (
-    <div className="oscal-markup"
-      style={{ fontSize: 13, color: colors.black, lineHeight: 1.75, ...style }}
-      dangerouslySetInnerHTML={{ __html: renderMarkup(raw) }}
-    />
-  );
-}
 
 /** Remarks toggle — collapsed by default, click to reveal */
 function CollapsibleRemarks({ value, compact }: { value: unknown; compact?: boolean }) {
@@ -1656,8 +1637,7 @@ function CatalogProseWithParams({
             </span>
           );
         }
-        const html = renderMarkup(segment);
-        return <span key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+        return <InlineMarkup key={i} text={segment} />;
       })}
     </span>
   );
@@ -2369,7 +2349,7 @@ function MermaidDiagram({ url, compact }: { url: string; compact?: boolean }) {
           }
         }
         if (!rendered) throw renderError ?? new Error("Unable to render Mermaid diagram");
-        if (!cancelled) setSvg(rendered.svg);
+        if (!cancelled) setSvg(sanitizeSvg(rendered.svg));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Unable to render Mermaid diagram");
       }
@@ -5634,12 +5614,14 @@ export default function SspPage() {
   const sspResolutionAlreadySatisfied = useMemo(() => {
     if (!ssp) return false;
 
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     const importProfileHref = (raw as any)?.["system-security-plan"]?.["import-profile"]?.href
       ?? (raw as any)?.["import-profile"]?.href;
     if (importProfileHref && !oscal.profile) return false;
 
     const profileData = oscal.profile?.data ? ((oscal.profile.data as any)?.profile ?? oscal.profile.data) : null;
     const profileImports = Array.isArray((profileData as any)?.imports) ? (profileData as any).imports : [];
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     if (profileImports.length > 0 && !oscal.catalog) return false;
 
     const leveraged = ssp.systemImplementation.leveragedAuthorizations.filter((la) => isAutoResolvableHref(pickLeveragedHref(la), sourceUrl));

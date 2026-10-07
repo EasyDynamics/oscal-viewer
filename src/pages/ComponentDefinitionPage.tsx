@@ -14,7 +14,6 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { Marked } from "marked";
 import { alpha, colors, fonts, shadows, radii, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import { useAuth } from "../context/AuthContext";
@@ -29,6 +28,7 @@ import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
 import type { ResolvedLink } from "../components/LinkChips";
+import MarkupBlock, { InlineMarkup } from "../components/MarkupBlock";
 import { linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
 import {
@@ -351,38 +351,6 @@ function getCatalogLabel(props?: { name: string; value: string }[]): string {
   if (!props) return "";
   const lbl = props.find(p => p.name === "label" && (p as { class?: string }).class !== "zero-padded");
   return lbl?.value ?? props.find(p => p.name === "label")?.value ?? "";
-}
-
-/** Convert OSCAL markup-multiline / markup-line to HTML via marked */
-const markedInstance = new Marked({ async: false, gfm: true, breaks: false });
-function renderMarkup(text: string): string {
-  // marked.parse in sync mode returns string
-  const html = markedInstance.parse(text) as string;
-  // Strip wrapping <p>…</p> for single-line content to avoid extra spacing
-  const trimmed = html.trim();
-  if (trimmed.startsWith("<p>") && trimmed.endsWith("</p>") && trimmed.indexOf("<p>", 1) === -1) {
-    return trimmed.slice(3, -4);
-  }
-  return trimmed;
-}
-
-/** Renders an OSCAL description / prose value as styled HTML (markdown) */
-function MarkupBlock({ value, style }: { value: unknown; style?: CSSProperties }) {
-  const raw = txt(value);
-  if (!raw) return null;
-  const html = renderMarkup(raw);
-  return (
-    <div
-      className="oscal-markup"
-      style={{
-        fontSize: 13,
-        color: colors.black,
-        lineHeight: 1.75,
-        ...style,
-      }}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
 }
 
 /** Remarks toggle — collapsed by default, click to reveal */
@@ -2028,13 +1996,7 @@ function CatalogProseWithParams({
           );
         }
         // Render non-param segments as markdown
-        const html = renderMarkup(segment);
-        return (
-          <span
-            key={i}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        );
+        return <InlineMarkup key={i} text={segment} />;
       })}
     </span>
   );

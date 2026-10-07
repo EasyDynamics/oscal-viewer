@@ -13,7 +13,6 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { Marked } from "marked";
 import { alpha, colors, fonts, radii, shadows, brand } from "../theme/tokens";
 import { useOscal } from "../context/OscalContext";
 import type {
@@ -31,6 +30,7 @@ import { useAuth } from "../context/AuthContext";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
+import SharedMarkupBlock from "../components/MarkupBlock";
 import PartTitle from "../components/PartTitle";
 import { linkLabel, linkTooltip, resourceName, type LinkedResourceLike } from "../utils/linkDisplay";
 import useIsMobile from "../hooks/useIsMobile";
@@ -125,25 +125,9 @@ function trunc(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "\u2026" : s;
 }
 
-const markedInstance = new Marked({ async: false, gfm: true, breaks: false });
-function renderMarkup(text: string): string {
-  const html = markedInstance.parse(text) as string;
-  const trimmed = html.trim();
-  if (trimmed.startsWith("<p>") && trimmed.endsWith("</p>") && trimmed.indexOf("<p>", 1) === -1)
-    return trimmed.slice(3, -4);
-  return trimmed;
-}
-
+/** The plan views set markup a little smaller and tighter than the other pages. */
 function MarkupBlock({ value, style }: { value: unknown; style?: CSSProperties }) {
-  const raw = txt(value);
-  if (!raw) return null;
-  return (
-    <div
-      className="oscal-markup"
-      style={{ fontSize: 12.5, color: colors.black, lineHeight: 1.5, ...style }}
-      dangerouslySetInnerHTML={{ __html: renderMarkup(raw) }}
-    />
-  );
+  return <SharedMarkupBlock value={value} style={{ fontSize: 12.5, lineHeight: 1.5, ...style }} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -590,6 +574,16 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
   const [expanded, setExpanded] = useState(false);
   const control = useMemo(() => findCatalogControl(catalog, controlId), [catalog, controlId]);
 
+  const paramMap = useMemo(() => {
+    const map: Record<string, CatalogParam> = {};
+    if (!control) return map;
+    const parent = findParentCatalogControl(catalog, control.id);
+    if (parent) (parent.params ?? []).forEach((p) => { map[p.id] = p; });
+    (control.params ?? []).forEach((p) => { map[p.id] = p; });
+    (control.controls ?? []).forEach((enh) => (enh.params ?? []).forEach((p) => { map[p.id] = p; }));
+    return map;
+  }, [catalog, control]);
+
   if (!control) {
     return (
       <div style={{
@@ -608,15 +602,6 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
   const allParts = control.parts ?? [];
   const params = control.params ?? [];
   const enhancements = control.controls ?? [];
-
-  const paramMap = useMemo(() => {
-    const map: Record<string, CatalogParam> = {};
-    const parent = findParentCatalogControl(catalog, control.id);
-    if (parent) (parent.params ?? []).forEach((p) => { map[p.id] = p; });
-    params.forEach((p) => { map[p.id] = p; });
-    enhancements.forEach((enh) => (enh.params ?? []).forEach((p) => { map[p.id] = p; }));
-    return map;
-  }, [catalog, control, params, enhancements]);
 
   const sectionParts: Record<string, CatalogPart[]> = {};
   PART_SECTIONS.forEach((s) => { sectionParts[s.name] = allParts.filter((p) => p.name === s.name); });
