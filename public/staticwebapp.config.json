@@ -2,5 +2,8 @@
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": ["/assets/*", "/samples/*", "*.{css,js,json,ico,png,svg,jpg,jpeg,gif,woff,woff2,ttf,eot}"]
+  },
+  "globalHeaders": {
+    "Content-Security-Policy": "script-src 'self' 'sha256-TKKq6EP6FHA7Eyh90hHMO2mbujgZbML2CtLpFsgKmLU=' https://*.googletagmanager.com; base-uri 'self'; form-action 'self'"
   }
 }
