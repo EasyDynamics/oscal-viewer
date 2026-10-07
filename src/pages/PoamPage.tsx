@@ -24,6 +24,7 @@ import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useO
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
+import PropLabel from "../components/PropLabel";
 import { MarkupLine } from "../components/MarkupBlock";
 import type { ResolvedLink } from "../components/LinkChips";
 import { catalogLinkDisplay, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
@@ -1279,17 +1280,6 @@ function MField({ label, value, mono }: { label: string; value: ReactNode; mono?
   );
 }
 
-function PropPill({ name, value }: { name: string; value: string }) {
-  return (
-    <span style={{
-      display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: radii.pill,
-      backgroundColor: colors.bg, color: colors.black, fontFamily: fonts.mono,
-      border: `1px solid ${colors.paleGray}`, marginRight: 6, marginBottom: 4,
-    }}>
-      {name}: {value}
-    </span>
-  );
-}
 
 function RiskStatusBadge({ status }: { status: string }) {
   const sc = RISK_STATUS_COLORS[status] ?? { bg: colors.bg, fg: colors.gray, border: colors.gray, label: status };
@@ -1787,8 +1777,8 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
       {item.props && item.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {item.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {item.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}
@@ -2023,8 +2013,8 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
       {risk.props && risk.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {risk.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {risk.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}
@@ -2146,8 +2136,8 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
       {finding.props && finding.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {finding.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {finding.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}
@@ -2255,8 +2245,8 @@ function ObservationView({ obs, navigate, resMap }: {
       {obs.props && obs.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {obs.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {obs.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}
