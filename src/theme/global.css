@@ -151,6 +151,23 @@ button:focus-visible {
 .oscal-markup a:hover { color: var(--color-orange); }
 .oscal-markup strong { font-weight: 600; }
 .oscal-markup em { font-style: italic; }
+
+/* Parameter pills inside prose: orange for an assignment, cobalt for a selection */
+.oscal-param {
+  font-family: 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+  font-weight: 600;
+  color: var(--color-orange);
+  background-color: color-mix(in srgb, var(--color-orange) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-orange) 20%, transparent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+.oscal-param-selection {
+  color: var(--color-cobalt);
+  background-color: color-mix(in srgb, var(--color-cobalt) 7%, transparent);
+  border-color: color-mix(in srgb, var(--color-cobalt) 20%, transparent);
+}
 .oscal-markup blockquote {
   border-left: 3px solid var(--color-pale-gray);
   margin: 0.5em 0;

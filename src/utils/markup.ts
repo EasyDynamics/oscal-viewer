@@ -61,6 +61,43 @@ export function renderMarkup(text: string): string {
   return markupPurify.sanitize(html, MARKUP_CONFIG);
 }
 
+/** A parameter as shown inside prose: its rendered text, and whether it is a selection. */
+export interface ProseParam {
+  text: string;
+  selection?: boolean;
+}
+
+const PARAM_INSERT = /\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/g;
+// Private-use characters around a pill's index: they pass through Markdown
+// and sanitizing as plain text, and documents have no use for them.
+const PILL = /\uE000(\d+)\uE001/g;
+
+/**
+ * Render OSCAL prose: Markdown like renderMarkup(), with each
+ * `{{ insert: param, id }}` shown as a parameter pill. The Markdown is
+ * rendered once around placeholders, so formatting that spans a parameter
+ * still works; the pills (escaped text) go in after sanitizing.
+ */
+export function renderProse(text: string, param?: (id: string) => ProseParam | null | undefined): string {
+  if (!param) return renderMarkup(text);
+  const pills: string[] = [];
+  const withPlaceholders = text.replace(PARAM_INSERT, (_m, rawId: string) => {
+    const id = rawId.trim();
+    const p = param(id) ?? { text: `[Assignment: ${id}]` };
+    const cls = p.selection ? "oscal-param oscal-param-selection" : "oscal-param";
+    pills.push(`<span class="${cls}" title="Parameter: ${escapeHtml(id)}">${escapeHtml(p.text)}</span>`);
+    return `\uE000${pills.length - 1}\uE001`;
+  });
+  return renderMarkup(withPlaceholders).replace(PILL, (_m, i: string) => pills[Number(i)] ?? "");
+}
+
+/** The plain text of OSCAL prose, for previews and other places that need a string. */
+export function markupPlainText(text: string): string {
+  if (!text) return "";
+  const fragment = markupPurify.sanitize(marked.parse(text) as string, { ...MARKUP_CONFIG, RETURN_DOM_FRAGMENT: true });
+  return (fragment.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 /* ── Titles (markup-line) ── */
 
 /** OSCAL Markdown writes subscript as ~text~ and superscript as ^text^. */

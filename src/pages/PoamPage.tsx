@@ -25,10 +25,10 @@ import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
 import PropLabel from "../components/PropLabel";
-import { MarkupLine } from "../components/MarkupBlock";
+import MarkupBlock, { MarkupLine, MarkupLinks } from "../components/MarkupBlock";
 import type { ResolvedLink } from "../components/LinkChips";
 import { catalogLinkDisplay, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
-import { markupLineText } from "../utils/markup";
+import { markupLineText, markupPlainText } from "../utils/markup";
 import { IcoAlert, IcoBook, IcoBulb, IcoCalendar, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFlag, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
@@ -358,31 +358,11 @@ function ctrlSectionIcon(icon: string, size = 16, style?: CSSProperties): ReactN
 
 /* ── ProseWithParams — render prose text with inline parameter pills ── */
 function ProseWithParams({ text, paramMap }: { text: string; paramMap: Record<string, CatalogParam> }) {
-  const parts = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
-  return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans }}>
-      {parts.map((segment, i) => {
-        const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
-        if (match) {
-          const paramId = match[1].trim();
-          const param = paramMap[paramId];
-          const rendered = param ? renderParamText(param, paramMap) : `[Assignment: ${paramId}]`;
-          const isSelection = param?.select != null;
-          return (
-            <span key={i} title={`Parameter: ${paramId}`} style={{
-              display: "inline", fontSize: 13, fontFamily: fonts.mono, fontWeight: 600,
-              color: isSelection ? colors.cobalt : colors.orange,
-              backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
-              padding: "1px 6px", borderRadius: radii.sm,
-              border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
-              whiteSpace: "nowrap",
-            }}>{rendered}</span>
-          );
-        }
-        return <span key={i}>{segment}</span>;
-      })}
-    </span>
-  );
+  const params = (id: string) => {
+    const param = paramMap[id];
+    return param ? { text: renderParamText(param, paramMap), selection: param.select != null } : null;
+  };
+  return <MarkupBlock value={text} params={params} inline style={{ fontFamily: fonts.sans }} />;
 }
 
 /* ── PartTree — recursive hierarchical rendering of a control Part ── */
@@ -1196,7 +1176,26 @@ interface ViewRouterProps {
   catalog: OscalCatalog | null;
 }
 
-function ViewRouter({ view, poam, navigate, obsMap, riskMap, findingMap, resMap, riskStatusCounts, catalog }: ViewRouterProps) {
+function ViewRouter(props: ViewRouterProps) {
+  const { poam, navigate } = props;
+  // A `#fragment` link in markup opens the POA&M item, risk, finding or observation it names.
+  const resolveLink = (id: string) => {
+    const target = poam["poam-items"].some((pi) => pi.uuid === id) ? `poam-${id}`
+      : (poam.risks ?? []).some((r) => r.uuid === id) ? `risk-${id}`
+      : (poam.findings ?? []).some((f) => f.uuid === id) ? `finding-${id}`
+      : (poam.observations ?? []).some((o) => o.uuid === id) ? `obs-${id}`
+      : null;
+    if (target) navigate(target);
+    return target !== null;
+  };
+  return (
+    <MarkupLinks resolve={resolveLink}>
+      <PoamView {...props} />
+    </MarkupLinks>
+  );
+}
+
+function PoamView({ view, poam, navigate, obsMap, riskMap, findingMap, resMap, riskStatusCounts, catalog }: ViewRouterProps) {
   if (view === "overview")
     return <OverviewView poam={poam} navigate={navigate} riskStatusCounts={riskStatusCounts} obsMap={obsMap} riskMap={riskMap} findingMap={findingMap} />;
   if (view === "metadata")
@@ -1541,7 +1540,7 @@ function OverviewView({ poam, navigate, riskStatusCounts, obsMap, riskMap, findi
                 {poamId && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.red, color: colors.white }}>{poamId}</span>}
                 <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={pi.title} /></span>
               </div>
-              <div style={{ fontSize: 12, color: colors.gray, marginBottom: 6 }}>{trunc(pi.description, 120)}</div>
+              <div style={{ fontSize: 12, color: colors.gray, marginBottom: 6 }}>{trunc(markupPlainText(pi.description), 120)}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {relRisks.map((r) => (
                   <RiskStatusBadge key={r.uuid} status={r.status} />
@@ -1708,7 +1707,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
                 {fmtDate(rev["last-modified"])}
                 {rev["oscal-version"] && ` · OSCAL ${rev["oscal-version"]}`}
               </div>
-              {rev.remarks && <div style={{ fontSize: 12, color: colors.black, marginTop: 4 }}>{rev.remarks}</div>}
+              {rev.remarks && <MarkupBlock value={rev.remarks} style={{ fontSize: 12, color: colors.black, marginTop: 4 }} />}
             </div>
           ))}
         </Card>
@@ -1722,7 +1721,7 @@ function MetadataView({ poam, navigate }: { poam: Poam; navigate: (id: string) =
             <div key={res.uuid} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${colors.bg}` }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={res.title ?? "Untitled"} /></div>
               <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{res.uuid}</div>
-              {res.remarks && <div style={{ fontSize: 12, color: colors.black, marginTop: 4 }}>{res.remarks}</div>}
+              {res.remarks && <MarkupBlock value={res.remarks} style={{ fontSize: 12, color: colors.black, marginTop: 4 }} />}
               {res.rlinks && res.rlinks.map((rl, j) => (
                 <a key={j} href={rl.href} target="_blank" rel="noopener noreferrer"
                   style={{ fontSize: 11, color: colors.brightBlue, display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
@@ -1770,7 +1769,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
       {/* Description */}
       <Card style={{ borderLeft: `4px solid ${colors.red}` }}>
         <SectionLabel>Description</SectionLabel>
-        <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{item.description}</div>
+        <MarkupBlock value={item.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
       </Card>
 
       {/* Properties */}
@@ -1797,7 +1796,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
                 <RiskStatusBadge status={risk.status} />
                 <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={risk.title} /></span>
               </div>
-              <div style={{ fontSize: 12, color: colors.gray }}>{trunc(risk.description, 120)}</div>
+              <div style={{ fontSize: 12, color: colors.gray }}>{trunc(markupPlainText(risk.description), 120)}</div>
               {risk.deadline && (
                 <div style={{ marginTop: 4 }}>
                   <DeadlineBadge deadline={risk.deadline} />
@@ -1822,7 +1821,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
                 {finding.target?.status?.state && <FindingStatusBadge state={finding.target.status.state} />}
                 <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={finding.title} /></span>
               </div>
-              <div style={{ fontSize: 12, color: colors.gray }}>{trunc(finding.description, 120)}</div>
+              <div style={{ fontSize: 12, color: colors.gray }}>{trunc(markupPlainText(finding.description), 120)}</div>
             </div>
           ))}
         </Card>
@@ -1843,7 +1842,7 @@ function PoamItemView({ item, navigate, obsMap, riskMap, findingMap, resMap }: {
                 <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={obs.title} /></span>
                 <span style={{ fontSize: 11, color: colors.gray }}>{fmtDate(obs.collected)}</span>
               </div>
-              <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>{trunc(obs.description, 120)}</div>
+              <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>{trunc(markupPlainText(obs.description), 120)}</div>
             </div>
           ))}
         </Card>
@@ -1885,13 +1884,13 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
       {/* Description */}
       <Card style={{ borderLeft: `4px solid ${RISK_STATUS_COLORS[risk.status]?.border ?? colors.gray}` }}>
         <SectionLabel>Description</SectionLabel>
-        <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{risk.description}</div>
+        <MarkupBlock value={risk.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
       </Card>
 
       {/* Risk Statement */}
       <Card>
         <SectionLabel>Risk Statement</SectionLabel>
-        <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{risk.statement}</div>
+        <MarkupBlock value={risk.statement} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
       </Card>
 
       {/* Risk Characterization (Facets) */}
@@ -1910,7 +1909,7 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
           <SectionLabel>Mitigating Factors ({risk["mitigating-factors"].length})</SectionLabel>
           {risk["mitigating-factors"].map((mf) => (
             <div key={mf.uuid} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${colors.bg}` }}>
-              <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{mf.description}</div>
+              <MarkupBlock value={mf.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
             </div>
           ))}
         </Card>
@@ -1942,7 +1941,7 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75, marginBottom: 10 }}>{rem.description}</div>
+                <MarkupBlock value={rem.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75, marginBottom: 10 }} />
 
                 {/* Milestones / Tasks */}
                 {rem.tasks && rem.tasks.length > 0 && (
@@ -1961,7 +1960,7 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
                               {task.type}
                             </span>
                           </div>
-                          <div style={{ fontSize: 12, color: colors.black, lineHeight: 1.6, marginBottom: 4 }}>{task.description}</div>
+                          <MarkupBlock value={task.description} style={{ fontSize: 12, color: colors.black, lineHeight: 1.6, marginBottom: 4 }} />
                           {task.timing && (
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               {task.timing["within-date-range"] && (
@@ -2003,7 +2002,7 @@ function RiskView({ risk, navigate, obsMap, resMap }: {
                 <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={obs.title} /></span>
                 <span style={{ fontSize: 11, color: colors.gray }}>{fmtDate(obs.collected)}</span>
               </div>
-              <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>{trunc(obs.description, 120)}</div>
+              <div style={{ fontSize: 12, color: colors.gray, marginTop: 2 }}>{trunc(markupPlainText(obs.description), 120)}</div>
             </div>
           ))}
         </Card>
@@ -2061,7 +2060,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
       {/* Description */}
       <Card style={{ borderLeft: `4px solid ${colors.cobalt}` }}>
         <SectionLabel>Description</SectionLabel>
-        <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{finding.description}</div>
+        <MarkupBlock value={finding.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
       </Card>
 
       {/* Target */}
@@ -2081,7 +2080,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
           </div>
           {finding.target.status?.remarks && (
             <div style={{ marginTop: 8 }}>
-              <MField label="Remarks" value={finding.target.status.remarks} />
+              <MField label="Remarks" value={<MarkupBlock value={finding.target.status.remarks} style={{ fontSize: "inherit", lineHeight: "inherit", color: "inherit" }} />} />
             </div>
           )}
         </Card>
@@ -2189,7 +2188,7 @@ function ObservationView({ obs, navigate, resMap }: {
       {/* Description */}
       <Card style={{ borderLeft: `4px solid ${colors.brightBlue}` }}>
         <SectionLabel>Description</SectionLabel>
-        <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{obs.description}</div>
+        <MarkupBlock value={obs.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
       </Card>
 
       {/* Details */}
@@ -2207,7 +2206,7 @@ function ObservationView({ obs, navigate, resMap }: {
       {obs.remarks && (
         <Card>
           <SectionLabel>Remarks</SectionLabel>
-          <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{obs.remarks}</div>
+          <MarkupBlock value={obs.remarks} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
         </Card>
       )}
 
@@ -2221,7 +2220,7 @@ function ObservationView({ obs, navigate, resMap }: {
                 <IcoExternalLink size={12} style={{ color: colors.brightBlue }} />
                 <span style={{ fontSize: 12, fontFamily: fonts.mono, color: colors.brightBlue }}>{ev.href}</span>
               </div>
-              {ev.description && <div style={{ fontSize: 12, color: colors.gray, marginTop: 4 }}>{ev.description}</div>}
+              {ev.description && <MarkupBlock value={ev.description} style={{ fontSize: 12, color: colors.gray, marginTop: 4 }} />}
             </div>
           ))}
         </Card>

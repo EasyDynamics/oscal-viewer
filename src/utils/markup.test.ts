@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { markupLineText, renderMarkup, renderMarkupLine, sanitizeSvg } from "./markup";
+import { markupLineText, markupPlainText, renderMarkup, renderMarkupLine, renderProse, sanitizeSvg } from "./markup";
 import { XSS_PAYLOADS, expectNoActiveContent } from "../test/xss";
 
 /** Parse an HTML string into a detached element that tests can query. */
@@ -100,6 +100,36 @@ describe("renderMarkup()", () => {
   it("unwraps a lone paragraph so one-line values sit inline", () => {
     expect(renderMarkup("Plain **text**")).toBe("Plain <strong>text</strong>");
     expect(renderMarkup("One\n\nTwo")).toBe("<p>One</p>\n<p>Two</p>");
+  });
+});
+
+describe("renderProse()", () => {
+  const params = (id: string) => (id === "p1" ? { text: "[Assignment: <b>x</b> & y]" } : null);
+
+  it.each(XSS_PAYLOADS)("neutralizes %s", (payload) => {
+    expectNoActiveContent(parse(renderProse(`${payload} {{ insert: param, p1 }}`, params)));
+  });
+
+  it("renders Markdown and parameter pills together", () => {
+    const el = parse(renderProse("Review **{{ insert: param, p1 }}** and [AU-02](#au-2).", params));
+    expect(el.querySelector("strong .oscal-param")?.textContent).toBe("[Assignment: <b>x</b> & y]");
+    expect(el.querySelector("a")?.getAttribute("href")).toBe("#au-2");
+    expect(el.querySelector("b")).toBeNull();
+  });
+
+  it("is renderMarkup() without a parameter resolver", () => {
+    expect(renderProse("Plain **text** {{ insert: param, p1 }}")).toBe(renderMarkup("Plain **text** {{ insert: param, p1 }}"));
+  });
+});
+
+describe("markupPlainText()", () => {
+  it("strips Markdown to its text, on one line", () => {
+    expect(markupPlainText("In accordance with [AU-02](#au-2).\n\n- **one**\n- two")).toBe("In accordance with AU-02. one two");
+    expect(markupPlainText("")).toBe("");
+  });
+
+  it("drops scripts, content included", () => {
+    expect(markupPlainText("Hi <script>alert(1)</script>there")).toBe("Hi there");
   });
 });
 

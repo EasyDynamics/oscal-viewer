@@ -167,3 +167,60 @@ describe("CatalogPage part titles (issue #102)", () => {
     expect(screen.getByText("Supplemental Guidance")).toBeInTheDocument();
   });
 });
+
+// Issue #104: prose is Markdown, and links to other controls open them in the viewer.
+const markdownCatalog = {
+  uuid: "5c1d2e3f-4a5b-4c6d-8e7f-90a1b2c3d4e5",
+  metadata: { title: "Markdown prose catalog", "last-modified": "2026-10-07T00:00:00Z", version: "1.0", "oscal-version": "1.2.3" },
+  groups: [
+    {
+      id: "ac",
+      title: "Access Control",
+      controls: [
+        {
+          id: "ac-2",
+          title: "Account Management",
+          params: [{ id: "ac-2_prm_1", label: "time period" }],
+          parts: [
+            {
+              id: "ac-2_gdn",
+              name: "guidance",
+              prose: "Audit **every {{ insert: param, ac-2_prm_1 }}** in accordance with [AU-02](#au-2) and [the policy](#res-1).",
+            },
+          ],
+        },
+      ],
+    },
+    { id: "au", title: "Audit and Accountability", controls: [{ id: "au-2", title: "Event Logging" }] },
+  ],
+  "back-matter": { resources: [{ uuid: "res-1", title: "Audit Policy" }] },
+} as unknown as Catalog;
+
+describe("CatalogPage Markdown prose (issue #104)", () => {
+  const openAc2 = async () => {
+    renderCatalogPage({ mobile: false, data: markdownCatalog });
+    fireEvent.click((await screen.findAllByText("Access Control"))[0]);
+    fireEvent.click(screen.getAllByText("Account Management")[0]);
+    expect(heading("Account Management")).toBeInTheDocument();
+  };
+
+  it("renders the prose's Markdown, with parameter pills inside it", async () => {
+    await openAc2();
+    const pill = screen.getByText("[Assignment: time period]");
+    expect(pill).toHaveClass("oscal-param");
+    expect(pill.closest("strong")).not.toBeNull();
+    expect(screen.queryByText(/\[AU-02\]\(#au-2\)/)).not.toBeInTheDocument();
+  });
+
+  it("opens the control a #fragment link names", async () => {
+    await openAc2();
+    fireEvent.click(screen.getByRole("link", { name: "AU-02" }));
+    expect(heading("Event Logging")).toBeInTheDocument();
+  });
+
+  it("opens the back-matter resource a #fragment link names", async () => {
+    await openAc2();
+    fireEvent.click(screen.getByRole("link", { name: "the policy" }));
+    expect(heading("Audit Policy")).toBeInTheDocument();
+  });
+});

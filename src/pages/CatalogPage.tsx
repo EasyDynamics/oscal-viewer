@@ -25,10 +25,10 @@ import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
 import PropLabel from "../components/PropLabel";
-import { MarkupLine } from "../components/MarkupBlock";
+import MarkupBlock, { MarkupLine, MarkupLinks } from "../components/MarkupBlock";
 import type { ResolvedLink } from "../components/LinkChips";
 import { linkLabel, linkTooltip, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
-import { markupLineText } from "../utils/markup";
+import { markupLineText, markupPlainText } from "../utils/markup";
 import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import { backMatterBase64Link, backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
@@ -898,6 +898,25 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
 function ViewRouter({ view, catalog, navigate }: {
   view: string; catalog: Catalog; navigate: (id: string) => void;
 }) {
+  // A `#fragment` link in prose ([AU-02](#au-2)) opens the control, group or resource it names.
+  const resolveLink = (id: string) => {
+    const target = findControl(catalog, id) ? `ctrl-${id}`
+      : groupKeys(catalog).groupByKey(id) ? `group-${id}`
+      : (catalog["back-matter"]?.resources ?? []).some((r) => r.uuid === id) ? `resource-${id}`
+      : null;
+    if (target) navigate(target);
+    return target !== null;
+  };
+  return (
+    <MarkupLinks resolve={resolveLink}>
+      <CatalogView view={view} catalog={catalog} navigate={navigate} />
+    </MarkupLinks>
+  );
+}
+
+function CatalogView({ view, catalog, navigate }: {
+  view: string; catalog: Catalog; navigate: (id: string) => void;
+}) {
   if (view === "overview") return <OverviewView catalog={catalog} navigate={navigate} />;
   if (view === "metadata") return <MetadataView catalog={catalog} navigate={navigate} />;
   if (view === "back-matter") return <BackMatterView catalog={catalog} navigate={navigate} />;
@@ -1166,9 +1185,7 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
       {meta.remarks && (
         <Card>
           <SectionLabel>Remarks</SectionLabel>
-          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, margin: 0, whiteSpace: "pre-wrap" }}>
-            {meta.remarks}
-          </p>
+          <MarkupBlock value={meta.remarks} />
         </Card>
       )}
 
@@ -1380,7 +1397,7 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
                       overflow: "hidden", textOverflow: "ellipsis",
                       display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
                     }}>
-                      {r.description}
+                      {markupPlainText(r.description)}
                     </p>
                   )}
                   {otherProps.length > 0 && (
@@ -1397,7 +1414,7 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
                       overflow: "hidden", textOverflow: "ellipsis",
                       display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
                     }}>
-                      {r.remarks}
+                      {markupPlainText(r.remarks)}
                     </p>
                   )}
                 </div>
@@ -1438,9 +1455,7 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
       {r.description && (
         <Card>
           <SectionLabel>Description</SectionLabel>
-          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, margin: 0, whiteSpace: "pre-wrap" }}>
-            {r.description}
-          </p>
+          <MarkupBlock value={r.description} />
         </Card>
       )}
 
@@ -1503,9 +1518,7 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
       {r.remarks && (
         <Card>
           <SectionLabel>Remarks</SectionLabel>
-          <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, margin: 0, whiteSpace: "pre-wrap" }}>
-            {r.remarks}
-          </p>
+          <MarkupBlock value={r.remarks} />
         </Card>
       )}
 
@@ -1988,46 +2001,11 @@ function PartTree({ part, depth, paramMap, resMap, navigate }: {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function ProseWithParams({ text, paramMap }: { text: unknown; paramMap: Record<string, Param> }) {
-  const safeText = safeString(text);
-  // Split on {{ insert: param, <id> }} keeping the param id as a capture group
-  const parts = safeText.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
-
-  return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans }}>
-      {parts.map((segment, i) => {
-        const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
-        if (match) {
-          const paramId = match[1].trim();
-          const param = paramMap[paramId];
-          const rendered = param ? renderParamText(param, paramMap) : `[Assignment: ${paramId}]`;
-          const isSelection = param?.select != null;
-          return (
-            <span
-              key={i}
-              title={`Parameter: ${paramId}`}
-              style={{
-                display: "inline",
-                fontSize: 13,
-                fontFamily: fonts.mono,
-                fontWeight: 600,
-                color: isSelection ? colors.cobalt : colors.orange,
-                backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
-                padding: "1px 6px",
-                borderRadius: radii.sm,
-                border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
-                whiteSpace: "normal",
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-              }}
-            >
-              {rendered}
-            </span>
-          );
-        }
-        return <span key={i}>{segment}</span>;
-      })}
-    </span>
-  );
+  const params = (id: string) => {
+    const param = paramMap[id];
+    return param ? { text: renderParamText(param, paramMap), selection: param.select != null } : null;
+  };
+  return <MarkupBlock value={safeString(text)} params={params} inline style={{ fontFamily: fonts.sans }} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
