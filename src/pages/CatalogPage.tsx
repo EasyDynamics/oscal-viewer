@@ -27,6 +27,7 @@ import { linkLabel, linkTooltip, resourceLinkLabel, resourceLinkTooltip } from "
 import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import { backMatterBase64Link, backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
+import { groupKeys } from "../utils/groupKeys";
 import type {
   Catalog,
   Control,
@@ -254,7 +255,7 @@ export default function CatalogPage() {
   const catalog = oscal.catalog?.data ?? null;
   const fileName = oscal.catalog?.fileName ?? "";
   const [error, setError] = useState("");
-  const [view, setView] = useState("overview"); // "overview" | "metadata" | "ctrl-{id}" | "group-{id}"
+  const [view, setView] = useState("overview"); // "overview" | "metadata" | "ctrl-{id}" | "group-{key}" (utils/groupKeys)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
@@ -334,9 +335,10 @@ export default function CatalogPage() {
   const defaultCollapsed = useMemo(() => {
     if (!catalog) return {} as Record<string, boolean>;
     const dc: Record<string, boolean> = {};
+    const keys = groupKeys(catalog);
     function walkGroups(groups: Group[]) {
       groups.forEach((g) => {
-        dc[`group-${g.id}`] = true;
+        dc[`group-${keys.keyOf(g)}`] = true;
         walkGroups(g.groups ?? []);
         (g.controls ?? []).forEach((c) => {
           if ((c.controls ?? []).length > 0) dc[`ctrl-${c.id}`] = true;
@@ -515,6 +517,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
   searchTerm: string; navigate: (id: string) => void; toggleGroup: (id: string) => void;
 }) {
   const lowerSearch = searchTerm.toLowerCase().trim();
+  const keys = groupKeys(catalog);
 
   /** Check if a control matches the search */
   function controlMatches(c: Control): boolean {
@@ -536,13 +539,13 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
 
   function renderGroup(g: Group, depth: number): ReactNode {
     if (lowerSearch && !groupHasMatch(g)) return null;
-    const gId = `group-${g.id}`;
+    const gId = `group-${keys.keyOf(g)}`;
     const isCollapsed = !!collapsed[gId];
     const cCount = countControls(g);
     const hasKids = cCount > 0 || (g.groups ?? []).length > 0;
 
     return (
-      <div key={g.id}>
+      <div key={gId}>
         <NavRow
           id={gId}
           label={`${getLabel(g.props) ? getLabel(g.props) + " " : ""}${g.title}`}
@@ -641,6 +644,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
   onSelect: (viewId: string) => void;
 }) {
   const lowerSearch = searchTerm.toLowerCase().trim();
+  const keys = groupKeys(catalog);
 
   /** Resolve the children at the current mobilePath position */
   function getChildren(): DrillNode[] {
@@ -660,7 +664,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
     for (const g of catalog.groups ?? []) {
       const lbl = getLabel(g.props);
       nodes.push({
-        id: `group-${g.id}`,
+        id: `group-${keys.keyOf(g)}`,
         label: `${lbl ? lbl + " " : ""}${g.title}`,
         icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
         isBranch: true,
@@ -685,7 +689,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
   }
 
   function getGroupChildren(gId: string): DrillNode[] {
-    const group = findGroupById(catalog, gId);
+    const group = keys.groupByKey(gId);
     if (!group) return [];
     const nodes: DrillNode[] = [];
     // View this group's overview
@@ -698,7 +702,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
     for (const sg of group.groups ?? []) {
       const lbl = getLabel(sg.props);
       nodes.push({
-        id: `group-${sg.id}`,
+        id: `group-${keys.keyOf(sg)}`,
         label: `${lbl ? lbl + " " : ""}${sg.title}`,
         icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
         isBranch: true,
@@ -780,7 +784,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
     const crumbs: { id: string; label: string }[] = [{ id: "__root", label: "Catalog" }];
     for (const nodeId of mobilePath) {
       if (nodeId.startsWith("group-")) {
-        const g = findGroupById(catalog, nodeId.replace("group-", ""));
+        const g = keys.groupByKey(nodeId.replace("group-", ""));
         crumbs.push({ id: nodeId, label: g ? (getLabel(g.props) || g.title) : nodeId });
       } else if (nodeId.startsWith("ctrl-")) {
         const c = findControl(catalog, nodeId.replace("ctrl-", ""));
@@ -900,8 +904,7 @@ function ViewRouter({ view, catalog, navigate }: {
   }
 
   if (view.startsWith("group-")) {
-    const gId = view.replace("group-", "");
-    const group = findGroupById(catalog, gId);
+    const group = groupKeys(catalog).groupByKey(view.replace("group-", ""));
     if (group) return <GroupView group={group} catalog={catalog} navigate={navigate} />;
   }
 
@@ -912,18 +915,6 @@ function ViewRouter({ view, catalog, navigate }: {
   }
 
   return <NotFoundView navigate={navigate} />;
-}
-
-function findGroupById(catalog: Catalog, id: string): Group | undefined {
-  function search(groups: Group[]): Group | undefined {
-    for (const g of groups) {
-      if (g.id === id) return g;
-      const found = search(g.groups ?? []);
-      if (found) return found;
-    }
-    return undefined;
-  }
-  return search(catalog.groups ?? []);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1086,6 +1077,7 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
 
 function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: string) => void }) {
   const groups = catalog.groups ?? [];
+  const keys = groupKeys(catalog);
   const allCtrls = useMemo(() => allControlsFlat(catalog), [catalog]);
   const familyCount = groups.length;
 
@@ -1124,8 +1116,8 @@ function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: 
           const lbl = getLabel(g.props);
           return (
             <div
-              key={g.id}
-              onClick={() => navigate(`group-${g.id}`)}
+              key={keys.keyOf(g)}
+              onClick={() => navigate(`group-${keys.keyOf(g)}`)}
               style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
                 borderBottom: `1px solid ${colors.bg}`, cursor: "pointer" }}
             >
@@ -1567,8 +1559,8 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
    GROUP VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function GroupView({ group, catalog: _catalog, navigate }: { group: Group; catalog: Catalog; navigate: (id: string) => void }) {
-  void _catalog;
+function GroupView({ group, catalog, navigate }: { group: Group; catalog: Catalog; navigate: (id: string) => void }) {
+  const keys = groupKeys(catalog);
   const lbl = getLabel(group.props);
   const controls = group.controls ?? [];
   const subGroups = group.groups ?? [];
@@ -1576,7 +1568,7 @@ function GroupView({ group, catalog: _catalog, navigate }: { group: Group; catal
   // Build breadcrumbs — walk up group hierarchy
   const crumbs: { id: string; label: string }[] = [{ id: "overview", label: "Overview" }];
   // simple: just show the group
-  crumbs.push({ id: `group-${group.id}`, label: `${lbl ? lbl + " " : ""}${group.title}` });
+  crumbs.push({ id: `group-${keys.keyOf(group)}`, label: `${lbl ? lbl + " " : ""}${group.title}` });
 
   return (
     <div>
@@ -1588,7 +1580,7 @@ function GroupView({ group, catalog: _catalog, navigate }: { group: Group; catal
 
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 16 }}>
-          <MField label="Family ID" value={group.id.toUpperCase()} mono />
+          {group.id && <MField label="Family ID" value={group.id.toUpperCase()} mono />}
           <MField label="Controls" value={String(controls.length)} />
           <MField label="Sub-Groups" value={String(subGroups.length)} />
           <MField label="Total (incl. enhancements)" value={String(countControls(group))} />
@@ -1612,7 +1604,7 @@ function GroupView({ group, catalog: _catalog, navigate }: { group: Group; catal
           {subGroups.map((sg) => {
             const sgLbl = getLabel(sg.props);
             return (
-              <div key={sg.id} onClick={() => navigate(`group-${sg.id}`)}
+              <div key={keys.keyOf(sg)} onClick={() => navigate(`group-${keys.keyOf(sg)}`)}
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${colors.bg}`, cursor: "pointer" }}>
                 <IcoFolder size={14} style={{ color: colors.cobalt }} />
                 <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{sgLbl ? `${sgLbl} ` : ""}{sg.title}</span>
@@ -1697,7 +1689,7 @@ function ControlView({ control, catalog, navigate }: {
   const parentGroup = findControlGroup(catalog, control.id);
   if (parentGroup) {
     const gLbl = getLabel(parentGroup.props);
-    crumbs.push({ id: `group-${parentGroup.id}`, label: `${gLbl ? gLbl + " " : ""}${parentGroup.title}` });
+    crumbs.push({ id: `group-${groupKeys(catalog).keyOf(parentGroup)}`, label: `${gLbl ? gLbl + " " : ""}${parentGroup.title}` });
   }
   // Check if this is an enhancement
   const parentCtrl = findParentControl(catalog, control.id);

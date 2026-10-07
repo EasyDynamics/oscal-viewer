@@ -91,7 +91,8 @@ export interface Control {
 }
 
 export interface Group {
-  id: string;
+  /** Optional in OSCAL. To identify a group in the UI, use utils/groupKeys. */
+  id?: string;
   class?: string;
   title: string;
   props?: OscalProp[];
