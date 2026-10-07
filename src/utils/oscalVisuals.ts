@@ -1,4 +1,5 @@
 import { colors } from "../theme/tokens";
+import { markupLineText } from "./markup";
 
 export interface OscalVisualProp {
   name: string;
@@ -196,7 +197,7 @@ export function backMatterBase64Link(resource: { title?: string; base64?: unknow
   return {
     href: backMatterBase64DataUrl(base64),
     mediaType: base64.mediaType,
-    filename: base64.filename || resource.title || "attachment",
+    filename: base64.filename || markupLineText(resource.title) || "attachment",
   };
 }
 

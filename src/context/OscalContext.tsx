@@ -62,6 +62,7 @@ export interface CatalogMetadata {
 export interface Part {
   id?: string;
   name: string;
+  title?: string;
   prose?: string;
   parts?: Part[];
   props?: OscalProp[];
@@ -95,6 +96,7 @@ export interface Group {
   id?: string;
   class?: string;
   title: string;
+  params?: Param[];
   props?: OscalProp[];
   parts?: Part[];
   groups?: Group[];

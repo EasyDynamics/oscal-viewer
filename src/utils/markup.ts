@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import DOMPurify, { type Config } from "dompurify";
-import { Marked } from "marked";
+import { Marked, type TokenizerAndRendererExtension } from "marked";
 
 /**
  * Accepts http(s) and mailto URLs, plus values with no scheme: #fragments,
@@ -59,6 +59,99 @@ export function renderMarkup(text: string): string {
   if (html.startsWith("<p>") && html.endsWith("</p>") && html.indexOf("<p>", 1) === -1)
     html = html.slice(3, -4);
   return markupPurify.sanitize(html, MARKUP_CONFIG);
+}
+
+/* ── Titles (markup-line) ── */
+
+/** OSCAL Markdown writes subscript as ~text~ and superscript as ^text^. */
+function oscalScript(tag: "sub" | "sup", mark: "~" | "^"): TokenizerAndRendererExtension {
+  const m = mark === "^" ? "\\^" : mark;
+  // One mark on each side (two tildes stay strikethrough), no space inside.
+  const rule = new RegExp(`^${m}(?!${m})([^\\s${m}](?:[^${m}]*[^\\s${m}])?)${m}(?!${m})`);
+  return {
+    name: tag,
+    level: "inline",
+    start: (src) => (src.includes(mark) ? src.indexOf(mark) : undefined),
+    tokenizer(src) {
+      const match = rule.exec(src);
+      if (match) return { type: tag, raw: match[0], tokens: this.lexer.inlineTokens(match[1]) };
+    },
+    renderer(token) {
+      return `<${tag}>${this.parser.parseInline(token.tokens ?? [])}</${tag}>`;
+    },
+  };
+}
+
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// Every OSCAL title is markup-line: inline Markdown only, with OSCAL's sub-
+// and superscript. A title is a name, and it often sits inside a clickable
+// row, where a link would navigate away mid-click, so links show their text
+// and images their alt text.
+const lineMarked = new Marked({
+  async: false,
+  gfm: true,
+  breaks: false,
+  extensions: [oscalScript("sub", "~"), oscalScript("sup", "^")],
+  renderer: {
+    link({ tokens }) { return this.parser.parseInline(tokens); },
+    image({ text }) { return escapeHtml(text); },
+  },
+});
+
+// Raw HTML in a title gets the same treatment: inline formatting only.
+const linePurify = DOMPurify();
+const LINE_CONFIG: Config = {
+  ALLOWED_TAGS: ["b", "strong", "i", "em", "code", "del", "s", "sub", "sup", "q"],
+  ALLOWED_ATTR: [],
+};
+
+// Pages render the same titles over and over (sidebars, lists, breadcrumbs).
+const LINE_CACHE_LIMIT = 5000;
+const lineHtmlCache = new Map<string, string>();
+const lineTextCache = new Map<string, string>();
+
+function remember(cache: Map<string, string>, key: string, value: string): string {
+  if (cache.size >= LINE_CACHE_LIMIT) cache.clear();
+  cache.set(key, value);
+  return value;
+}
+
+/** A title value as a string (documents may hold non-string junk). */
+export function markupLineSource(value: unknown): string {
+  if (typeof value === "string") return value;
+  return value === null || value === undefined ? "" : String(value);
+}
+
+/**
+ * True when a title has no character that inline Markdown or HTML gives a
+ * meaning to, so it renders as itself. Most titles are like this.
+ */
+export function isPlainLine(text: string): boolean {
+  return !/[\\`*_~^[<&]/.test(text);
+}
+
+/** Render an OSCAL markup-line value (a title) to sanitized inline HTML. */
+export function renderMarkupLine(text: string): string {
+  const hit = lineHtmlCache.get(text);
+  if (hit !== undefined) return hit;
+  const html = lineMarked.parseInline(text) as string;
+  return remember(lineHtmlCache, text, linePurify.sanitize(html, LINE_CONFIG));
+}
+
+/**
+ * The plain text of an OSCAL markup-line value, for places that need a
+ * string: sidebar labels, breadcrumbs, tooltips, search and sorting.
+ */
+export function markupLineText(value: unknown): string {
+  const text = markupLineSource(value);
+  if (isPlainLine(text)) return text;
+  const hit = lineTextCache.get(text);
+  if (hit !== undefined) return hit;
+  const html = lineMarked.parseInline(text) as string;
+  const fragment = linePurify.sanitize(html, { ...LINE_CONFIG, RETURN_DOM_FRAGMENT: true });
+  return remember(lineTextCache, text, fragment.textContent ?? "");
 }
 
 /** Sanitize a rendered Mermaid diagram before it is inlined into the page. */

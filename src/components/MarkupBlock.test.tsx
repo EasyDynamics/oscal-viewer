@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
-import MarkupBlock, { InlineMarkup } from "./MarkupBlock";
+import MarkupBlock, { InlineMarkup, MarkupLine } from "./MarkupBlock";
 import { XSS_PAYLOADS, expectNoActiveContent } from "../test/xss";
 
 describe("<MarkupBlock />", () => {
@@ -41,5 +41,31 @@ describe("<InlineMarkup />", () => {
     expect(span?.querySelector("p")).toBeNull();
     expect(span?.querySelector("strong")?.textContent).toBe("confidentiality");
     expect(span?.querySelector("a")?.getAttribute("href")).toBe("#sc-8");
+  });
+});
+
+describe("<MarkupLine />", () => {
+  it.each(XSS_PAYLOADS)("neutralizes %s", (payload) => {
+    const { container } = render(<MarkupLine text={payload} />);
+    expectNoActiveContent(container);
+  });
+
+  it("renders a plain title as text, with no wrapper", () => {
+    const { container } = render(<MarkupLine text="Account Management" />);
+    expect(container.innerHTML).toBe("Account Management");
+  });
+
+  it("renders a title's inline formatting, and links as their text", () => {
+    const { container } = render(<MarkupLine text="Use of **Cryptography** in [TLS](https://example.com)" />);
+    const span = container.firstElementChild;
+    expect(span?.tagName).toBe("SPAN");
+    expect(span?.querySelector("strong")?.textContent).toBe("Cryptography");
+    expect(span?.querySelector("a")).toBeNull();
+    expect(span?.textContent).toBe("Use of Cryptography in TLS");
+  });
+
+  it("renders nothing for a missing title", () => {
+    const { container } = render(<MarkupLine text={undefined} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

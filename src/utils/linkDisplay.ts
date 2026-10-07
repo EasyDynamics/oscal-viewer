@@ -7,6 +7,8 @@
  * The target's name moves to the tooltip when the link text is shown.
  */
 
+import { markupLineText } from "./markup";
+
 export interface LinkTextLike {
   text?: string;
 }
@@ -16,9 +18,9 @@ export interface LinkedResourceLike {
   citation?: { text?: string };
 }
 
-/** A back-matter resource's display name: its title, else its citation text. */
+/** A back-matter resource's display name: its title as plain text, else its citation text. */
 export function resourceName(resource: LinkedResourceLike | undefined): string | undefined {
-  return resource?.title || resource?.citation?.text || undefined;
+  return markupLineText(resource?.title) || resource?.citation?.text || undefined;
 }
 
 /**

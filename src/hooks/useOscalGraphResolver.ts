@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authFetch } from "../context/AuthContext";
 import type { ResolverItem } from "../components/ResolverModal";
+import { markupLineText } from "../utils/markup";
 import {
   checkUrlFormat,
   resolveHref,
@@ -153,7 +154,8 @@ function detectModelKey(json: unknown, preferred: OscalModelKey, accepts: OscalM
 
 function titleOf(model: Record<string, unknown> | null): string | null {
   const md = model?.metadata as Record<string, unknown> | undefined;
-  return (md?.title as string | undefined) ?? (model?.title as string | undefined) ?? null;
+  const title = (md?.title as string | undefined) ?? (model?.title as string | undefined) ?? null;
+  return title === null ? null : markupLineText(title);
 }
 
 function backMatterOf(model: Record<string, unknown> | null): BackMatterResource[] {
@@ -292,7 +294,7 @@ function extractDependencies(
       if (!href) return;
       targets.push({
         href,
-        label: la.title || `Provider SSP ${index + 1}`,
+        label: markupLineText(la.title) || `Provider SSP ${index + 1}`,
         modelKey: "system-security-plan",
         relation: "leveraged authorization",
         boundLaUuid: typeof la.uuid === "string" ? la.uuid : undefined,
@@ -371,7 +373,7 @@ function extractDependencies(
         if (!impl?.source) return;
         targets.push({
           href: impl.source,
-          label: `${component?.title || `Component ${componentIndex + 1}`} · Source ${implIndex + 1}`,
+          label: `${markupLineText(component?.title) || `Component ${componentIndex + 1}`} · Source ${implIndex + 1}`,
           modelKey: "catalog",
           accepts: ["catalog", "profile"],
           relation: "control implementation source",
@@ -585,7 +587,8 @@ export function useOscalGraphResolver({
 
       while (queue.length > 0 && !cancelled) {
         const target = queue.shift()!;
-        const { url, title, error } = resolveTargetUrl(target);
+        const { url, title: resourceTitle, error } = resolveTargetUrl(target);
+        const title = resourceTitle === null ? null : markupLineText(resourceTitle);
         const id = nodeId(target.parentId, target.modelKey, url ?? target.href);
         const resolvedLabel = title ?? (url ? fileNameFromUrl(url) : null);
 

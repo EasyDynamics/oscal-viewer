@@ -1,6 +1,6 @@
 import { useMemo, type CSSProperties } from "react";
 import { colors } from "../theme/tokens";
-import { renderMarkup } from "../utils/markup";
+import { isPlainLine, markupLineSource, renderMarkup, renderMarkupLine } from "../utils/markup";
 
 /** OSCAL markup fields hold either a string or a `{ prose }` object. */
 function markupText(value: unknown): string {
@@ -28,4 +28,15 @@ export default function MarkupBlock({ value, style }: { value: unknown; style?: 
 export function InlineMarkup({ text }: { text: string }) {
   const html = useMemo(() => renderMarkup(text), [text]);
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/**
+ * An OSCAL title (markup-line): sanitized inline formatting. A title with no
+ * Markdown renders as plain text. For a title in a string (a label, tooltip
+ * or search text), use markupLineText() instead.
+ */
+export function MarkupLine({ text }: { text: unknown }) {
+  const raw = markupLineSource(text);
+  if (isPlainLine(raw)) return <>{raw}</>;
+  return <span className="oscal-markup-line" dangerouslySetInnerHTML={{ __html: renderMarkupLine(raw) }} />;
 }

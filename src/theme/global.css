@@ -4,7 +4,7 @@
    Colors use CSS custom properties injected by applyTheme().
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400;1,700&family=Roboto+Mono:wght@400;500&display=swap');
 
 /* ── Reset ── */
 *,
@@ -123,7 +123,8 @@ button:focus-visible {
   padding: 0;
 }
 .oscal-markup li { margin-bottom: 0.15em; }
-.oscal-markup code {
+.oscal-markup code,
+.oscal-markup-line code {
   font-size: 0.85em;
   background: var(--color-code-bg);
   color: var(--color-code-fg);

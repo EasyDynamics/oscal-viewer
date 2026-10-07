@@ -3,6 +3,7 @@ import { Building2, Link2, User, Users } from "lucide-react";
 import { alpha, colors, fonts, radii } from "../theme/tokens";
 import { partyDisplayName, type PartyLike, type ResponsiblePartyLike, type RoleLike } from "../utils/partyDisplay";
 import { linkLabel, linkTooltip, resourceName, type LinkedResourceLike } from "../utils/linkDisplay";
+import { MarkupLine } from "./MarkupBlock";
 
 /** A back-matter resource that a party link's `#<uuid>` href can point to. */
 export interface PartyLinkResource extends LinkedResourceLike {
@@ -159,7 +160,7 @@ export function ResponsiblePartiesList({
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: partyUuids.length ? 8 : 0 }}>
               <Users size={15} style={{ color: colors.cobalt, flexShrink: 0 }} />
               <span style={{ fontSize: 12, fontWeight: 800, color: colors.navy, textTransform: "uppercase", letterSpacing: 0.45 }}>
-                {roleName}
+                <MarkupLine text={roleName} />
               </span>
               {roleName !== responsibleParty["role-id"] && (
                 <span style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>({responsibleParty["role-id"]})</span>

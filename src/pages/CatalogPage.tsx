@@ -10,6 +10,7 @@ import {
   useMemo,
   useCallback,
   useRef,
+  isValidElement,
   type CSSProperties,
   type DragEvent,
   type ReactNode,
@@ -22,8 +23,11 @@ import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
+import PartTitle from "../components/PartTitle";
+import { MarkupLine } from "../components/MarkupBlock";
 import type { ResolvedLink } from "../components/LinkChips";
 import { linkLabel, linkTooltip, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
+import { markupLineText } from "../utils/markup";
 import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import { backMatterBase64Link, backMatterResourceType, backMatterResourceVisual, isBackMatterResourceTypeProp, isWithdrawnStatusProp } from "../utils/oscalVisuals";
@@ -523,7 +527,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
   function controlMatches(c: Control): boolean {
     if (!lowerSearch) return true;
     if (c.id.toLowerCase().includes(lowerSearch)) return true;
-    if (c.title.toLowerCase().includes(lowerSearch)) return true;
+    if (markupLineText(c.title).toLowerCase().includes(lowerSearch)) return true;
     const lbl = getLabel(c.props);
     if (lbl.toLowerCase().includes(lowerSearch)) return true;
     return false;
@@ -532,7 +536,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
   /** Check if any control in a group (recursively) matches */
   function groupHasMatch(g: Group): boolean {
     if (!lowerSearch) return true;
-    if (g.title.toLowerCase().includes(lowerSearch)) return true;
+    if (markupLineText(g.title).toLowerCase().includes(lowerSearch)) return true;
     if ((g.controls ?? []).some((c) => controlMatches(c) || (c.controls ?? []).some(controlMatches))) return true;
     return (g.groups ?? []).some(groupHasMatch);
   }
@@ -548,7 +552,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
       <div key={gId}>
         <NavRow
           id={gId}
-          label={`${getLabel(g.props) ? getLabel(g.props) + " " : ""}${g.title}`}
+          label={`${getLabel(g.props) ? getLabel(g.props) + " " : ""}${markupLineText(g.title)}`}
           icon={<IcoFolder size={14} style={{ color: colors.cobalt }} />}
           active={view === gId}
           onClick={() => navigate(gId)}
@@ -580,7 +584,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
       <div key={c.id}>
         <NavRow
           id={cId}
-          label={`${lbl ? lbl + " " : ""}${c.title}`}
+          label={`${lbl ? lbl + " " : ""}${markupLineText(c.title)}`}
           icon={<IcoShield size={13} style={{ color: colors.brightBlue }} />}
           active={view === cId}
           onClick={() => navigate(cId)}
@@ -598,7 +602,7 @@ function SidebarTree({ catalog, view, collapsed, searchTerm, navigate, toggleGro
             <NavRow
               key={enh.id}
               id={`ctrl-${enh.id}`}
-              label={`${enhLabel ? enhLabel + " " : ""}${enh.title}`}
+              label={`${enhLabel ? enhLabel + " " : ""}${markupLineText(enh.title)}`}
               icon={<IcoTag size={12} style={{ color: colors.orange }} />}
               active={view === `ctrl-${enh.id}`}
               onClick={() => navigate(`ctrl-${enh.id}`)}
@@ -665,7 +669,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
       const lbl = getLabel(g.props);
       nodes.push({
         id: `group-${keys.keyOf(g)}`,
-        label: `${lbl ? lbl + " " : ""}${g.title}`,
+        label: `${lbl ? lbl + " " : ""}${markupLineText(g.title)}`,
         icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
         isBranch: true,
         badge: countControls(g),
@@ -676,7 +680,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
       const hasEnh = (c.controls ?? []).length > 0;
       nodes.push({
         id: hasEnh ? `ctrl-${c.id}` : `__ctrl-${c.id}`,
-        label: `${lbl ? lbl + " " : ""}${c.title}`,
+        label: `${lbl ? lbl + " " : ""}${markupLineText(c.title)}`,
         icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
         isBranch: hasEnh,
         badge: hasEnh ? (c.controls ?? []).length : undefined,
@@ -695,7 +699,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
     // View this group's overview
     nodes.push({
       id: `__group-${gId}`,
-      label: `${group.title} — Overview`,
+      label: `${markupLineText(group.title)} — Overview`,
       icon: <IcoInfo size={16} style={{ color: colors.cobalt }} />,
       isBranch: false,
     });
@@ -703,7 +707,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
       const lbl = getLabel(sg.props);
       nodes.push({
         id: `group-${keys.keyOf(sg)}`,
-        label: `${lbl ? lbl + " " : ""}${sg.title}`,
+        label: `${lbl ? lbl + " " : ""}${markupLineText(sg.title)}`,
         icon: <IcoFolder size={16} style={{ color: colors.cobalt }} />,
         isBranch: true,
         badge: countControls(sg),
@@ -714,7 +718,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
       const hasEnh = (c.controls ?? []).length > 0;
       nodes.push({
         id: hasEnh ? `ctrl-${c.id}` : `__ctrl-${c.id}`,
-        label: `${lbl ? lbl + " " : ""}${c.title}`,
+        label: `${lbl ? lbl + " " : ""}${markupLineText(c.title)}`,
         icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
         isBranch: hasEnh,
         badge: hasEnh ? (c.controls ?? []).length : undefined,
@@ -738,7 +742,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
       const lbl = getLabel(enh.props);
       nodes.push({
         id: `__ctrl-${enh.id}`,
-        label: `${lbl ? lbl + " " : ""}${enh.title}`,
+        label: `${lbl ? lbl + " " : ""}${markupLineText(enh.title)}`,
         icon: <IcoTag size={14} style={{ color: colors.orange }} />,
         isBranch: false,
       });
@@ -752,14 +756,14 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
       for (const c of g.controls ?? []) {
         if (matchesSearch(c)) results.push({
           id: `__ctrl-${c.id}`,
-          label: `${getLabel(c.props) || ""} ${c.title}`.trim(),
+          label: `${getLabel(c.props) || ""} ${markupLineText(c.title)}`.trim(),
           icon: <IcoShield size={16} style={{ color: colors.brightBlue }} />,
           isBranch: false,
         });
         for (const enh of c.controls ?? []) {
           if (matchesSearch(enh)) results.push({
             id: `__ctrl-${enh.id}`,
-            label: `${getLabel(enh.props) || ""} ${enh.title}`.trim(),
+            label: `${getLabel(enh.props) || ""} ${markupLineText(enh.title)}`.trim(),
             icon: <IcoTag size={14} style={{ color: colors.orange }} />,
             isBranch: false,
           });
@@ -774,7 +778,7 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
   function matchesSearch(c: Control): boolean {
     if (!lowerSearch) return true;
     if (c.id.toLowerCase().includes(lowerSearch)) return true;
-    if (c.title.toLowerCase().includes(lowerSearch)) return true;
+    if (markupLineText(c.title).toLowerCase().includes(lowerSearch)) return true;
     const lbl = getLabel(c.props);
     if (lbl.toLowerCase().includes(lowerSearch)) return true;
     return false;
@@ -785,10 +789,10 @@ function MobileDrillDown({ catalog, mobilePath, searchTerm, setSearchTerm, onDri
     for (const nodeId of mobilePath) {
       if (nodeId.startsWith("group-")) {
         const g = keys.groupByKey(nodeId.replace("group-", ""));
-        crumbs.push({ id: nodeId, label: g ? (getLabel(g.props) || g.title) : nodeId });
+        crumbs.push({ id: nodeId, label: g ? (getLabel(g.props) || markupLineText(g.title)) : nodeId });
       } else if (nodeId.startsWith("ctrl-")) {
         const c = findControl(catalog, nodeId.replace("ctrl-", ""));
-        crumbs.push({ id: nodeId, label: c ? (getLabel(c.props) || c.title) : nodeId });
+        crumbs.push({ id: nodeId, label: c ? (getLabel(c.props) || markupLineText(c.title)) : nodeId });
       }
     }
     return crumbs;
@@ -956,7 +960,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 function MField({ label, value, mono }: { label: string; value: unknown; mono?: boolean }) {
-  const displayValue = safeString(value);
+  const displayValue = isValidElement(value) ? value : safeString(value);
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 500, color: colors.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
@@ -1087,7 +1091,7 @@ function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: 
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, color: colors.navy, marginBottom: 4 }}>{catalog.metadata.title}</h1>
+      <h1 style={{ fontSize: 22, color: colors.navy, marginBottom: 4 }}><MarkupLine text={catalog.metadata.title} /></h1>
       <p style={{ fontSize: 13, color: colors.gray, marginBottom: 20 }}>
         Version {catalog.metadata.version ?? "—"} · OSCAL {catalog.metadata["oscal-version"] ?? "—"}
         {catalog.metadata.published ? ` · Published ${fmtDate(catalog.metadata.published)}` : ""}
@@ -1124,7 +1128,7 @@ function OverviewView({ catalog, navigate }: { catalog: Catalog; navigate: (id: 
               <IcoFolder size={16} style={{ color: colors.cobalt }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
-                  {lbl ? `${lbl} ` : ""}{g.title}
+                  {lbl ? `${lbl} ` : ""}<MarkupLine text={g.title} />
                 </div>
               </div>
               <span style={{ fontSize: 12, color: colors.gray }}>{ct} controls</span>
@@ -1159,7 +1163,7 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
       <Card>
         <SectionLabel>Document Information</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 16 }}>
-          <MField label="Title" value={meta.title} />
+          <MField label="Title" value={meta.title && <MarkupLine text={meta.title} />} />
           <MField label="Version" value={meta.version ?? "—"} />
           <MField label="Published" value={fmtDate(meta.published)} />
           <MField label="Last Modified" value={fmtDate(meta["last-modified"])} />
@@ -1233,7 +1237,7 @@ function MetadataView({ catalog: cat, navigate }: { catalog: Catalog; navigate: 
                 fontSize: 12, padding: "4px 12px", borderRadius: radii.pill,
                 backgroundColor: colors.navy, color: colors.white, fontWeight: 500,
               }}>
-                {r.title}
+                <MarkupLine text={r.title} />
                 <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 6 }}>({r.id})</span>
               </span>
             ))}
@@ -1289,7 +1293,7 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
 
   const filtered = lower
     ? resources.filter((r) =>
-        (r.title ?? "").toLowerCase().includes(lower) ||
+        markupLineText(r.title).toLowerCase().includes(lower) ||
         (r.description ?? "").toLowerCase().includes(lower) ||
         (r.props ?? []).some((p) => p.name.toLowerCase().includes(lower) || p.value.toLowerCase().includes(lower))
       )
@@ -1368,7 +1372,7 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {resourceIcon(meta.iconKey, 14, { color: meta.color, flexShrink: 0 })}
                     <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
-                      {r.title ?? "Untitled Resource"}
+                      <MarkupLine text={r.title ?? "Untitled Resource"} />
                     </span>
                     {hasType && (
                       <span style={{
@@ -1438,12 +1442,12 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
       <Breadcrumbs items={[
         { id: "overview", label: "Overview" },
         { id: "back-matter", label: "Back Matter" },
-        { id: `resource-${r.uuid}`, label: r.title ?? "Resource" },
+        { id: `resource-${r.uuid}`, label: markupLineText(r.title ?? "Resource") },
       ]} navigate={navigate} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         {resourceIcon(meta.iconKey, 22, { color: meta.color })}
-        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{r.title ?? "Untitled Resource"}</h1>
+        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}><MarkupLine text={r.title ?? "Untitled Resource"} /></h1>
       </div>
 
       {/* Description */}
@@ -1562,20 +1566,24 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
 function GroupView({ group, catalog, navigate }: { group: Group; catalog: Catalog; navigate: (id: string) => void }) {
   const keys = groupKeys(catalog);
   const lbl = getLabel(group.props);
+  const groupParamMap: Record<string, Param> = {};
+  (group.params ?? []).forEach((p) => { groupParamMap[p.id] = p; });
+  const resMap: Record<string, Resource> = {};
+  (catalog["back-matter"]?.resources ?? []).forEach((r) => { resMap[r.uuid] = r; });
   const controls = group.controls ?? [];
   const subGroups = group.groups ?? [];
 
   // Build breadcrumbs — walk up group hierarchy
   const crumbs: { id: string; label: string }[] = [{ id: "overview", label: "Overview" }];
   // simple: just show the group
-  crumbs.push({ id: `group-${keys.keyOf(group)}`, label: `${lbl ? lbl + " " : ""}${group.title}` });
+  crumbs.push({ id: `group-${keys.keyOf(group)}`, label: `${lbl ? lbl + " " : ""}${markupLineText(group.title)}` });
 
   return (
     <div>
       <Breadcrumbs items={crumbs} navigate={navigate} />
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <IcoFolder size={22} style={{ color: colors.cobalt }} />
-        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{lbl ? `${lbl} ` : ""}{group.title}</h1>
+        <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>{lbl ? `${lbl} ` : ""}<MarkupLine text={group.title} /></h1>
       </div>
 
       <Card>
@@ -1587,12 +1595,12 @@ function GroupView({ group, catalog, navigate }: { group: Group; catalog: Catalo
         </div>
       </Card>
 
-      {/* Group parts (overview text) */}
+      {/* Group parts (overview text), rendered like control parts */}
       {group.parts && group.parts.length > 0 && (
         <Card>
           {group.parts.map((p, i) => (
-            <div key={i}>
-              {p.prose && <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>{safeString(p.prose)}</p>}
+            <div key={p.id ?? i} style={{ marginTop: i === 0 ? 0 : 12 }}>
+              <PartTree part={p} depth={0} paramMap={groupParamMap} resMap={resMap} navigate={navigate} />
             </div>
           ))}
         </Card>
@@ -1607,7 +1615,7 @@ function GroupView({ group, catalog, navigate }: { group: Group; catalog: Catalo
               <div key={keys.keyOf(sg)} onClick={() => navigate(`group-${keys.keyOf(sg)}`)}
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${colors.bg}`, cursor: "pointer" }}>
                 <IcoFolder size={14} style={{ color: colors.cobalt }} />
-                <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{sgLbl ? `${sgLbl} ` : ""}{sg.title}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>{sgLbl ? `${sgLbl} ` : ""}<MarkupLine text={sg.title} /></span>
                 <span style={{ fontSize: 12, color: colors.gray, marginLeft: "auto" }}>{countControls(sg)} controls</span>
               </div>
             );
@@ -1636,7 +1644,7 @@ function GroupView({ group, catalog, navigate }: { group: Group; catalog: Catalo
                 {cLbl || c.id.toUpperCase()}
               </span>
               <span style={{ fontSize: 13, color: colors.black, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {c.title}
+                <MarkupLine text={c.title} />
               </span>
               {isWithdrawn && (
                 <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.paleGray, color: colors.gray, fontWeight: 600 }}>
@@ -1689,15 +1697,15 @@ function ControlView({ control, catalog, navigate }: {
   const parentGroup = findControlGroup(catalog, control.id);
   if (parentGroup) {
     const gLbl = getLabel(parentGroup.props);
-    crumbs.push({ id: `group-${groupKeys(catalog).keyOf(parentGroup)}`, label: `${gLbl ? gLbl + " " : ""}${parentGroup.title}` });
+    crumbs.push({ id: `group-${groupKeys(catalog).keyOf(parentGroup)}`, label: `${gLbl ? gLbl + " " : ""}${markupLineText(parentGroup.title)}` });
   }
   // Check if this is an enhancement
   const parentCtrl = findParentControl(catalog, control.id);
   if (parentCtrl) {
     const pLbl = getLabel(parentCtrl.props);
-    crumbs.push({ id: `ctrl-${parentCtrl.id}`, label: `${pLbl ? pLbl + " " : ""}${parentCtrl.title}` });
+    crumbs.push({ id: `ctrl-${parentCtrl.id}`, label: `${pLbl ? pLbl + " " : ""}${markupLineText(parentCtrl.title)}` });
   }
-  crumbs.push({ id: `ctrl-${control.id}`, label: `${lbl ? lbl + " " : ""}${control.title}` });
+  crumbs.push({ id: `ctrl-${control.id}`, label: `${lbl ? lbl + " " : ""}${markupLineText(control.title)}` });
 
   // Partition parts into the 5 sections
   const allParts = control.parts ?? [];
@@ -1730,7 +1738,7 @@ function ControlView({ control, catalog, navigate }: {
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <IcoShield size={22} style={{ color: colors.navy }} />
         <h1 style={{ fontSize: 20, color: colors.navy, margin: 0 }}>
-          {lbl ? `${lbl} ` : ""}{control.title}
+          {lbl ? `${lbl} ` : ""}<MarkupLine text={control.title} />
         </h1>
       </div>
 
@@ -1856,7 +1864,7 @@ function ControlView({ control, catalog, navigate }: {
                   {eLbl || enh.id.toUpperCase()}
                 </span>
                 <span style={{ fontSize: 13, color: colors.black, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {enh.title}
+                  <MarkupLine text={enh.title} />
                 </span>
                 {eWithdrawn && (
                   <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: radii.pill, backgroundColor: colors.paleGray, color: colors.gray, fontWeight: 600 }}>
@@ -1893,6 +1901,8 @@ function PartTree({ part, depth, paramMap, resMap, navigate }: {
       paddingLeft: depth > 0 ? 16 : 0,
       borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
     }}>
+      <PartTitle title={part.title} />
+
       {/* Part label (e.g. "a.", "b.", "(1)") */}
       {partLabel && (
         <span style={{

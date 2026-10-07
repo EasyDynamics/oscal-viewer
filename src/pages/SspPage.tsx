@@ -26,9 +26,10 @@ import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
-import MarkupBlock, { InlineMarkup } from "../components/MarkupBlock";
+import MarkupBlock, { InlineMarkup, MarkupLine } from "../components/MarkupBlock";
+import PartTitle from "../components/PartTitle";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
-import { sanitizeSvg } from "../utils/markup";
+import { markupLineText, sanitizeSvg } from "../utils/markup";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
@@ -968,7 +969,7 @@ function SectionLabel({ children, style: s }: { children: ReactNode; style?: CSS
   );
 }
 
-function MField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MField({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   if (!value) return null;
   return (
     <div>
@@ -1663,6 +1664,7 @@ function CatalogControlCard({
     const partLabel = getCatalogLabel(part.props as { name: string; value: string }[] | undefined);
     return (
       <div key={part.id ?? Math.random()} style={{ marginLeft: depth * 16, marginBottom: 4 }}>
+        <PartTitle title={part.title} />
         {part.prose && (
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, margin: "2px 0" }}>
             {partLabel && (
@@ -1685,7 +1687,7 @@ function CatalogControlCard({
         <span>
           Catalog Control{" "}
           <span style={{ fontFamily: fonts.mono, color: colors.brightBlue }}>
-            {label ? `${label} — ` : ""}{title}
+            {label ? `${label} — ` : ""}<MarkupLine text={title} />
           </span>
         </span>
       </SectionLabel>
@@ -1956,7 +1958,7 @@ function OverviewView({ ssp, leveragedIndex, navigate }: {
     <>
       <Card>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: colors.navy, fontFamily: fonts.sans, margin: "0 0 4px" }}>
-          {md.title}
+          <MarkupLine text={md.title} />
         </h1>
         {sc.systemName && (
           <p style={{ fontSize: 14, color: colors.darkGreen, fontWeight: 600, margin: "0 0 8px" }}>
@@ -2051,7 +2053,7 @@ function MetadataView({ ssp }: { ssp: SspParsed }) {
       <Card>
         <SectionLabel>Metadata</SectionLabel>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
-          <MField label="Title" value={md.title} />
+          <MField label="Title" value={<MarkupLine text={md.title} />} />
           <MField label="Version" value={md.version} />
           <MField label="OSCAL Version" value={md.oscalVersion} mono />
           <MField label="Last Modified" value={fmtDate(md.lastModified)} />
@@ -2068,7 +2070,7 @@ function MetadataView({ ssp }: { ssp: SspParsed }) {
                 fontSize: 11, padding: "3px 10px", borderRadius: radii.sm,
                 background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono, fontWeight: 500,
               }}>
-                {r.title}
+                <MarkupLine text={r.title} />
               </span>
             ))}
           </div>
@@ -2748,7 +2750,7 @@ function SystemCharacteristicsView({ ssp, sourceUrl }: { ssp: SspParsed; sourceU
           <SectionLabel>Information Types ({sc.informationTypes.length})</SectionLabel>
           {sc.informationTypes.map((it, i) => (
             <div key={i} style={{ padding: "10px 14px", marginBottom: 8, backgroundColor: colors.bg, borderRadius: radii.sm }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 4 }}>{it.title}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 4 }}><MarkupLine text={it.title} /></div>
               {it.description && <MarkupBlock value={it.description} style={{ fontSize: 12, marginBottom: 8 }} />}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {[
@@ -2821,7 +2823,7 @@ function SystemImplementationView({ ssp, navigate }: { ssp: SspParsed; navigate:
               display: "flex", alignItems: "center", gap: 8,
             }}>
               {navIcon(iconKey, iconColor, 13)}
-              <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{c.title || c.uuid.slice(0, 8)}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={c.title || c.uuid.slice(0, 8)} /></span>
               {assetType && <span style={{ fontSize: 10, color: iconColor, fontFamily: fonts.mono, marginLeft: "auto" }}>{assetType}</span>}
               <span style={{ fontSize: 11, color: colors.gray, marginLeft: assetType ? 0 : "auto" }}>{c.type}</span>
             </div>
@@ -2854,7 +2856,7 @@ function ComponentsView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: stri
           <Card key={c.uuid} style={{ cursor: "pointer" }}>
             <div onClick={() => navigate(`ssp-comp-${i}`)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               {navIcon(iconKey, iconColor, 15)}
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0 }}>{c.title}</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0 }}><MarkupLine text={c.title} /></h3>
               {assetType && (
                 <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: radii.sm, background: alpha(iconColor, 10), color: iconColor, fontFamily: fonts.mono, fontWeight: 700, marginLeft: "auto" }}>{assetType}</span>
               )}
@@ -2904,7 +2906,7 @@ function UsersView({ ssp }: { ssp: SspParsed }) {
       {users.map((u) => (
         <Card key={u.uuid}>
           <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: "0 0 4px" }}>
-            {u.title || u.uuid.slice(0, 12)}
+            <MarkupLine text={u.title || u.uuid.slice(0, 12)} />
           </h4>
           {u.description && <MarkupBlock value={u.description} style={{ fontSize: 12.5, marginBottom: 6 }} />}
           {u.roleIds.length > 0 && (
@@ -2916,7 +2918,7 @@ function UsersView({ ssp }: { ssp: SspParsed }) {
           )}
           {u.authorizedPrivileges.map((ap, i) => (
             <div key={i} style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: colors.darkGreen }}>{ap.title}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: colors.darkGreen }}><MarkupLine text={ap.title} /></div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 2 }}>
                 {ap.functionsPerformed.map((f, j) => (
                   <span key={j} style={{ fontSize: 10, padding: "1px 6px", borderRadius: 2, background: colors.tintGreen, color: colors.darkGreen, fontFamily: fonts.mono }}>{f}</span>
@@ -2965,7 +2967,7 @@ function InventoryView({ ssp }: { ssp: SspParsed }) {
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
                 {ii.implementedComponents.map((ic) => (
                   <span key={ic.componentUuid} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.tintBlue, color: colors.cobalt, fontFamily: fonts.mono }}>
-                    {compMap[ic.componentUuid] || ic.componentUuid.slice(0, 8)}
+                    <MarkupLine text={compMap[ic.componentUuid] || ic.componentUuid.slice(0, 8)} />
                   </span>
                 ))}
               </div>
@@ -3005,9 +3007,9 @@ interface LeveragedSystemSummary {
 
 interface LeveragedConnection {
   fromId: string;
-  fromTitle: string;
+  fromTitle: ReactNode;
   toId?: string;
-  toTitle: string;
+  toTitle: ReactNode;
   href?: string;
 }
 
@@ -3152,7 +3154,7 @@ function LeveragedSystemsMap({ summaries, connections }: { summaries: LeveragedS
                 <IcoLayers size={15} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={system.title}>{system.systemName || system.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={markupLineText(system.title)}>{system.systemName || <MarkupLine text={system.title} />}</div>
                 {system.systemNameShort && <div style={{ fontSize: 10, color: colors.gray }}>{system.systemNameShort}</div>}
               </div>
             </div>
@@ -3222,7 +3224,7 @@ function LeveragedAuthCard({
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <div onClick={() => navigate(`leveraged-auth-${index}`)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}>
           <IcoLayers size={15} style={{ color: colors.purple }} />
-          <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{la.title}</h4>
+          <h4 style={{ fontSize: 14, fontWeight: 700, color: colors.navy, margin: 0, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><MarkupLine text={la.title} /></h4>
         </div>
         {matched ? (
           <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: radii.pill, backgroundColor: alpha(colors.darkGreen, 10), color: colors.darkGreen }}>
@@ -3250,7 +3252,7 @@ function LeveragedAuthCard({
         </div>
         {la.dateAuthorized && <MField label="Authorized" value={fmtDate(la.dateAuthorized)} />}
         {la.href && <MField label="SSP URL" value={la.href} mono />}
-        {matched && <MField label="Loaded As" value={matched.systemName || matched.title} />}
+        {matched && <MField label="Loaded As" value={matched.systemName || <MarkupLine text={matched.title} />} />}
       </div>
       {!matched && (
         <div style={{ marginTop: 8, fontSize: 11, color: colors.gray, fontStyle: "italic" }}>
@@ -3281,9 +3283,9 @@ function LeveragedView({ ssp, navigate, sourceUrl }: { ssp: SspParsed; navigate:
         const match = matchLeveragedSummary(la, summary, summaries);
         result.push({
           fromId: summary.id,
-          fromTitle: summary.systemName || summary.title,
+          fromTitle: summary.systemName || <MarkupLine text={summary.title} />,
           toId: match?.id,
-          toTitle: match?.systemName || match?.title || la.title || la.uuid.slice(0, 12),
+          toTitle: match?.systemName || <MarkupLine text={match?.title || la.title || la.uuid.slice(0, 12)} />,
           href: resolvePotentialHref(la.href, summary.sourceUrl),
         });
       });
@@ -3444,7 +3446,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
         ...group,
         controls: group.controls.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)),
       }))
-      .sort((a, b) => a.componentTitle.localeCompare(b.componentTitle));
+      .sort((a, b) => markupLineText(a.componentTitle).localeCompare(markupLineText(b.componentTitle)));
   }, [offeredControls, catalogSort]);
 
   const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
@@ -3487,7 +3489,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
     <>
       <Card>
         <SectionLabel>Leveraged Authorization</SectionLabel>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: "0 0 12px" }}>{la.title}</h3>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: colors.navy, margin: "0 0 12px" }}><MarkupLine text={la.title} /></h3>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.gray, marginBottom: 4 }}>Provider</div>
@@ -3505,7 +3507,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 220 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 2 }}>
-                {loadedProvider.summary.systemName || loadedProvider.summary.title}
+                {loadedProvider.summary.systemName || <MarkupLine text={loadedProvider.summary.title} />}
               </div>
               <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }} title={loadedProvider.entry.sourceUrl ?? loadedProvider.entry.fileName}>
                 {loadedProvider.entry.fileName}
@@ -3658,7 +3660,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
                             {entries.map((entry, ei) => (
                               <div key={ei} style={{ marginBottom: ei < entries.length - 1 ? 10 : 0 }}>
                                 <div style={{ fontSize: 11, fontWeight: 600, color: colors.purple, marginBottom: 4 }}>
-                                  {entry.providerComponentTitle}
+                                  <MarkupLine text={entry.providerComponentTitle} />
                                 </div>
                                 {entry.description && (
                                   <div style={{ fontSize: 12, color: colors.black, marginBottom: 6 }}>{entry.description}</div>
@@ -3711,8 +3713,8 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
                   >
                     <IcoChev open={componentExpanded} style={{ color: colors.purple }} />
                     <IcoCube size={13} style={{ color: colors.purple }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={group.componentTitle}>
-                      {group.componentTitle}
+                    <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={markupLineText(group.componentTitle)}>
+                      <MarkupLine text={group.componentTitle} />
                     </span>
                     <span style={{ fontSize: 10, color: colors.darkGreen }}>{group.providedCount} provided</span>
                     <span style={{ fontSize: 10, color: colors.orange }}>{group.responsibilityCount} resp.</span>
@@ -3817,7 +3819,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
         ...provider,
         controls: provider.controls.sort((a, b) => catalogSort.compare(a.controlId, b.controlId)),
       }))
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .sort((a, b) => markupLineText(a.title).localeCompare(markupLineText(b.title)));
   }, [leveragedIndex, catalogSort]);
 
   useEffect(() => {
@@ -3912,7 +3914,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
                 <button
                   key={provider.title}
                   onClick={() => setScope(provider.title)}
-                  title={provider.title}
+                  title={markupLineText(provider.title)}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: radii.sm,
                     border: `1px solid ${active ? colors.purple : colors.paleGray}`,
@@ -3922,7 +3924,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
                   }}
                 >
                   <IcoLayers size={12} />
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.title}</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><MarkupLine text={provider.title} /></span>
                   <span style={{ ...S.badge, marginLeft: 2 }}>{provider.controls.length}</span>
                 </button>
               );
@@ -3968,7 +3970,7 @@ function ControlImplementationView({ ssp, navigate, leveragedIndex }: { ssp: Ssp
         <>
           <Card>
             <SectionLabel>Provider Controls</SectionLabel>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: colors.navy, margin: "0 0 6px" }}>{selectedProvider.title}</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: colors.navy, margin: "0 0 6px" }}><MarkupLine text={selectedProvider.title} /></h3>
             <p style={{ fontSize: 12, color: colors.gray, margin: 0 }}>
               Controls offered by this loaded provider SSP. Select Current SSP above to return to the main system implementation.
             </p>
@@ -4395,10 +4397,10 @@ function ProviderAttribution({ label, resolution, accentColor }: {
         {label}
       </div>
       <div style={{ fontSize: 11, color: colors.black, fontWeight: 600 }}>
-        {resolution.providerSspTitle}
+        <MarkupLine text={resolution.providerSspTitle} />
       </div>
       <div style={{ fontSize: 10, color: colors.gray, marginTop: 1 }}>
-        Component: {resolution.providerComponentTitle}
+        Component: <MarkupLine text={resolution.providerComponentTitle} />
         {resolution.controlId && <> &middot; Control: {resolution.controlId.toUpperCase()}</>}
       </div>
       {resolution.responsibleRoles.length > 0 && (
@@ -4638,7 +4640,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
       group.components.push(entry);
       groups.set(entry.providerSspTitle, group);
     });
-    return [...groups.values()].sort((a, b) => a.title.localeCompare(b.title));
+    return [...groups.values()].sort((a, b) => markupLineText(a.title).localeCompare(markupLineText(b.title)));
   }, [providerExportsForControl]);
   const [activeProviderExport, setActiveProviderExport] = useState("");
   useEffect(() => {
@@ -4745,7 +4747,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
                   cursor: "pointer", transition: "all .12s", marginBottom: -2, fontFamily: fonts.sans,
                 }}>
                   {navIcon(typeIcon, typeColor, 14)}
-                  <span>{comp.title}</span>
+                  <span><MarkupLine text={comp.title} /></span>
                 </button>
               );
             })}
@@ -4882,7 +4884,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
                 <button
                   key={group.title}
                   onClick={() => setActiveProviderExport(group.title)}
-                  title={group.title}
+                  title={markupLineText(group.title)}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", borderRadius: radii.sm,
                     border: `1px solid ${active ? colors.purple : colors.paleGray}`,
@@ -4892,7 +4894,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
                   }}
                 >
                   <IcoLayers size={12} />
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.title}</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><MarkupLine text={group.title} /></span>
                   <span style={{ ...S.badge, marginLeft: 2 }}>{group.components.length}</span>
                 </button>
               );
@@ -4903,8 +4905,8 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
             <div style={{ border: `1px solid ${alpha(colors.purple, 18)}`, borderRadius: radii.md, overflow: "hidden", backgroundColor: alpha(colors.purple, 3) }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", backgroundColor: alpha(colors.purple, 8), borderBottom: `1px solid ${alpha(colors.purple, 18)}` }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: colors.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={selectedProviderExport.title}>
-                    {selectedProviderExport.title}
+                  <div style={{ fontSize: 13, fontWeight: 800, color: colors.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={markupLineText(selectedProviderExport.title)}>
+                    <MarkupLine text={selectedProviderExport.title} />
                   </div>
                   <div style={{ fontSize: 10, color: colors.gray, marginTop: 2 }}>
                     {selectedProviderExport.components.length} exporting component{selectedProviderExport.components.length !== 1 ? "s" : ""}
@@ -4919,7 +4921,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
                   <div key={`${entry.providerComponentTitle}-${ei}`} style={{ backgroundColor: colors.card, borderRadius: radii.sm, border: `1px solid ${colors.paleGray}`, overflow: "hidden" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "9px 12px", borderBottom: `1px solid ${colors.bg}` }}>
                       <IcoCube size={13} style={{ color: colors.purple }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, flex: 1, minWidth: 180 }}>{entry.providerComponentTitle}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, flex: 1, minWidth: 180 }}><MarkupLine text={entry.providerComponentTitle} /></span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: colors.darkGreen }}>{entry.provided.length} provided</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: colors.orange }}>{entry.responsibilities.length} responsibilities</span>
                     </div>
@@ -5036,14 +5038,14 @@ function BackMatterView({ ssp, sourceUrl }: { ssp: SspParsed; sourceUrl?: string
         <Card key={r.uuid}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <IcoBook size={13} style={{ color: colors.gray }} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}>{r.title || r.uuid.slice(0, 12)}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={r.title || r.uuid.slice(0, 12)} /></span>
           </div>
           {r.description && <MarkupBlock value={r.description} style={{ fontSize: 12 }} />}
           {r.base64 && (
             <div style={{ marginTop: 8 }}>
               <button
                 onClick={() => setActiveArtifact({
-                  title: r.title || r.uuid.slice(0, 12),
+                  title: markupLineText(r.title) || r.uuid.slice(0, 12),
                   href: dataUrlFromBase64(r.base64!),
                   mediaType: r.base64!.mediaType || mediaTypeFromFilename(r.base64!.filename),
                   fileName: r.base64!.filename,
@@ -5058,7 +5060,7 @@ function BackMatterView({ ssp, sourceUrl }: { ssp: SspParsed; sourceUrl?: string
           {r.rlinks && r.rlinks.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
               {r.rlinks.map((rl, i) => {
-                const artifact = artifactFromRlink(rl, r.title || r.uuid.slice(0, 12), r.description, sourceUrl);
+                const artifact = artifactFromRlink(rl, markupLineText(r.title) || r.uuid.slice(0, 12), r.description, sourceUrl);
                 return artifact ? (
                   <button key={i} onClick={() => setActiveArtifact(artifact)} style={{ fontSize: 10.5, color: colors.cobalt, background: "transparent", padding: 0, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3 }}>
                     <IcoLink size={10} />{trunc(rl.href, 60)}
@@ -5138,7 +5140,7 @@ function ComponentRelationships({
                   }}
                 >
                   {navIcon(iconKey, iconColor, 11)}
-                  {target.title || target.uuid.slice(0, 8)}
+                  <MarkupLine text={target.title || target.uuid.slice(0, 8)} />
                 </span>
               );
             })}
@@ -5183,7 +5185,7 @@ function SspComponentDetailView({
         <span>›</span>
         <span style={{ cursor: "pointer", color: colors.cobalt }} onClick={() => navigate("sys-impl-components")}>Components</span>
         <span>›</span>
-        <span style={{ fontWeight: 600, color: colors.navy }}>{comp.title}</span>
+        <span style={{ fontWeight: 600, color: colors.navy }}><MarkupLine text={comp.title} /></span>
       </div>
 
       {/* Title */}
@@ -5195,7 +5197,7 @@ function SspComponentDetailView({
           {navIcon(iconKey, iconColor, 30)}
         </div>
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 20, color: colors.navy, margin: "0 0 5px" }}>{comp.title}</h1>
+          <h1 style={{ fontSize: 20, color: colors.navy, margin: "0 0 5px" }}><MarkupLine text={comp.title} /></h1>
           <span title={comp.uuid} style={{
             maxWidth: 420, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: radii.pill,
             backgroundColor: colors.surfaceSubtle, border: `1px solid ${colors.paleGray}`, color: colors.gray, fontSize: 10, fontWeight: 600,
@@ -5412,10 +5414,10 @@ function ProviderOnlyControlView({ controlId, entries }: { controlId: string; en
       {entries.map((entry, ei) => (
         <Card key={ei}>
           <div style={{ fontSize: 13, fontWeight: 700, color: colors.navy, marginBottom: 2 }}>
-            {entry.providerSspTitle}
+            <MarkupLine text={entry.providerSspTitle} />
           </div>
           <div style={{ fontSize: 11, color: colors.gray, marginBottom: 8 }}>
-            Component: {entry.providerComponentTitle}
+            Component: <MarkupLine text={entry.providerComponentTitle} />
           </div>
           {entry.description && (
             <MarkupBlock value={entry.description} style={{ fontSize: 12, marginBottom: 10 }} />
@@ -5637,7 +5639,7 @@ export default function SspPage() {
     root: raw,
     rootModelKey: "system-security-plan",
     rootBaseUrl: sourceUrl,
-    rootLabel: fileName || ssp?.metadata.title || "Loaded SSP",
+    rootLabel: fileName || markupLineText(ssp?.metadata.title) || "Loaded SSP",
     rootOrigin: sourceUrl ? "auto" : "manual",
     token: authToken,
     skip: sspResolutionAlreadySatisfied,
@@ -5775,7 +5777,7 @@ export default function SspPage() {
       const { iconKey, color: iconColor } = componentIcon(c);
       items.push({
         id: navId,
-        label: c.title || c.uuid.slice(0, 12),
+        label: markupLineText(c.title || c.uuid.slice(0, 12)),
         icon: iconKey,
         color: iconColor,
         depth,
@@ -5803,7 +5805,7 @@ export default function SspPage() {
         const loaded = loadedLaUuids.has(la.uuid);
         items.push({
           id: `leveraged-auth-${i}`,
-          label: la.title || la.uuid.slice(0, 12),
+          label: markupLineText(la.title || la.uuid.slice(0, 12)),
           icon: loaded ? "layers" : "link",
           color: loaded ? colors.purple : colors.blueGray,
           depth: 2,

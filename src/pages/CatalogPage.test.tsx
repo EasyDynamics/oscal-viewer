@@ -26,13 +26,51 @@ const catalog = {
   ],
 } as unknown as Catalog;
 
-function LoadCatalog() {
+// Issue #102: titles on a group's parts and on a control's parts, nested ones included.
+const titledCatalog = {
+  uuid: "8d5f3a2e-1c4b-4f6a-9e7d-2b3c4d5e6f70",
+  metadata: { title: "Part title catalog", "last-modified": "2026-10-07T00:00:00Z", version: "1.0", "oscal-version": "1.2.3" },
+  groups: [
+    {
+      id: "pl",
+      title: "Planning",
+      params: [{ id: "pl_prm_1", label: "the review period" }],
+      parts: [
+        {
+          id: "pl_ovw",
+          name: "overview",
+          title: "About this family",
+          prose: "Review plans every {{ insert: param, pl_prm_1 }}.",
+          parts: [{ id: "pl_ovw.a", name: "item", title: "Scope" }],
+        },
+      ],
+      controls: [
+        {
+          id: "pl-1",
+          title: "Policy and Procedures",
+          parts: [
+            {
+              id: "pl-1_smt",
+              name: "statement",
+              title: "Control Statement",
+              prose: "Develop a planning policy.",
+              parts: [{ id: "pl-1_smt.a", name: "item", title: "Title-only item" }],
+            },
+            { id: "pl-1_gdn", name: "guidance", title: "Supplemental Guidance", prose: "Plan ahead." },
+          ],
+        },
+      ],
+    },
+  ],
+} as unknown as Catalog;
+
+function LoadCatalog({ data }: { data: Catalog }) {
   const oscal = useOscal();
-  useEffect(() => { oscal.setCatalog(catalog, "repro-group-no-id.json"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { oscal.setCatalog(data, "test-catalog.json"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
-function renderCatalogPage({ mobile }: { mobile: boolean }) {
+function renderCatalogPage({ mobile, data = catalog }: { mobile: boolean; data?: Catalog }) {
   // jsdom has no scrollTo (navigation scrolls the content pane) or matchMedia (useIsMobile).
   Element.prototype.scrollTo = vi.fn();
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -44,7 +82,7 @@ function renderCatalogPage({ mobile }: { mobile: boolean }) {
     <MemoryRouter initialEntries={["/catalog"]}>
       <AuthProvider>
         <OscalProvider>
-          <LoadCatalog />
+          <LoadCatalog data={data} />
           <CatalogPage />
         </OscalProvider>
       </AuthProvider>
@@ -104,5 +142,28 @@ describe("CatalogPage groups without an id (issue #100)", () => {
     expect(screen.queryByText(/group-undefined/)).not.toBeInTheDocument();
     expect(screen.getByText("Information Security Policies (no id)")).toBeInTheDocument();
     expect(screen.getByText(/^Organizational Controls \(no id\) .*Overview$/)).toBeInTheDocument();
+  });
+});
+
+describe("CatalogPage part titles (issue #102)", () => {
+  it("shows a group's part titles, and resolves the group's params in its parts", async () => {
+    renderCatalogPage({ mobile: false, data: titledCatalog });
+    fireEvent.click((await screen.findAllByText("Planning"))[0]);
+
+    expect(heading("Planning")).toBeInTheDocument();
+    expect(screen.getByText("About this family")).toBeInTheDocument();
+    expect(screen.getByText("Scope")).toBeInTheDocument();
+    expect(screen.getByText("[Assignment: the review period]")).toBeInTheDocument();
+  });
+
+  it("shows a control's part titles, including a part with only a title", async () => {
+    renderCatalogPage({ mobile: false, data: titledCatalog });
+    fireEvent.click((await screen.findAllByText("Planning"))[0]);
+    fireEvent.click(screen.getAllByText("Policy and Procedures")[0]);
+
+    expect(heading("Policy and Procedures")).toBeInTheDocument();
+    expect(screen.getByText("Control Statement")).toBeInTheDocument();
+    expect(screen.getByText("Title-only item")).toBeInTheDocument();
+    expect(screen.getByText("Supplemental Guidance")).toBeInTheDocument();
   });
 });

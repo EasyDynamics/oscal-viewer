@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderMarkup, sanitizeSvg } from "./markup";
+import { markupLineText, renderMarkup, renderMarkupLine, sanitizeSvg } from "./markup";
 import { XSS_PAYLOADS, expectNoActiveContent } from "../test/xss";
 
 /** Parse an HTML string into a detached element that tests can query. */
@@ -100,6 +100,74 @@ describe("renderMarkup()", () => {
   it("unwraps a lone paragraph so one-line values sit inline", () => {
     expect(renderMarkup("Plain **text**")).toBe("Plain <strong>text</strong>");
     expect(renderMarkup("One\n\nTwo")).toBe("<p>One</p>\n<p>Two</p>");
+  });
+});
+
+describe("renderMarkupLine()", () => {
+  it.each(XSS_PAYLOADS)("neutralizes %s", (payload) => {
+    expectNoActiveContent(parse(renderMarkupLine(payload)));
+  });
+
+  it("renders inline formatting", () => {
+    const el = parse(renderMarkupLine("Use **strong**, _emphasis_, `code` and ~~struck~~ text"));
+    expect(el.querySelector("strong")?.textContent).toBe("strong");
+    expect(el.querySelector("em")?.textContent).toBe("emphasis");
+    expect(el.querySelector("code")?.textContent).toBe("code");
+    expect(el.querySelector("del")?.textContent).toBe("struck");
+  });
+
+  it("leaves block syntax alone, since a title is one line", () => {
+    expect(renderMarkupLine("1. Introduction")).toBe("1. Introduction");
+    expect(renderMarkupLine("# of accounts")).toBe("# of accounts");
+    expect(renderMarkupLine("- item")).toBe("- item");
+  });
+
+  it("renders OSCAL subscript and superscript, and keeps ~~strikethrough~~", () => {
+    const el = parse(renderMarkupLine("H~2~O, E = mc^2^, ~~struck~~"));
+    expect(el.querySelector("sub")?.textContent).toBe("2");
+    expect(el.querySelector("sup")?.textContent).toBe("2");
+    expect(el.querySelector("del")?.textContent).toBe("struck");
+    expect(renderMarkupLine("about ~5 minutes, up ^ 2")).toBe("about ~5 minutes, up ^ 2");
+  });
+
+  it("shows a link's text and an image's alt text", () => {
+    const el = parse(renderMarkupLine(
+      'See [FIPS 199](https://example.com), ![the logo](https://example.com/x.png) <a href="https://example.com">here</a>',
+    ));
+    expect(el.querySelector("a, img")).toBeNull();
+    expect(el.textContent).toBe("See FIPS 199, the logo here");
+  });
+
+  it("drops block HTML and styles, keeping their text", () => {
+    const el = parse(renderMarkupLine('<div style="position:fixed;inset:0">over</div><h1>lay</h1>'));
+    expect(el.querySelector("div, h1, [style]")).toBeNull();
+    expect(el.textContent).toBe("overlay");
+  });
+});
+
+describe("markupLineText()", () => {
+  it("returns a plain title as it is", () => {
+    expect(markupLineText("Account Management")).toBe("Account Management");
+    expect(markupLineText("Review {{ insert: param, ac-1_prm_1 }}")).toBe("Review {{ insert: param, ac-1_prm_1 }}");
+  });
+
+  it("strips Markdown and decodes entities", () => {
+    expect(markupLineText("Use of **Cryptography** in `TLS`")).toBe("Use of Cryptography in TLS");
+    expect(markupLineText("[FIPS 199](#a1b2) Categorization")).toBe("FIPS 199 Categorization");
+    expect(markupLineText("AT&amp;T &lt;b&gt;")).toBe("AT&T <b>");
+    expect(markupLineText("a < b")).toBe("a < b");
+    expect(markupLineText("\\*not emphasis\\*")).toBe("*not emphasis*");
+    expect(markupLineText("H~2~O")).toBe("H2O");
+  });
+
+  it("drops scripts, content included", () => {
+    expect(markupLineText("Hi <script>alert(1)</script>there")).toBe("Hi there");
+  });
+
+  it("accepts missing and non-string values", () => {
+    expect(markupLineText(undefined)).toBe("");
+    expect(markupLineText(null)).toBe("");
+    expect(markupLineText(42)).toBe("42");
   });
 });
 
