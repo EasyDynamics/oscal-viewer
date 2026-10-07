@@ -24,6 +24,7 @@ import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
+import PropLabel from "../components/PropLabel";
 import { MarkupLine } from "../components/MarkupBlock";
 import type { ResolvedLink } from "../components/LinkChips";
 import { linkLabel, linkTooltip, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
@@ -969,17 +970,6 @@ function MField({ label, value, mono }: { label: string; value: unknown; mono?: 
   );
 }
 
-function PropPill({ name, value }: { name: string; value: unknown }) {
-  return (
-    <span style={{
-      display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: radii.pill,
-      backgroundColor: colors.bg, color: colors.black, fontFamily: fonts.mono,
-      border: `1px solid ${colors.paleGray}`, marginRight: 6, marginBottom: 4,
-    }}>
-      {name}: {safeString(value)}
-    </span>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DROP ZONE
@@ -1396,13 +1386,7 @@ function BackMatterView({ catalog, navigate }: { catalog: Catalog; navigate: (id
                   {otherProps.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6, marginLeft: 22 }}>
                       {otherProps.map((p, pi) => (
-                        <span key={pi} style={{
-                          fontSize: 10, padding: "1px 6px", borderRadius: radii.pill,
-                          backgroundColor: colors.bg, color: colors.black, fontFamily: fonts.mono,
-                          border: `1px solid ${colors.paleGray}`,
-                        }}>
-                          {p.name}: {p.value}
-                        </span>
+                        <PropLabel key={pi} prop={p} size="sm" />
                       ))}
                     </div>
                   )}
@@ -1809,8 +1793,8 @@ function ControlView({ control, catalog, navigate }: {
       {control.props && control.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {control.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {control.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}

@@ -29,6 +29,7 @@ import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import PartTitle from "../components/PartTitle";
+import PropLabel from "../components/PropLabel";
 import { MarkupLine } from "../components/MarkupBlock";
 import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import { catalogLinkDisplay, linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
@@ -1360,21 +1361,6 @@ function MField({ label, value, mono }: { label: string; value: ReactNode; mono?
   );
 }
 
-function PropPill({ name, value, ns }: { name: string; value: string; ns?: string }) {
-  const isFedRamp = ns?.includes("fedramp");
-  return (
-    <span style={{
-      display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: radii.pill,
-      backgroundColor: isFedRamp ? alpha(colors.brightBlue, 7) : colors.bg,
-      color: isFedRamp ? colors.brightBlue : colors.black,
-      fontFamily: fonts.mono,
-      border: `1px solid ${isFedRamp ? alpha(colors.brightBlue, 20) : colors.paleGray}`,
-      marginRight: 6, marginBottom: 4,
-    }}>
-      {name}: {value}
-    </span>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DROP ZONE
@@ -2012,7 +1998,7 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
               {add.props && add.props.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
                   {add.props.map((p, pi) => (
-                    <PropPill key={pi} name={p.name} value={p.value} ns={p.ns} />
+                    <PropLabel key={pi} prop={p} />
                   ))}
                 </div>
               )}
@@ -2054,8 +2040,8 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
       {catalogControl?.props && catalogControl.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {catalogControl.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} ns={p.ns} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {catalogControl.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}

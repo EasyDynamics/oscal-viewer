@@ -24,6 +24,7 @@ import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
+import PropLabel from "../components/PropLabel";
 import type { ResolvedLink } from "../components/LinkChips";
 import MarkupBlock, { MarkupLine } from "../components/MarkupBlock";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
@@ -1551,17 +1552,6 @@ function MField({ label, value, mono }: { label: string; value: ReactNode; mono?
   );
 }
 
-function PropPill({ name, value }: { name: string; value: string }) {
-  return (
-    <span style={{
-      display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: radii.pill,
-      backgroundColor: colors.bg, color: colors.black, fontFamily: fonts.mono,
-      border: `1px solid ${colors.paleGray}`, marginRight: 6, marginBottom: 4,
-    }}>
-      {name}: {value}
-    </span>
-  );
-}
 
 /** Render NIST SP 800-53 control ID chips — prominent navy pills */
 function NistChips({ controls }: { controls: string[] }) {
@@ -2268,8 +2258,8 @@ function ObservationView({ obs, navigate, catalog, nistControls, resources }: {
       {obs.props && obs.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {obs.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {obs.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}
@@ -2730,8 +2720,8 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
       {finding.target.props && finding.target.props.length > 0 && (
         <Card>
           <SectionLabel>Target Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {finding.target.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {finding.target.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}
@@ -3131,8 +3121,8 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
 
                 {/* Props */}
                 {rem.props && rem.props.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", marginTop: 8 }}>
-                    {rem.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px", marginTop: 8 }}>
+                    {rem.props.map((p, i) => <PropLabel key={i} prop={p} />)}
                   </div>
                 )}
               </div>
@@ -3145,8 +3135,8 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
       {risk.props && risk.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
-            {risk.props.map((p, i) => <PropPill key={i} name={p.name} value={p.value} />)}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+            {risk.props.map((p, i) => <PropLabel key={i} prop={p} />)}
           </div>
         </Card>
       )}

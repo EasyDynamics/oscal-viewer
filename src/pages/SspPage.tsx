@@ -28,6 +28,7 @@ import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
 import MarkupBlock, { InlineMarkup, MarkupLine } from "../components/MarkupBlock";
 import PartTitle from "../components/PartTitle";
+import PropLabel from "../components/PropLabel";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { markupLineText, sanitizeSvg } from "../utils/markup";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
@@ -2779,12 +2780,7 @@ function SystemCharacteristicsView({ ssp, sourceUrl }: { ssp: SspParsed; sourceU
           <SectionLabel>Properties ({sc.props.length})</SectionLabel>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {sc.props.map((p, i) => (
-              <span key={i} style={{
-                fontSize: 11, padding: "3px 10px", borderRadius: radii.sm,
-                background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono,
-              }}>
-                {p.name}: {p.value}
-              </span>
+              <PropLabel key={i} prop={p} />
             ))}
           </div>
         </Card>
@@ -2880,9 +2876,7 @@ function ComponentsView({ ssp, navigate }: { ssp: SspParsed; navigate: (id: stri
             {c.props.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
                 {c.props.map((p, i) => (
-                  <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
-                    {p.name}: {p.value}
-                  </span>
+                  <PropLabel key={i} prop={p} size="sm" />
                 ))}
               </div>
             )}
@@ -4155,9 +4149,7 @@ function ControlFamilyView({ familyId, ssp, navigate, leveragedIndex }: { family
           {ir && ir.props.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
               {ir.props.map((p, i) => (
-                <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
-                  {p.name}: {p.value}
-                </span>
+                <PropLabel key={i} prop={p} size="sm" />
               ))}
             </div>
           )}
@@ -5012,9 +5004,7 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
           <SectionLabel>Properties</SectionLabel>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {ir.props.map((p, i) => (
-              <span key={i} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
-                {p.name}: {p.value}
-              </span>
+              <PropLabel key={i} prop={p} size="sm" />
             ))}
           </div>
         </Card>
@@ -5257,12 +5247,7 @@ function SspComponentDetailView({
           <SectionLabel>Properties ({comp.props.length})</SectionLabel>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {comp.props.map((p, i) => (
-              <span key={i} style={{
-                fontSize: 11, padding: "3px 10px", borderRadius: radii.sm,
-                background: colors.surfaceSubtle, color: colors.navy, fontFamily: fonts.mono,
-              }}>
-                {p.name}: {p.value}
-              </span>
+              <PropLabel key={i} prop={p} />
             ))}
           </div>
         </Card>
@@ -5288,9 +5273,7 @@ function SspComponentDetailView({
                   {ii.props.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
                       {ii.props.map((p, pi) => (
-                        <span key={pi} style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 2, background: colors.bg, color: colors.gray, fontFamily: fonts.mono }}>
-                          {p.name}: {p.value}
-                        </span>
+                        <PropLabel key={pi} prop={p} size="sm" />
                       ))}
                     </div>
                   )}

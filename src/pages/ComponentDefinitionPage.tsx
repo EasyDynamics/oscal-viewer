@@ -27,6 +27,7 @@ import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
+import PropLabel from "../components/PropLabel";
 import type { ResolvedLink } from "../components/LinkChips";
 import MarkupBlock, { InlineMarkup, MarkupLine } from "../components/MarkupBlock";
 import { linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
@@ -79,7 +80,6 @@ import {
   backMatterResourceVisual,
   componentTypeVisual,
   llmGeneratedLabel,
-  propDisplayName,
   propVisual,
   raisedOscalProps,
   resolveComponentVisual,
@@ -1217,26 +1217,6 @@ function VisualSummaryField({
   );
 }
 
-function PropPill({ name, value }: { name: string; value: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        fontSize: 11,
-        padding: "2px 8px",
-        borderRadius: radii.pill,
-        backgroundColor: colors.bg,
-        color: colors.black,
-        fontFamily: fonts.mono,
-        border: `1px solid ${colors.paleGray}`,
-        marginRight: 6,
-        marginBottom: 4,
-      }}
-    >
-      {name}: {value}
-    </span>
-  );
-}
 
 function LlmGeneratedBadge() {
   return (
@@ -1700,9 +1680,9 @@ function ComponentView({
       {otherProps.length > 0 && (
         <Card>
           <SectionLabel>{raisedProps.length > 0 ? "Other Properties" : "Properties"}</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
             {otherProps.map((p, i) => (
-              <PropPill key={i} name={propDisplayName(p)} value={p.value} />
+              <PropLabel key={i} prop={p} />
             ))}
           </div>
         </Card>
@@ -2398,9 +2378,9 @@ function RequirementView({
       {req.props && req.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
             {req.props.map((p, i) => (
-              <PropPill key={i} name={p.name} value={p.value} />
+              <PropLabel key={i} prop={p} />
             ))}
           </div>
         </Card>
@@ -2569,9 +2549,9 @@ function ResourceView({
       {res.props && res.props.length > 0 && (
         <Card>
           <SectionLabel>Properties</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
             {res.props.map((p, i) => (
-              <PropPill key={i} name={p.name} value={p.value} />
+              <PropLabel key={i} prop={p} />
             ))}
           </div>
         </Card>
