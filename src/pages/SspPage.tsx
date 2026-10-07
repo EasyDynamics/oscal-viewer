@@ -26,11 +26,11 @@ import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
-import MarkupBlock, { InlineMarkup, MarkupLine } from "../components/MarkupBlock";
+import MarkupBlock, { MarkupLine, MarkupLinks } from "../components/MarkupBlock";
 import PartTitle from "../components/PartTitle";
 import PropLabel from "../components/PropLabel";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
-import { markupLineText, sanitizeSvg } from "../utils/markup";
+import { markupLineText, markupPlainText, sanitizeSvg } from "../utils/markup";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
@@ -1615,33 +1615,11 @@ function CatalogProseWithParams({
   text: string;
   paramMap: Record<string, CatalogParam>;
 }) {
-  const segments = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
-  return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans }}>
-      {segments.map((segment, i) => {
-        const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
-        if (match) {
-          const paramId = match[1].trim();
-          const param = paramMap[paramId];
-          const rendered = param ? renderCatalogParamText(param, paramMap) : `[Assignment: ${paramId}]`;
-          const isSelection = param?.select != null;
-          return (
-            <span key={i} title={`Parameter: ${paramId}`} style={{
-              display: "inline", fontSize: 13, fontFamily: fonts.mono, fontWeight: 600,
-              color: isSelection ? colors.cobalt : colors.orange,
-              backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
-              padding: "1px 6px", borderRadius: radii.sm,
-              border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
-              whiteSpace: "nowrap" as const,
-            }}>
-              {rendered}
-            </span>
-          );
-        }
-        return <InlineMarkup key={i} text={segment} />;
-      })}
-    </span>
-  );
+  const params = (id: string) => {
+    const param = paramMap[id];
+    return param ? { text: renderCatalogParamText(param, paramMap), selection: param.select != null } : null;
+  };
+  return <MarkupBlock value={text} params={params} inline style={{ fontFamily: fonts.sans }} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2568,7 +2546,7 @@ function DiagramGallery({ title, diagrams, backMatter, sourceUrl }: { title: str
                 {asset.kind === "mermaid" ? <IcoCode size={12} style={{ color: colors.darkGreen }} /> : asset.kind === "drawio" ? <IcoLayers size={12} style={{ color: colors.purple }} /> : <IcoBook size={12} style={{ color: colors.cobalt }} />}
                 <span style={{ fontSize: 12, fontWeight: 700, color: colors.navy, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.title}</span>
               </div>
-              {asset.description && <div style={{ fontSize: 11, color: colors.gray, lineHeight: 1.4 }}>{trunc(asset.description, 140)}</div>}
+              {asset.description && <div style={{ fontSize: 11, color: colors.gray, lineHeight: 1.4 }}>{trunc(markupPlainText(asset.description), 140)}</div>}
               <div style={{ marginTop: 6, fontSize: 10, color: colors.gray, fontFamily: fonts.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {asset.mediaType || asset.href}
               </div>
@@ -3167,7 +3145,7 @@ function LeveragedSystemsMap({ summaries, connections }: { summaries: LeveragedS
                 <div style={{ fontSize: 10, fontWeight: 700, color: colors.cobalt, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Offered families</div>
                 <OfferedFamilyChips families={system.offeredFamilies} />
               </div>
-              {system.description && <p style={{ fontSize: 11, color: colors.gray, margin: 0, lineHeight: 1.5 }}>{trunc(system.description, 220)}</p>}
+              {system.description && <p style={{ fontSize: 11, color: colors.gray, margin: 0, lineHeight: 1.5 }}>{trunc(markupPlainText(system.description), 220)}</p>}
               {system.sourceUrl && <div style={{ fontSize: 10, color: colors.gray, fontFamily: fonts.mono, wordBreak: "break-all" }}>{system.sourceUrl}</div>}
             </div>
           </div>
@@ -3454,14 +3432,14 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
   const renderProviderEntryDetail = (entry: import("../hooks/useLeveragedIndex").ControlExportEntry): ReactNode => (
     <>
       {entry.description && (
-        <div style={{ fontSize: 12, color: colors.black, marginBottom: 6 }}>{entry.description}</div>
+        <MarkupBlock value={entry.description} style={{ fontSize: 12, color: colors.black, marginBottom: 6 }} />
       )}
       {entry.provided.length > 0 && (
         <div style={{ marginBottom: 4 }}>
           <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 2 }}>Provided</div>
           {entry.provided.map((p) => (
             <div key={p.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.darkGreen}`, marginBottom: 3 }}>
-              {p.description}
+              <MarkupBlock value={p.description} style={{ fontSize: "inherit", color: "inherit", lineHeight: 1.5 }} />
             </div>
           ))}
         </div>
@@ -3471,7 +3449,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
           <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.orange, marginBottom: 2 }}>Responsibilities</div>
           {entry.responsibilities.map((r) => (
             <div key={r.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.orange}`, marginBottom: 3 }}>
-              {r.description}
+              <MarkupBlock value={r.description} style={{ fontSize: "inherit", color: "inherit", lineHeight: 1.5 }} />
             </div>
           ))}
         </div>
@@ -3657,14 +3635,14 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
                                   <MarkupLine text={entry.providerComponentTitle} />
                                 </div>
                                 {entry.description && (
-                                  <div style={{ fontSize: 12, color: colors.black, marginBottom: 6 }}>{entry.description}</div>
+                                  <MarkupBlock value={entry.description} style={{ fontSize: 12, color: colors.black, marginBottom: 6 }} />
                                 )}
                                 {entry.provided.length > 0 && (
                                   <div style={{ marginBottom: 4 }}>
                                     <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.darkGreen, marginBottom: 2 }}>Provided</div>
                                     {entry.provided.map((p) => (
                                       <div key={p.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.darkGreen}`, marginBottom: 3 }}>
-                                        {p.description}
+                                        <MarkupBlock value={p.description} style={{ fontSize: "inherit", color: "inherit", lineHeight: 1.5 }} />
                                       </div>
                                     ))}
                                   </div>
@@ -3674,7 +3652,7 @@ function LeveragedAuthDetailView({ ssp, authIndex, navigate, leveragedIndex }: {
                                     <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: colors.orange, marginBottom: 2 }}>Responsibilities</div>
                                     {entry.responsibilities.map((r) => (
                                       <div key={r.uuid} style={{ fontSize: 11, color: colors.gray, paddingLeft: 8, borderLeft: `2px solid ${colors.orange}`, marginBottom: 3 }}>
-                                        {r.description}
+                                        <MarkupBlock value={r.description} style={{ fontSize: "inherit", color: "inherit", lineHeight: 1.5 }} />
                                       </div>
                                     ))}
                                   </div>
@@ -5269,7 +5247,7 @@ function SspComponentDetailView({
               }}>
                 {navIcon(iconKey, iconColor, 13)}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12.5, color: colors.navy }}>{ii.description || ii.uuid.slice(0, 12)}</div>
+                  <MarkupBlock value={ii.description || ii.uuid.slice(0, 12)} style={{ fontSize: 12.5, color: colors.navy }} />
                   {ii.props.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
                       {ii.props.map((p, pi) => (
@@ -5462,12 +5440,31 @@ interface ViewRouterProps {
   sourceUrl?: string | null;
 }
 
-function ViewRouter({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl }: ViewRouterProps) {
+function ViewRouter(props: ViewRouterProps) {
+  const { ssp, navigate, catalog, leveragedIndex } = props;
   const oscal = useOscal();
   const profileControlIds = useMemo(
     () => getExpectedControlIds(oscal.profile?.data, catalog),
     [oscal.profile, catalog],
   );
+  // A `#fragment` link in markup opens the control or component it names.
+  const resolveLink = (id: string) => {
+    const compIdx = ssp.systemImplementation.components.findIndex((c) => c.uuid === id);
+    const target = compIdx >= 0 ? `ssp-comp-${compIdx}`
+      : ssp.controlImplementation.implementedRequirements.some((r) => r.controlId === id)
+        || leveragedIndex.byControl.has(id) || profileControlIds.includes(id) ? `ctrl-${id}`
+      : null;
+    if (target) navigate(target);
+    return target !== null;
+  };
+  return (
+    <MarkupLinks resolve={resolveLink}>
+      <SspView {...props} profileControlIds={profileControlIds} />
+    </MarkupLinks>
+  );
+}
+
+function SspView({ view, ssp, navigate, catalog, leveragedIndex, sourceUrl, profileControlIds }: ViewRouterProps & { profileControlIds: string[] }) {
   if (view === "overview") return <OverviewView ssp={ssp} leveragedIndex={leveragedIndex} navigate={navigate} />;
   if (view === "metadata") return <MetadataView ssp={ssp} />;
   if (view === "sys-char") return <SystemCharacteristicsView ssp={ssp} sourceUrl={sourceUrl} />;

@@ -26,9 +26,9 @@ import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import PropLabel from "../components/PropLabel";
 import type { ResolvedLink } from "../components/LinkChips";
-import MarkupBlock, { MarkupLine } from "../components/MarkupBlock";
+import MarkupBlock, { MarkupLine, MarkupLinks } from "../components/MarkupBlock";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
-import { markupLineText } from "../utils/markup";
+import { markupLineText, markupPlainText } from "../utils/markup";
 import { IcoAlert, IcoAlertTriangle, IcoBook, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFolder, IcoHome, IcoInfo, IcoSearch, IcoShield, IcoTarget, IcoTool, IcoUpload, IcoXCircle } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
@@ -1450,7 +1450,25 @@ interface ViewRouterProps {
   catalog: OscalCatalog | null;
 }
 
-function ViewRouter({ view, ar, navigate, allObservations, allFindings, allRisks, obsMap, riskMap, obsNistMap, findingNistMap, riskNistMap, groupedObservations, groupNames, statusCounts, findingStateCounts, riskLevelCounts, riskStatusCounts, statusFilter, catalog }: ViewRouterProps) {
+function ViewRouter(props: ViewRouterProps) {
+  const { allObservations, allFindings, allRisks, navigate } = props;
+  // A `#fragment` link in markup opens the finding, risk or observation it names.
+  const resolveLink = (id: string) => {
+    const target = allFindings.some((f) => f.uuid === id) ? `finding-${id}`
+      : allRisks.some((r) => r.uuid === id) ? `risk-${id}`
+      : allObservations.some((o) => o.uuid === id) ? `obs-${id}`
+      : null;
+    if (target) navigate(target);
+    return target !== null;
+  };
+  return (
+    <MarkupLinks resolve={resolveLink}>
+      <ResultsView {...props} />
+    </MarkupLinks>
+  );
+}
+
+function ResultsView({ view, ar, navigate, allObservations, allFindings, allRisks, obsMap, riskMap, obsNistMap, findingNistMap, riskNistMap, groupedObservations, groupNames, statusCounts, findingStateCounts, riskLevelCounts, riskStatusCounts, statusFilter, catalog }: ViewRouterProps) {
   const resources = ar["back-matter"]?.resources ?? [];
 
   if (view === "overview")
@@ -1936,7 +1954,7 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
         <Card>
           <SectionLabel>Assessment Plan Reference</SectionLabel>
           <MField label="Reference" value={ar["import-ap"].href} mono />
-          {ar["import-ap"].remarks && <MField label="Remarks" value={ar["import-ap"].remarks} />}
+          {ar["import-ap"].remarks && <MField label="Remarks" value={<MarkupBlock value={ar["import-ap"].remarks} style={{ fontSize: "inherit", lineHeight: "inherit", color: "inherit" }} />} />}
         </Card>
       )}
 
@@ -1981,7 +1999,7 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
             <div key={res.uuid} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${colors.bg}` }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={res.title ?? "Untitled"} /></div>
               <div style={{ fontSize: 11, color: colors.gray, fontFamily: fonts.mono }}>{res.uuid}</div>
-              {res.remarks && <div style={{ fontSize: 12, color: colors.black, marginTop: 4 }}>{res.remarks}</div>}
+              {res.remarks && <MarkupBlock value={res.remarks} style={{ fontSize: 12, color: colors.black, marginTop: 4 }} />}
               {res.rlinks && res.rlinks.map((rl, i) => (
                 <a key={i} href={rl.href} target="_blank" rel="noopener noreferrer"
                   style={{ fontSize: 11, color: colors.brightBlue, display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
@@ -2020,7 +2038,7 @@ function ResultView({ result, resultIdx, navigate, catalog }: {
 
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <MField label="Description" value={result.description} />
+          <MField label="Description" value={result.description && <MarkupBlock value={result.description} style={{ fontSize: "inherit", lineHeight: "inherit", color: "inherit" }} />} />
           <MField label="Start" value={fmtDateTime(result.start)} />
           {result.end && <MField label="End" value={fmtDateTime(result.end)} />}
           <MField label="Observations" value={String(observations.length)} />
@@ -2562,8 +2580,8 @@ function FindingsListView({ findings, navigate, findingNistMap }: {
                 <FindingStateBadge state={state} />
                 <div>
                   {f.title && <div style={{ fontSize: 12, fontWeight: 600, color: colors.black }}><MarkupLine text={f.title} /></div>}
-                  {f.description && <div style={{ fontSize: 11, color: colors.gray }}>{trunc(f.description, 80)}</div>}
-                  {!f.title && !f.description && f.remarks && <div style={{ fontSize: 11, color: colors.gray }}>{trunc(f.remarks, 80)}</div>}
+                  {f.description && <div style={{ fontSize: 11, color: colors.gray }}>{trunc(markupPlainText(f.description), 80)}</div>}
+                  {!f.title && !f.description && f.remarks && <div style={{ fontSize: 11, color: colors.gray }}>{trunc(markupPlainText(f.remarks), 80)}</div>}
                 </div>
                 <NistChipsInline controls={findingNistMap?.[f.uuid] ?? []} />
                 <span style={{ fontSize: 12, color: colors.cobalt, fontWeight: 600 }}>
@@ -2696,7 +2714,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
       {(finding.title || finding.description) && (
         <Card style={{ borderLeft: `4px solid ${fc.border}` }}>
           {finding.title && <div style={{ fontSize: 14, fontWeight: 700, color: colors.navy, marginBottom: 6 }}><MarkupLine text={finding.title} /></div>}
-          {finding.description && <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{finding.description}</div>}
+          {finding.description && <MarkupBlock value={finding.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />}
         </Card>
       )}
 
@@ -2712,7 +2730,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
       {finding.remarks && (
         <Card>
           <SectionLabel>Remarks</SectionLabel>
-          <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{finding.remarks}</div>
+          <MarkupBlock value={finding.remarks} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
         </Card>
       )}
 
@@ -2749,7 +2767,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
                 <IcoEye size={14} style={{ color: colors.cobalt }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={obs.title} /></div>
-                  {obs.remarks && <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{trunc(obs.remarks, 120)}</div>}
+                  {obs.remarks && <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{trunc(markupPlainText(obs.remarks), 120)}</div>}
                 </div>
                 <NistChipsInline controls={obsNistMap?.[obs.uuid] ?? []} />
                 <StatusBadge status={obsStatus} />
@@ -2782,7 +2800,7 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
                 <IcoAlertTriangle size={14} style={{ color: rc.fg }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: colors.navy }}><MarkupLine text={risk.title} /></div>
-                  <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{trunc(risk.description, 120)}</div>
+                  <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{trunc(markupPlainText(risk.description), 120)}</div>
                 </div>
                 <RiskLevelBadge level={level} />
                 <RiskStatusBadge status={risk.status} />
@@ -2878,7 +2896,7 @@ function RisksListView({ risks, navigate, riskLevelCounts, riskStatusCounts, ris
               <IcoAlertTriangle size={18} style={{ color: rc.fg, flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: colors.navy, marginBottom: 4 }}><MarkupLine text={risk.title} /></div>
-                <div style={{ fontSize: 12, color: colors.gray, lineHeight: 1.6, marginBottom: 8 }}>{trunc(risk.description, 180)}</div>
+                <div style={{ fontSize: 12, color: colors.gray, lineHeight: 1.6, marginBottom: 8 }}>{trunc(markupPlainText(risk.description), 180)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <RiskLevelBadge level={level} />
                   <RiskStatusBadge status={risk.status} />
@@ -2965,14 +2983,14 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
       {/* Description */}
       <Card style={{ borderLeft: `4px solid ${rc.border}` }}>
         <SectionLabel>Risk Description</SectionLabel>
-        <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{risk.description}</div>
+        <MarkupBlock value={risk.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
       </Card>
 
       {/* Statement */}
       {risk.statement && (
         <Card>
           <SectionLabel>Risk Statement</SectionLabel>
-          <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}>{risk.statement}</div>
+          <MarkupBlock value={risk.statement} style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }} />
         </Card>
       )}
 
@@ -3055,7 +3073,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
               padding: "10px 14px", marginBottom: 6, borderRadius: radii.sm,
               backgroundColor: alpha(colors.darkGreen, 5), borderLeft: `3px solid ${colors.darkGreen}`,
             }}>
-              <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.6 }}>{mf.description}</div>
+              <MarkupBlock value={mf.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.6 }} />
               {mf["implementation-uuid"] && (
                 <div style={{ fontSize: 10, color: colors.gray, fontFamily: fonts.mono, marginTop: 4 }}>
                   Implementation: {mf["implementation-uuid"]}
@@ -3094,7 +3112,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
                     {rem.lifecycle}
                   </span>
                 </div>
-                <div style={{ fontSize: 13, color: colors.black, lineHeight: 1.7, marginBottom: 8 }}>{rem.description}</div>
+                <MarkupBlock value={rem.description} style={{ fontSize: 13, color: colors.black, lineHeight: 1.7, marginBottom: 8 }} />
 
                 {/* Tasks */}
                 {rem.tasks && rem.tasks.length > 0 && (
@@ -3108,7 +3126,7 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }:
                         backgroundColor: colors.bg, borderLeft: `2px solid ${colors.paleGray}`,
                       }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: colors.navy }}><MarkupLine text={task.title} /></div>
-                        <div style={{ fontSize: 11, color: colors.gray, marginTop: 2 }}>{task.description}</div>
+                        <MarkupBlock value={task.description} style={{ fontSize: 11, color: colors.gray, marginTop: 2 }} />
                         {task.timing?.["within-date-range"] && (
                           <div style={{ fontSize: 10, color: colors.gray, marginTop: 4 }}>
                             {fmtDate(task.timing["within-date-range"].start)} — {fmtDate(task.timing["within-date-range"].end)}

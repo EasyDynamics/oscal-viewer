@@ -30,7 +30,7 @@ import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, 
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import PartTitle from "../components/PartTitle";
 import PropLabel from "../components/PropLabel";
-import { MarkupLine } from "../components/MarkupBlock";
+import MarkupBlock, { MarkupLine, MarkupLinks } from "../components/MarkupBlock";
 import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import { catalogLinkDisplay, linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { markupLineText } from "../utils/markup";
@@ -1287,7 +1287,22 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
    VIEW ROUTER
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, controlIds, navigate }: {
+function ViewRouter(props: ViewRouterProps) {
+  const { controlIds, navigate } = props;
+  // A `#fragment` link in prose ([AU-02](#au-2)) opens that control when the profile includes it.
+  const resolveLink = (id: string) => {
+    if (!controlIds.includes(id)) return false;
+    navigate(`ctrl-${id}`);
+    return true;
+  };
+  return (
+    <MarkupLinks resolve={resolveLink}>
+      <ProfileView {...props} />
+    </MarkupLinks>
+  );
+}
+
+interface ViewRouterProps {
   view: string;
   profile: Profile;
   familyGroups: FamilyGroup[];
@@ -1295,7 +1310,9 @@ function ViewRouter({ view, profile, familyGroups, alterMap, setParamMap, contro
   setParamMap: Map<string, SetParameter[]>;
   controlIds: string[];
   navigate: (id: string) => void;
-}) {
+}
+
+function ProfileView({ view, profile, familyGroups, alterMap, setParamMap, controlIds, navigate }: ViewRouterProps) {
   if (view === "overview") return <OverviewView profile={profile} familyGroups={familyGroups} controlIds={controlIds} navigate={navigate} />;
   if (view === "metadata") return <MetadataView profile={profile} navigate={navigate} />;
   if (view === "imports") return <ImportsView profile={profile} controlIds={controlIds} navigate={navigate} />;
@@ -2209,12 +2226,8 @@ function ResolvedPartTree({ part, depth, paramMap, resMap }: {
       {/* Prose content */}
       {part.prose && (
         isRemoved ? (
-          <span style={{
-            fontSize: 13, lineHeight: 1.75,
-            color: colors.dangerFg, textDecoration: "line-through", opacity: 0.75,
-          }}>
-            {part.prose}
-          </span>
+          <ProseWithParamsProfile text={part.prose} paramMap={paramMap}
+            style={{ color: colors.dangerFg, textDecoration: "line-through", opacity: 0.75 }} />
         ) : (
           <ProseWithParamsProfile text={part.prose} paramMap={paramMap} isAdded={isAdded} />
         )
@@ -2280,7 +2293,7 @@ function FallbackAddedPartTree({ part, depth }: { part: ProfilePart; depth: numb
             </div>
           )}
           {part.prose && (
-            <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>{part.prose}</span>
+            <MarkupBlock value={part.prose} inline />
           )}
         </div>
       </div>
@@ -2301,51 +2314,14 @@ function FallbackAddedPartTree({ part, depth }: { part: ProfilePart; depth: numb
    Supports set-parameter overrides from profile.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ProseWithParamsProfile({ text, paramMap, isAdded }: {
-  text: string; paramMap: Record<string, Param>; isAdded?: boolean;
+function ProseWithParamsProfile({ text, paramMap, isAdded, style }: {
+  text: string; paramMap: Record<string, Param>; isAdded?: boolean; style?: CSSProperties;
 }) {
-  const parts = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
-
-  return (
-    <span style={{
-      fontSize: 13, lineHeight: 1.75,
-      color: isAdded ? colors.successFg : colors.black,
-      fontFamily: fonts.sans,
-    }}>
-      {parts.map((segment, i) => {
-        const match = segment.match(/\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/);
-        if (match) {
-          const paramId = match[1].trim();
-          const param = paramMap[paramId];
-          const rendered = param ? renderParamTextProfile(param, paramMap) : `[Assignment: ${paramId}]`;
-          const isSelection = param?.select != null;
-          return (
-            <span
-              key={i}
-              title={`Parameter: ${paramId}`}
-              style={{
-                display: "inline",
-                fontSize: 13,
-                fontFamily: fonts.mono,
-                fontWeight: 600,
-                color: isSelection ? colors.cobalt : colors.orange,
-                backgroundColor: isSelection ? alpha(colors.cobalt, 7) : alpha(colors.orange, 7),
-                padding: "1px 6px",
-                borderRadius: radii.sm,
-                border: `1px solid ${isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)}`,
-                whiteSpace: "normal",
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-              }}
-            >
-              {rendered}
-            </span>
-          );
-        }
-        return <span key={i}>{segment}</span>;
-      })}
-    </span>
-  );
+  const params = (id: string) => {
+    const param = paramMap[id];
+    return param ? { text: renderParamTextProfile(param, paramMap), selection: param.select != null } : null;
+  };
+  return <MarkupBlock value={text} params={params} inline style={{ color: isAdded ? colors.successFg : colors.black, fontFamily: fonts.sans, ...style }} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

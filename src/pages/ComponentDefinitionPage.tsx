@@ -29,9 +29,9 @@ import LinkChips from "../components/LinkChips";
 import PartTitle from "../components/PartTitle";
 import PropLabel from "../components/PropLabel";
 import type { ResolvedLink } from "../components/LinkChips";
-import MarkupBlock, { InlineMarkup, MarkupLine } from "../components/MarkupBlock";
+import MarkupBlock, { MarkupLine, MarkupLinks } from "../components/MarkupBlock";
 import { linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
-import { markupLineText } from "../utils/markup";
+import { markupLineText, markupPlainText } from "../utils/markup";
 import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
 import {
   IcoBook,
@@ -940,7 +940,25 @@ interface ViewRouterProps {
   resolvedTitleForSource: (source: string) => string | null;
 }
 
-function ViewRouter({ view, cdef, navigate, resMap, bmRes, parties, catalog, resolvedTitleForSource }: ViewRouterProps) {
+function ViewRouter(props: ViewRouterProps) {
+  const { cdef, navigate, resMap } = props;
+  // A `#fragment` link in markup opens the component, requirement or resource it names.
+  const resolveLink = (id: string) => {
+    const comps = cdef.components ?? [];
+    const compIdx = comps.findIndex((c) => c.uuid === id);
+    const isReq = comps.some((c) => (c["control-implementations"] ?? []).some((ci) => ci["implemented-requirements"].some((r) => r.uuid === id)));
+    const target = compIdx >= 0 ? `comp-${compIdx}` : isReq ? `req-${id}` : resMap[id] ? `res-${id}` : null;
+    if (target) navigate(target);
+    return target !== null;
+  };
+  return (
+    <MarkupLinks resolve={resolveLink}>
+      <CdefView {...props} />
+    </MarkupLinks>
+  );
+}
+
+function CdefView({ view, cdef, navigate, resMap, bmRes, parties, catalog, resolvedTitleForSource }: ViewRouterProps) {
   const comps = cdef.components ?? [];
 
   if (view === "overview")
@@ -1750,7 +1768,7 @@ function ComponentView({
                   lineHeight: 1.5,
                 }}
               >
-                {trunc(txt(impl.description), 120)}
+                {trunc(markupPlainText(txt(impl.description)), 120)}
               </p>
             )}
           </div>
@@ -1934,53 +1952,11 @@ function CatalogProseWithParams({
   text: string;
   paramMap: Record<string, CatalogParam>;
 }) {
-  // Split on {{ insert: param, <id> }} keeping the token as a capture group
-  const segments = text.split(/(\{\{\s*insert:\s*param\s*,\s*[^}]+?\s*\}\})/g);
-
-  return (
-    <span style={{ fontSize: 13, lineHeight: 1.75, color: colors.black, fontFamily: fonts.sans, overflowWrap: "break-word" as const, wordBreak: "break-word" as const }}>
-      {segments.map((segment, i) => {
-        const match = segment.match(
-          /\{\{\s*insert:\s*param\s*,\s*([^}]+?)\s*\}\}/,
-        );
-        if (match) {
-          const paramId = match[1].trim();
-          const param = paramMap[paramId];
-          const rendered = param
-            ? renderCatalogParamText(param, paramMap)
-            : `[Assignment: ${paramId}]`;
-          const isSelection = param?.select != null;
-          return (
-            <span
-              key={i}
-              title={`Parameter: ${paramId}`}
-              style={{
-                display: "inline",
-                fontSize: 13,
-                fontFamily: fonts.mono,
-                fontWeight: 600,
-                color: isSelection ? colors.cobalt : colors.orange,
-                backgroundColor: isSelection
-                  ? alpha(colors.cobalt, 7)
-                  : alpha(colors.orange, 7),
-                padding: "1px 6px",
-                borderRadius: radii.sm,
-                border: `1px solid ${
-                  isSelection ? alpha(colors.cobalt, 20) : alpha(colors.orange, 20)
-                }`,
-                whiteSpace: "normal" as const,
-                overflowWrap: "break-word" as const,
-              }}
-            >
-              {rendered}
-            </span>
-          );
-        }
-        // Render non-param segments as markdown
-        return <InlineMarkup key={i} text={segment} />;
-      })}
-    </span>
-  );
+  const params = (id: string) => {
+    const param = paramMap[id];
+    return param ? { text: renderCatalogParamText(param, paramMap), selection: param.select != null } : null;
+  };
+  return <MarkupBlock value={text} params={params} inline style={{ fontFamily: fonts.sans, overflowWrap: "break-word", wordBreak: "break-word" }} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
