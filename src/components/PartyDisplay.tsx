@@ -2,6 +2,12 @@ import type { CSSProperties } from "react";
 import { Building2, Link2, User, Users } from "lucide-react";
 import { alpha, colors, fonts, radii } from "../theme/tokens";
 import { partyDisplayName, type PartyLike, type ResponsiblePartyLike, type RoleLike } from "../utils/partyDisplay";
+import { linkLabel, linkTooltip, resourceName, type LinkedResourceLike } from "../utils/linkDisplay";
+
+/** A back-matter resource that a party link's `#<uuid>` href can point to. */
+export interface PartyLinkResource extends LinkedResourceLike {
+  uuid: string;
+}
 
 function isOrganization(type?: string): boolean {
   return (type ?? "").toLowerCase() === "organization";
@@ -40,7 +46,7 @@ export function PartyChip({ party, fallbackUuid }: { party?: PartyLike; fallback
   );
 }
 
-export function PartyCard({ party }: { party: PartyLike }) {
+export function PartyCard({ party, resources = [] }: { party: PartyLike; resources?: PartyLinkResource[] }) {
   const color = partyColor(party.type);
   return (
     <div
@@ -82,27 +88,32 @@ export function PartyCard({ party }: { party: PartyLike }) {
         )}
         {(party.links ?? []).length > 0 && (
           <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-            {(party.links ?? []).map((link, index) => (
-              <a
-                key={`${link.href}-${index}`}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontSize: 11,
-                  color: colors.brightBlue,
-                  textDecoration: "none",
-                  fontFamily: fonts.mono,
-                  overflowWrap: "anywhere",
-                }}
-              >
-                <Link2 size={11} />
-                {link.text ?? link.rel ?? link.href}
-              </a>
-            ))}
+            {(party.links ?? []).map((link, index) => {
+              const resource = link.href.startsWith("#") ? resources.find((r) => r.uuid === link.href.slice(1)) : undefined;
+              const targetName = resourceName(resource);
+              return (
+                <a
+                  key={`${link.href}-${index}`}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={linkTooltip(link, targetName)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11,
+                    color: colors.brightBlue,
+                    textDecoration: "none",
+                    fontFamily: fonts.mono,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  <Link2 size={11} />
+                  {linkLabel(link, targetName, link.rel || link.href)}
+                </a>
+              );
+            })}
           </span>
         )}
       </span>
@@ -110,10 +121,10 @@ export function PartyCard({ party }: { party: PartyLike }) {
   );
 }
 
-export function PartyCardGrid({ parties }: { parties: PartyLike[] }) {
+export function PartyCardGrid({ parties, resources }: { parties: PartyLike[]; resources?: PartyLinkResource[] }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
-      {parties.map((party) => <PartyCard key={party.uuid} party={party} />)}
+      {parties.map((party) => <PartyCard key={party.uuid} party={party} resources={resources} />)}
     </div>
   );
 }

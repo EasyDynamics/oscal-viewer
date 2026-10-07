@@ -25,6 +25,7 @@ import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useO
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { IcoAlert, IcoAlertTriangle, IcoBook, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFolder, IcoHome, IcoInfo, IcoSearch, IcoShield, IcoTarget, IcoTool, IcoUpload, IcoXCircle } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import type {
@@ -172,6 +173,7 @@ interface ImportAp {
 interface Resource {
   uuid: string;
   title?: string;
+  citation?: { text?: string };
   rlinks?: { href: string }[];
   remarks?: string;
 }
@@ -1443,6 +1445,8 @@ interface ViewRouterProps {
 }
 
 function ViewRouter({ view, ar, navigate, allObservations, allFindings, allRisks, obsMap, riskMap, obsNistMap, findingNistMap, riskNistMap, groupedObservations, groupNames, statusCounts, findingStateCounts, riskLevelCounts, riskStatusCounts, statusFilter, catalog }: ViewRouterProps) {
+  const resources = ar["back-matter"]?.resources ?? [];
+
   if (view === "overview")
     return <OverviewView ar={ar} navigate={navigate} allObservations={allObservations} allFindings={allFindings} allRisks={allRisks} groupedObservations={groupedObservations} groupNames={groupNames} statusCounts={statusCounts} findingStateCounts={findingStateCounts} riskLevelCounts={riskLevelCounts} riskStatusCounts={riskStatusCounts} />;
   if (view === "metadata")
@@ -1460,14 +1464,14 @@ function ViewRouter({ view, ar, navigate, allObservations, allFindings, allRisks
   if (view.startsWith("finding-")) {
     const uuid = view.slice(8);
     const finding = allFindings.find((f) => f.uuid === uuid);
-    if (finding) return <FindingDetailView finding={finding} navigate={navigate} obsMap={obsMap} riskMap={riskMap} findingNistMap={findingNistMap} obsNistMap={obsNistMap} />;
+    if (finding) return <FindingDetailView finding={finding} navigate={navigate} obsMap={obsMap} riskMap={riskMap} findingNistMap={findingNistMap} obsNistMap={obsNistMap} resources={resources} />;
   }
 
   // risk-<uuid>
   if (view.startsWith("risk-")) {
     const uuid = view.slice(5);
     const risk = allRisks.find((r) => r.uuid === uuid);
-    if (risk) return <RiskDetailView risk={risk} navigate={navigate} allFindings={allFindings} riskNistMap={riskNistMap} />;
+    if (risk) return <RiskDetailView risk={risk} navigate={navigate} allFindings={allFindings} riskNistMap={riskNistMap} resources={resources} />;
   }
 
   // result-N
@@ -1489,7 +1493,7 @@ function ViewRouter({ view, ar, navigate, allObservations, allFindings, allRisks
   if (view.startsWith("obs-")) {
     const uuid = view.slice(4);
     const obs = allObservations.find((o) => o.uuid === uuid);
-    if (obs) return <ObservationView obs={obs} navigate={navigate} catalog={catalog} nistControls={obsNistMap[uuid] ?? []} />;
+    if (obs) return <ObservationView obs={obs} navigate={navigate} catalog={catalog} nistControls={obsNistMap[uuid] ?? []} resources={resources} />;
   }
 
   return <NotFoundView navigate={navigate} />;
@@ -1945,7 +1949,7 @@ function MetadataView({ ar, navigate }: { ar: AssessmentResults; navigate: (id: 
       {meta.parties && meta.parties.length > 0 && (
         <Card>
           <SectionLabel>Parties ({meta.parties.length})</SectionLabel>
-          <PartyCardGrid parties={meta.parties} />
+          <PartyCardGrid parties={meta.parties} resources={ar["back-matter"]?.resources} />
         </Card>
       )}
 
@@ -2185,8 +2189,24 @@ function ObservationTable({ observations, navigate, obsNistMap }: {
    OBSERVATION VIEW — full detail view for a single observation
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ObservationView({ obs, navigate, catalog, nistControls }: {
-  obs: Observation; navigate: (id: string) => void; catalog: OscalCatalog | null; nistControls: string[];
+/**
+ * Chips for an observation's, finding's or risk's links. A `#<uuid>` href is
+ * labelled from the back-matter resource it names unless the link has text.
+ */
+function linkChips(links: Link[], resources: Resource[]): ResolvedLink[] {
+  return links.map((lk) => {
+    const frag = lk["resource-fragment"];
+    const res = lk.href.startsWith("#") ? resources.find((r) => r.uuid === lk.href.slice(1)) : undefined;
+    const baseText = resourceLinkLabel(lk, res, lk.href);
+    const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
+    const baseHref = lk.href.startsWith("#") ? undefined : lk.href;
+    const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
+    return { text, title: resourceLinkTooltip(lk, res), href, rel: lk.rel };
+  });
+}
+
+function ObservationView({ obs, navigate, catalog, nistControls, resources }: {
+  obs: Observation; navigate: (id: string) => void; catalog: OscalCatalog | null; nistControls: string[]; resources: Resource[];
 }) {
   const status = getStatus(obs);
   const criticality = getCriticality(obs);
@@ -2272,21 +2292,11 @@ function ObservationView({ obs, navigate, catalog, nistControls }: {
       <CatalogContextCard catalog={catalog} />
 
       {/* Links */}
-      {obs.links && obs.links.length > 0 && (() => {
-        const chips: ResolvedLink[] = obs.links.map((lk) => {
-          const frag = lk["resource-fragment"];
-          const baseText = lk.text ?? lk.href;
-          const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
-          const baseHref = lk.href.startsWith("#") ? undefined : lk.href;
-          const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
-          return { text, href, rel: lk.rel };
-        });
-        return (
-          <Card>
-            <LinkChips links={chips} />
-          </Card>
-        );
-      })()}
+      {obs.links && obs.links.length > 0 && (
+        <Card>
+          <LinkChips links={linkChips(obs.links, resources)} />
+        </Card>
+      )}
     </div>
   );
 }
@@ -2636,8 +2646,9 @@ function RiskStatusBadge({ status }: { status: string }) {
    FINDING DETAIL VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap, obsNistMap }: {
+function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap, obsNistMap, resources }: {
   finding: Finding;
+  resources: Resource[];
   navigate: (id: string) => void;
   obsMap: Record<string, Observation>;
   riskMap: Record<string, Risk>;
@@ -2784,12 +2795,9 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
       )}
 
       {/* Links */}
-      {finding.links && finding.links.length > 0 && (() => {
-        const chips: ResolvedLink[] = finding.links.map((lk) => ({
-          text: lk.text ?? lk.href, href: lk.href.startsWith("#") ? undefined : lk.href, rel: lk.rel,
-        }));
-        return <Card><LinkChips links={chips} /></Card>;
-      })()}
+      {finding.links && finding.links.length > 0 && (
+        <Card><LinkChips links={linkChips(finding.links, resources)} /></Card>
+      )}
     </div>
   );
 }
@@ -2905,8 +2913,9 @@ function RisksListView({ risks, navigate, riskLevelCounts, riskStatusCounts, ris
    RISK DETAIL VIEW — full detail for a single risk
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function RiskDetailView({ risk, navigate, allFindings, riskNistMap }: {
+function RiskDetailView({ risk, navigate, allFindings, riskNistMap, resources }: {
   risk: Risk;
+  resources: Resource[];
   navigate: (id: string) => void;
   allFindings: Finding[];
   riskNistMap: Record<string, string[]>;
@@ -3135,12 +3144,9 @@ function RiskDetailView({ risk, navigate, allFindings, riskNistMap }: {
       )}
 
       {/* Links */}
-      {risk.links && risk.links.length > 0 && (() => {
-        const chips: ResolvedLink[] = risk.links.map((lk) => ({
-          text: lk.text ?? lk.href, href: lk.href.startsWith("#") ? undefined : lk.href, rel: lk.rel,
-        }));
-        return <Card><LinkChips links={chips} /></Card>;
-      })()}
+      {risk.links && risk.links.length > 0 && (
+        <Card><LinkChips links={linkChips(risk.links, resources)} /></Card>
+      )}
     </div>
   );
 }

@@ -66,6 +66,8 @@ function relCategory(rel?: string, href?: string): string {
 export interface ResolvedLink {
   /** Display text for the chip */
   text: string;
+  /** Tooltip text, when it should differ from `text` (e.g. the full resource title) */
+  title?: string;
   /** URL to open (if any) */
   href?: string;
   /** The OSCAL `rel` value (e.g. "reference", "mitre", "related") */
@@ -155,7 +157,7 @@ export default function LinkChips({ links, label, style }: LinkChipsProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={chipStyle}
-                title={lk.rel ? `${lk.rel}: ${lk.text}` : lk.text}
+                title={lk.rel ? `${lk.rel}: ${lk.title ?? lk.text}` : (lk.title ?? lk.text)}
               >
                 <IcoLinkSmall />
                 {lk.text}
@@ -167,7 +169,7 @@ export default function LinkChips({ links, label, style }: LinkChipsProps) {
               key={i}
               onClick={lk.onClick}
               style={chipStyle}
-              title={lk.rel ? `${lk.rel}: ${lk.text}` : lk.text}
+              title={lk.rel ? `${lk.rel}: ${lk.title ?? lk.text}` : (lk.title ?? lk.text)}
             >
               <IcoLinkSmall />
               {lk.text}

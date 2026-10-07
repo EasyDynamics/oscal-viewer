@@ -27,6 +27,7 @@ import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
+import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
@@ -299,6 +300,7 @@ interface ControlImplementation {
 interface SspResource {
   uuid: string;
   title: string;
+  citation?: { text?: string };
   description?: string;
   props?: OscalProp[];
   rlinks?: { href: string; "media-type"?: string }[];
@@ -629,6 +631,7 @@ function parseSsp(raw: any): SspParsed {
   const backMatter: SspResource[] = (bm.resources || []).map((r: any) => ({
     uuid: r.uuid,
     title: r.title || "",
+    citation: r.citation,
     description: txt(r.description),
     props: r.props || [],
     rlinks: r.rlinks || [],
@@ -2095,7 +2098,7 @@ function MetadataView({ ssp }: { ssp: SspParsed }) {
       {md.parties.length > 0 && (
         <Card>
           <SectionLabel>Parties ({md.parties.length})</SectionLabel>
-          <PartyCardGrid parties={md.parties} />
+          <PartyCardGrid parties={md.parties} resources={ssp.backMatter} />
         </Card>
       )}
 
@@ -2149,10 +2152,11 @@ function diagramLinks(diagram: SspDiagram, backMatter: SspResource[]): { link: S
   diagram.links.forEach((link) => {
     if (link.href?.startsWith("#")) {
       const resource = backMatter.find((r) => r.uuid === link.href.slice(1));
+      const label = resourceLinkLabel(link, resource, "");
       if (resource?.base64) {
         result.push({
-          link: linkFromBase64(resource.base64, link.text || resource.title, link.mediaType),
-          title: resource.title,
+          link: linkFromBase64(resource.base64, label, link.mediaType),
+          title: label,
           description: resource.description,
         });
       }
@@ -2160,7 +2164,7 @@ function diagramLinks(diagram: SspDiagram, backMatter: SspResource[]): { link: S
         resource.rlinks.forEach((rl) => {
           result.push({
             link: { href: rl.href, mediaType: rl["media-type"], rel: link.rel, text: link.text },
-            title: resource.title,
+            title: label,
             description: resource.description,
           });
         });
@@ -2197,7 +2201,7 @@ function artifactFromLink(link: SspLink, backMatter: SspResource[], sourceUrl?: 
   if (link.href.startsWith("#")) {
     const resource = backMatter.find((r) => r.uuid === link.href.slice(1));
     if (!resource) return null;
-    const title = link.text || resource.title || resource.uuid.slice(0, 12);
+    const title = resourceLinkLabel(link, resource, resource.uuid.slice(0, 12));
     if (resource.base64) {
       return {
         title,
@@ -2242,10 +2246,18 @@ function attachmentTitle(count: number): string {
   return count === 1 ? "1 attachment" : `${count} attachments`;
 }
 
+function linkResource(link: SspLink, backMatter: SspResource[]): SspResource | undefined {
+  return link.href?.startsWith("#") ? backMatter.find((r) => r.uuid === link.href.slice(1)) : undefined;
+}
+
 function linkDisplayText(link: SspLink, backMatter: SspResource[]): string {
-  const resource = link.href?.startsWith("#") ? backMatter.find((r) => r.uuid === link.href.slice(1)) : undefined;
-  const baseText = link.text || resource?.title || (link.rel === "mitre" ? (link.href.split("/").pop() ?? link.href) : link.href);
+  const fallback = link.rel === "mitre" ? (link.href.split("/").pop() ?? link.href) : link.href;
+  const baseText = resourceLinkLabel(link, linkResource(link, backMatter), fallback);
   return link.resourceFragment ? `${baseText} — ${link.resourceFragment}` : baseText;
+}
+
+function linkDisplayTooltip(link: SspLink, backMatter: SspResource[]): string | undefined {
+  return resourceLinkTooltip(link, linkResource(link, backMatter));
 }
 
 function buildDiagramAssets(diagrams: SspDiagram[], backMatter: SspResource[], sourceUrl?: string | null): DiagramAsset[] {
@@ -4376,8 +4388,8 @@ function ByCompImplementation({ bc, size, backMatter, sourceUrl, onOpenArtifact 
             links={bc.links.map((l) => {
               const artifact = artifactFromLink(l, backMatter, sourceUrl);
               return artifact
-                ? { text: linkDisplayText(l, backMatter), rel: l.rel, onClick: () => onOpenArtifact(artifact) }
-                : { text: linkDisplayText(l, backMatter), href: l.href, rel: l.rel };
+                ? { text: linkDisplayText(l, backMatter), title: linkDisplayTooltip(l, backMatter), rel: l.rel, onClick: () => onOpenArtifact(artifact) }
+                : { text: linkDisplayText(l, backMatter), title: linkDisplayTooltip(l, backMatter), href: l.href, rel: l.rel };
             })}
           />
         </div>
@@ -4866,8 +4878,8 @@ function ControlDetailView({ ir, ssp, catalog, leveragedIndex, sourceUrl }: { ir
             links={ir.links.map((l) => {
               const artifact = artifactFromLink(l, ssp.backMatter, sourceUrl);
               return artifact
-                ? { text: linkDisplayText(l, ssp.backMatter), rel: l.rel, onClick: () => setActiveArtifact(artifact) }
-                : { text: linkDisplayText(l, ssp.backMatter), href: l.href, rel: l.rel };
+                ? { text: linkDisplayText(l, ssp.backMatter), title: linkDisplayTooltip(l, ssp.backMatter), rel: l.rel, onClick: () => setActiveArtifact(artifact) }
+                : { text: linkDisplayText(l, ssp.backMatter), title: linkDisplayTooltip(l, ssp.backMatter), href: l.href, rel: l.rel };
             })}
           />
         </Card>

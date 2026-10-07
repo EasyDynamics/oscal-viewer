@@ -29,6 +29,7 @@ import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
 import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
+import { catalogLinkDisplay, linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1589,7 +1590,7 @@ function MetadataView({ profile, navigate }: { profile: Profile; navigate: (id: 
       {parties.length > 0 && (
         <Card>
           <SectionLabel>Parties</SectionLabel>
-          <PartyCardGrid parties={parties} />
+          <PartyCardGrid parties={parties} resources={profile["back-matter"]?.resources} />
         </Card>
       )}
 
@@ -1749,7 +1750,7 @@ function FamilyView({ familyGroup: fg, alterMap, setParamMap, navigate }: {
    If no catalog is loaded, shows modifications-only fallback.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
+function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }: {
   controlId: string;
   alterMap: Map<string, Alter>;
   setParamMap: Map<string, SetParameter[]>;
@@ -1845,8 +1846,12 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
   // Links from catalog
   const links = catalogControl?.links ?? [];
 
-  // Resolve back-matter links from catalog
-  const resources = catalog?.["back-matter"]?.resources ?? [];
+  // Resolve back-matter links: catalog parts point at the catalog's back matter,
+  // parts added by the profile's alter at the profile's own.
+  const resources = [
+    ...(catalog?.["back-matter"]?.resources ?? []),
+    ...(profile["back-matter"]?.resources ?? []),
+  ];
   const resMap: Record<string, Resource> = {};
   resources.forEach((r) => { resMap[r.uuid] = r; });
 
@@ -1907,7 +1912,7 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
               <span style={{ fontSize: 15, fontWeight: 700, color: sec.color }}>{sec.label}</span>
             </div>
             {parts.map((part, i) => (
-              <ResolvedPartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} />
+              <ResolvedPartTree key={part.id ?? i} part={part} depth={0} paramMap={paramMap} resMap={resMap} />
             ))}
           </Card>
         );
@@ -2058,11 +2063,11 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {resolvedLinks.map((x, i) => {
                 const text = x.resource
-                  ? (x.resource.title ?? x.resource.citation?.text ?? "Untitled")
-                  : (x.lk.text ?? x.lk.href);
+                  ? resourceLinkLabel(x.lk, x.resource, "Untitled")
+                  : linkLabel(x.lk, undefined, x.lk.href);
                 const href = x.resource?.rlinks?.[0]?.href ?? (x.lk.href.startsWith("#") ? undefined : x.lk.href);
                 return (
-                  <span key={i} style={{
+                  <span key={i} title={x.resource ? resourceLinkTooltip(x.lk, x.resource) : undefined} style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
                     fontSize: 11, padding: "3px 10px", borderRadius: radii.pill,
                     backgroundColor: alpha(colors.brightBlue, 7), color: colors.brightBlue,
@@ -2129,8 +2134,8 @@ function ControlModView({ controlId, alterMap, setParamMap, navigate }: {
    and normal parts rendered like the catalog PartTree.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ResolvedPartTree({ part, depth, paramMap }: {
-  part: ResolvedPart; depth: number; paramMap: Record<string, Param>;
+function ResolvedPartTree({ part, depth, paramMap, resMap }: {
+  part: ResolvedPart; depth: number; paramMap: Record<string, Param>; resMap: Record<string, Resource>;
 }) {
   const subParts = part.parts ?? [];
   const partLabel = getLabel(part.props);
@@ -2210,12 +2215,13 @@ function ResolvedPartTree({ part, depth, paramMap }: {
         <div style={{ marginTop: 4 }}>
           {part.links.map((lk, i) => {
             const frag = lk["resource-fragment"];
-            const display = frag ? `${lk.text ?? lk.href} — ${frag}` : (lk.text ?? lk.href);
+            const { label, tooltip } = catalogLinkDisplay(lk, resMap);
+            const display = frag ? `${label} — ${frag}` : label;
             return (
               <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12 }}>
                 <IcoLink size={11} style={{ color: colors.brightBlue }} />
                 <a href={lk.href.startsWith("#") ? undefined : lk.href} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: colors.brightBlue }}>
+                  style={{ fontSize: 11, color: colors.brightBlue }} title={tooltip}>
                   {display}
                 </a>
               </div>
@@ -2228,7 +2234,7 @@ function ResolvedPartTree({ part, depth, paramMap }: {
       {subParts.length > 0 && (
         <div style={{ marginTop: 6 }}>
           {subParts.map((sp, i) => (
-            <ResolvedPartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} />
+            <ResolvedPartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} resMap={resMap} />
           ))}
         </div>
       )}

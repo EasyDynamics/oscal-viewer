@@ -31,6 +31,7 @@ import { useAuth } from "../context/AuthContext";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
+import { linkLabel, linkTooltip, resourceName, type LinkedResourceLike } from "../utils/linkDisplay";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
@@ -43,7 +44,19 @@ import { partyDisplayName, type PartyLike, type ResponsiblePartyLike, type RoleL
    ═══════════════════════════════════════════════════════════════════════════ */
 
 interface OscalProp { name: string; value: string; class?: string; ns?: string }
-interface OscalLink { href: string; rel?: string; text?: string; "media-type"?: string }
+interface OscalLink {
+  href: string;
+  rel?: string;
+  text?: string;
+  "media-type"?: string;
+  "resource-fragment"?: string;
+  /** Name of the back-matter resource a `#<uuid>` href resolves to */
+  resourceName?: string;
+}
+
+interface PlanResource extends LinkedResourceLike {
+  uuid: string;
+}
 
 interface StepParsed {
   uuid: string;
@@ -85,6 +98,7 @@ interface PlanParsed {
   responsibleParties: ResponsiblePartyLike[];
   activities: ActivityParsed[];
   tasks: TaskParsed[];
+  resources: PlanResource[];
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -229,6 +243,8 @@ function parseAssessmentPlan(raw: any): PlanParsed {
   const ap = raw["assessment-plan"] ?? raw;
   if (!ap.metadata) throw new Error("Not a valid OSCAL Assessment Plan — missing metadata.");
   const md = ap.metadata || {};
+  const resources: PlanResource[] = (ap["back-matter"]?.resources || []).filter((r: any) => r?.uuid);
+  const resourceByUuid = new Map(resources.map((r) => [r.uuid, r]));
 
   const activities: ActivityParsed[] = (ap["local-definitions"]?.activities || []).map((a: any) => ({
     uuid: a.uuid,
@@ -245,6 +261,10 @@ function parseAssessmentPlan(raw: any): PlanParsed {
         href: l.href || "",
         rel: l.rel || "",
         text: l.text || "",
+        "resource-fragment": l["resource-fragment"] || undefined,
+        resourceName: typeof l.href === "string" && l.href.startsWith("#")
+          ? resourceName(resourceByUuid.get(l.href.slice(1)))
+          : undefined,
       }));
       return {
         uuid: s.uuid,
@@ -309,6 +329,7 @@ function parseAssessmentPlan(raw: any): PlanParsed {
     responsibleParties: md["responsible-parties"] || [],
     activities,
     tasks,
+    resources,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -782,10 +803,11 @@ function StepTableWithDetail({ activity, hCtrl, onCtrl }: {
                 {step.links.length > 0 && (
                   <LinkChips
                     links={step.links.map((l) => {
-                      const frag = (l as { "resource-fragment"?: string })["resource-fragment"];
-                      const baseText = l.text || (l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : "Reference");
+                      const frag = l["resource-fragment"];
+                      const fallback = l.rel === "mitre" ? (l.href.split("/").pop() ?? l.href) : "Reference";
+                      const baseText = linkLabel(l, l.resourceName, fallback);
                       const text = frag ? `${baseText} \u2014 ${frag}` : baseText;
-                      return { text, href: l.href, rel: l.rel || undefined };
+                      return { text, title: linkTooltip(l, l.resourceName), href: l.href, rel: l.rel || undefined };
                     })}
                     label={null}
                     style={{ marginTop: 2 }}
@@ -1015,7 +1037,7 @@ function OverviewView({ plan, stats, onSelectTask, onSelectActivity, hCtrl, onCt
       {plan.parties.length > 0 && (
         <Card>
           <SectionLabel>Parties ({plan.parties.length})</SectionLabel>
-          <PartyCardGrid parties={plan.parties} />
+          <PartyCardGrid parties={plan.parties} resources={plan.resources} />
         </Card>
       )}
 

@@ -28,6 +28,7 @@ import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import { linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
 import {
   IcoBook,
@@ -1595,7 +1596,7 @@ function MetadataView({
       {parties.length > 0 && (
         <Card>
           <SectionLabel>Parties</SectionLabel>
-          <PartyCardGrid parties={parties} />
+          <PartyCardGrid parties={parties} resources={cdef["back-matter"]?.resources} />
         </Card>
       )}
 
@@ -2404,19 +2405,20 @@ function RequirementView({
           if (lk.resolved) {
             const r = lk.resolved;
             const frag = lk["resource-fragment"];
-            const baseTitle = r.title ?? "Untitled";
+            const baseTitle = resourceLinkLabel(lk, r, "Untitled");
             const text = frag ? `${baseTitle} — ${frag}` : baseTitle;
             const baseHref = r.rlinks?.[0]?.href;
             const href = baseHref && frag ? `${baseHref}#${frag}` : baseHref;
             return {
               text,
+              title: resourceLinkTooltip(lk, r),
               href,
               rel: lk.rel,
               onClick: !href ? () => navigate(`res-${r.uuid}`) : undefined,
             };
           }
           if (!lk.href.startsWith("#")) {
-            return { text: lk.text ?? lk.href, href: lk.href, rel: lk.rel };
+            return { text: linkLabel(lk, undefined, lk.href), href: lk.href, rel: lk.rel };
           }
           return null;
         }).filter(Boolean) as ResolvedLink[];
