@@ -23,6 +23,7 @@ import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
+import PartTitle from "../components/PartTitle";
 import type { ResolvedLink } from "../components/LinkChips";
 import { catalogLinkDisplay, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { IcoAlert, IcoBook, IcoBulb, IcoCalendar, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFlag, IcoHome, IcoInfo, IcoLink, IcoList, IcoSearch, IcoShield, IcoTarget, IcoUpload } from "../components/IconAliases";
@@ -87,7 +88,7 @@ interface Observation {
   remarks?: string;
   props?: OscalProp[];
   links?: OscalLink[];
-  subjects?: { "subject-uuid": string; type: string }[];
+  subjects?: { "subject-uuid": string; type: string; title?: string }[];
   origins?: { actors: { type: string; "actor-uuid": string }[] }[];
   "relevant-evidence"?: { href: string; description?: string }[];
 }
@@ -147,6 +148,7 @@ interface Risk {
 interface FindingTarget {
   type: string;
   "target-id": string;
+  title?: string;
   status?: {
     state: string;
     reason?: string;
@@ -395,6 +397,7 @@ function CtrlPartTree({ part, depth, paramMap, resMap }: {
       paddingLeft: depth > 0 ? 16 : 0,
       borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
     }}>
+      <PartTitle title={part.title} />
       {partLabel && (
         <span style={{ fontSize: 13, fontWeight: 700, color: borderColor, fontFamily: fonts.mono, marginRight: 6 }}>
           {partLabel}
@@ -2074,6 +2077,7 @@ function FindingView({ finding, navigate, obsMap, riskMap, catalog, resMap }: {
         <Card>
           <SectionLabel>Target</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {finding.target.title && <MField label="Title" value={finding.target.title} />}
             <MField label="Type" value={finding.target.type} />
             <MField label="Target ID" value={finding.target["target-id"]?.toUpperCase() ?? "—"} />
             {finding.target.status && (
@@ -2237,6 +2241,7 @@ function ObservationView({ obs, navigate, resMap }: {
           <SectionLabel>Subjects ({obs.subjects.length})</SectionLabel>
           {obs.subjects.map((sub, i) => (
             <div key={i} style={{ display: "flex", gap: 12, marginBottom: 6 }}>
+              {sub.title && <MField label="Title" value={sub.title} />}
               <MField label="Type" value={sub.type} />
               <MField label="Subject UUID" value={sub["subject-uuid"]} mono />
             </div>

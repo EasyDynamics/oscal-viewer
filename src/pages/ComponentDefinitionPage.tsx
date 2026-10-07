@@ -27,6 +27,7 @@ import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import { useCatalogSortIndex } from "../hooks/useCatalogSortIndex";
 import LinkChips from "../components/LinkChips";
+import PartTitle from "../components/PartTitle";
 import type { ResolvedLink } from "../components/LinkChips";
 import { linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { PartyCardGrid, PartyChip, ResponsiblePartiesList } from "../components/PartyDisplay";
@@ -2062,6 +2063,7 @@ function CatalogControlCard({
     const partLabel = getCatalogLabel(part.props as { name: string; value: string }[] | undefined);
     return (
       <div key={part.id ?? Math.random()} style={{ marginLeft: depth * 16, marginBottom: 4 }}>
+        <PartTitle title={part.title} />
         {part.prose && (
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, margin: "2px 0", minWidth: 0 }}>
             {partLabel && (

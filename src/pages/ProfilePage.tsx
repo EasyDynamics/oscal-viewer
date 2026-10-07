@@ -28,6 +28,7 @@ import { resolveHref, type BackMatterResource } from "../hooks/useImportResolver
 import ResolverModal from "../components/ResolverModal";
 import { IcoAlert, IcoBook, IcoBulb, IcoCheck, IcoChev, IcoDownload, IcoFolder, IcoHome, IcoInfo, IcoLayers, IcoLink, IcoList, IcoSearch, IcoShield, IcoSliders, IcoTag, IcoUpload } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
+import PartTitle from "../components/PartTitle";
 import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import { catalogLinkDisplay, linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
@@ -412,6 +413,7 @@ function findParentControlInCatalog(catalog: Catalog, enhId: string): Control | 
 interface ResolvedPart {
   id?: string;
   name: string;
+  title?: string;
   prose?: string;
   props?: OscalProp[];
   links?: OscalLink[];
@@ -1858,6 +1860,8 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
   // Check for CORE prop in profile adds
   const adds = alter?.adds ?? [];
   const coreAdd = adds.find((a) => a.props?.some((p) => p.name === "CORE"));
+  // An add's title is a "Title Change" for the control (or its by-id target).
+  const titleChanges = adds.filter((a) => typeof a.title === "string" && a.title.trim() !== "");
 
   return (
     <div>
@@ -1879,9 +1883,20 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
           </span>
         )}
       </div>
-      <div style={{ fontSize: 12, fontFamily: fonts.mono, color: colors.gray, marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontFamily: fonts.mono, color: colors.gray, marginBottom: titleChanges.length > 0 ? 8 : 16 }}>
         {controlId}
       </div>
+      {titleChanges.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
+          {titleChanges.map((add, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: colors.successFg }}>
+              <AddBadge size={16} />
+              <span style={{ fontWeight: 700 }}>{add["by-id"] ? `Title change for ${add["by-id"]}:` : "Title change:"}</span>
+              <span>{add.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* No catalog loaded banner */}
       {!catalog && (
@@ -2172,6 +2187,13 @@ function ResolvedPartTree({ part, depth, paramMap, resMap }: {
 
   return (
     <div style={containerStyle}>
+      <PartTitle
+        title={part.title}
+        style={isRemoved
+          ? { color: colors.dangerFg, textDecoration: "line-through", opacity: 0.75 }
+          : isAdded ? { color: colors.successFg } : undefined}
+      />
+
       {/* Badge for add/remove (inline so it doesn't break depth indentation) */}
       {isAdded && (
         <span style={{ display: "inline-block", marginRight: 4, verticalAlign: "middle" }}>

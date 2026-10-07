@@ -85,6 +85,7 @@ interface Observation {
 interface FindingTarget {
   type: string;
   "target-id": string;
+  title?: string;
   status: { state: string; reason?: string };
   "implementation-status"?: { state: string };
   props?: OscalProp[];
@@ -1871,8 +1872,8 @@ function OverviewView({ ar, navigate, allObservations, allFindings, allRisks, gr
         </Card>
       )}
 
-      {/* Results list (if multiple) */}
-      {ar.results.length > 1 && (
+      {/* Results list. Shown for a single result too, since the sidebar skips that level. */}
+      {ar.results.length > 0 && (
         <Card>
           <SectionLabel>Results ({ar.results.length})</SectionLabel>
           {ar.results.map((result, i) => (
@@ -2675,6 +2676,9 @@ function FindingDetailView({ finding, navigate, obsMap, riskMap, findingNistMap,
           {finding.target["target-id"].toUpperCase()}
         </h1>
       </div>
+      {finding.target.title && (
+        <div style={{ fontSize: 14, color: colors.gray, marginBottom: 8 }}>{finding.target.title}</div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <FindingStateBadge state={state} />

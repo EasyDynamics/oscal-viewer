@@ -31,6 +31,7 @@ import { useAuth } from "../context/AuthContext";
 import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useOscalGraphResolver";
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
+import PartTitle from "../components/PartTitle";
 import { linkLabel, linkTooltip, resourceName, type LinkedResourceLike } from "../utils/linkDisplay";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
@@ -577,6 +578,7 @@ function CtrlPartTree({ part, depth, paramMap }: { part: CatalogPart; depth: num
       paddingLeft: depth > 0 ? 16 : 0,
       borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
     }}>
+      <PartTitle title={part.title} />
       {partLabel && <span style={{ fontSize: 12, fontWeight: 700, color: borderColor, fontFamily: fonts.mono, marginRight: 6 }}>{partLabel}</span>}
       {part.prose && <MarkupBlock value={resolveInlineParams(part.prose, paramMap)} style={{ fontSize: 12.5 }} />}
       {subParts.length > 0 && subParts.map((sp, i) => <CtrlPartTree key={sp.id ?? i} part={sp} depth={depth + 1} paramMap={paramMap} />)}

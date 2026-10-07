@@ -22,6 +22,7 @@ import { useAnalyticsView } from "../hooks/useAnalyticsView";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
+import PartTitle from "../components/PartTitle";
 import type { ResolvedLink } from "../components/LinkChips";
 import { linkLabel, linkTooltip, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { IcoBook, IcoBulb, IcoCheck, IcoChev, IcoCloud, IcoCode, IcoFolder, IcoHome, IcoInfo, IcoLink, IcoList, IcoPaperclip, IcoSearch, IcoShield, IcoStandard, IcoTag, IcoTarget, IcoUpload } from "../components/IconAliases";
@@ -1562,6 +1563,10 @@ function ResourceDetailView({ resource: r, navigate }: { resource: Resource; nav
 function GroupView({ group, catalog, navigate }: { group: Group; catalog: Catalog; navigate: (id: string) => void }) {
   const keys = groupKeys(catalog);
   const lbl = getLabel(group.props);
+  const groupParamMap: Record<string, Param> = {};
+  (group.params ?? []).forEach((p) => { groupParamMap[p.id] = p; });
+  const resMap: Record<string, Resource> = {};
+  (catalog["back-matter"]?.resources ?? []).forEach((r) => { resMap[r.uuid] = r; });
   const controls = group.controls ?? [];
   const subGroups = group.groups ?? [];
 
@@ -1587,12 +1592,12 @@ function GroupView({ group, catalog, navigate }: { group: Group; catalog: Catalo
         </div>
       </Card>
 
-      {/* Group parts (overview text) */}
+      {/* Group parts (overview text), rendered like control parts */}
       {group.parts && group.parts.length > 0 && (
         <Card>
           {group.parts.map((p, i) => (
-            <div key={i}>
-              {p.prose && <p style={{ fontSize: 13, lineHeight: 1.75, color: colors.black }}>{safeString(p.prose)}</p>}
+            <div key={p.id ?? i} style={{ marginTop: i === 0 ? 0 : 12 }}>
+              <PartTree part={p} depth={0} paramMap={groupParamMap} resMap={resMap} navigate={navigate} />
             </div>
           ))}
         </Card>
@@ -1893,6 +1898,8 @@ function PartTree({ part, depth, paramMap, resMap, navigate }: {
       paddingLeft: depth > 0 ? 16 : 0,
       borderLeft: depth > 0 ? `3px solid ${borderColor}` : "none",
     }}>
+      <PartTitle title={part.title} />
+
       {/* Part label (e.g. "a.", "b.", "(1)") */}
       {partLabel && (
         <span style={{

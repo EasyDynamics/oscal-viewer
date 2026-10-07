@@ -27,6 +27,7 @@ import ResolverModal from "../components/ResolverModal";
 import useIsMobile from "../hooks/useIsMobile";
 import { useResizableSidebar } from "../hooks/useResizableSidebar";
 import LinkChips from "../components/LinkChips";
+import PartTitle from "../components/PartTitle";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import ArtifactModal, { type ArtifactItem } from "../components/ArtifactModal";
 import { useLeveragedIndex, type LeveragedIndex } from "../hooks/useLeveragedIndex";
@@ -1683,6 +1684,7 @@ function CatalogControlCard({
     const partLabel = getCatalogLabel(part.props as { name: string; value: string }[] | undefined);
     return (
       <div key={part.id ?? Math.random()} style={{ marginLeft: depth * 16, marginBottom: 4 }}>
+        <PartTitle title={part.title} />
         {part.prose && (
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, margin: "2px 0" }}>
             {partLabel && (
