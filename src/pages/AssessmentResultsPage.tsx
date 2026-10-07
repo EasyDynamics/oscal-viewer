@@ -25,6 +25,7 @@ import { useOscalGraphResolver, type ResolvedOscalDocument } from "../hooks/useO
 import ResolverModal from "../components/ResolverModal";
 import LinkChips from "../components/LinkChips";
 import type { ResolvedLink } from "../components/LinkChips";
+import MarkupBlock from "../components/MarkupBlock";
 import { resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { IcoAlert, IcoAlertTriangle, IcoBook, IcoCheck, IcoCheckCircle, IcoChev, IcoClipboard, IcoExternalLink, IcoEye, IcoFolder, IcoHome, IcoInfo, IcoSearch, IcoShield, IcoTarget, IcoTool, IcoUpload, IcoXCircle } from "../components/IconAliases";
 import { PartyCardGrid, ResponsiblePartiesList } from "../components/PartyDisplay";
@@ -2245,10 +2246,7 @@ function ObservationView({ obs, navigate, catalog, nistControls, resources }: {
       {/* Description */}
       <Card style={{ borderLeft: `4px solid ${sc.border}` }}>
         <SectionLabel>Description</SectionLabel>
-        <div
-          style={{ fontSize: 13, color: colors.black, lineHeight: 1.75 }}
-          dangerouslySetInnerHTML={{ __html: obs.description ?? "" }}
-        />
+        <MarkupBlock value={obs.description} />
       </Card>
 
       {/* Details */}
