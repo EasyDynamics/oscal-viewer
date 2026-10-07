@@ -5612,12 +5612,14 @@ export default function SspPage() {
   const sspResolutionAlreadySatisfied = useMemo(() => {
     if (!ssp) return false;
 
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     const importProfileHref = (raw as any)?.["system-security-plan"]?.["import-profile"]?.href
       ?? (raw as any)?.["import-profile"]?.href;
     if (importProfileHref && !oscal.profile) return false;
 
     const profileData = oscal.profile?.data ? ((oscal.profile.data as any)?.profile ?? oscal.profile.data) : null;
     const profileImports = Array.isArray((profileData as any)?.imports) ? (profileData as any).imports : [];
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     if (profileImports.length > 0 && !oscal.catalog) return false;
 
     const leveraged = ssp.systemImplementation.leveragedAuthorizations.filter((la) => isAutoResolvableHref(pickLeveragedHref(la), sourceUrl));

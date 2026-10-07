@@ -348,7 +348,8 @@ function riskSeveritySortKey(risk: Risk): number {
 
 /* ── Catalog lookup helpers ── */
 
-// @ts-ignore: reserved for future catalog enrichment
+// @ts-expect-error: reserved for future catalog enrichment
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function findCatalogControl(catalog: OscalCatalog | null, controlId: string): CatalogControl | undefined {
   if (!catalog) return undefined;
   function searchGroup(g: CatalogGroup): CatalogControl | undefined {
@@ -377,7 +378,8 @@ function findCatalogControl(catalog: OscalCatalog | null, controlId: string): Ca
   return undefined;
 }
 
-// @ts-ignore: reserved for future catalog enrichment
+// @ts-expect-error: reserved for future catalog enrichment
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function buildCatalogParamMap(catalog: OscalCatalog | null, control: CatalogControl): Record<string, CatalogParam> {
   const map: Record<string, CatalogParam> = {};
   if (catalog) {
@@ -1258,7 +1260,7 @@ function FilterPill({ label, count, active, onClick }: {
    NAV ROW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function NavRow({ id: _id, label, icon, active, onClick, depth, badge, hasChildren, expanded, onToggle, statusColor }: {
+function NavRow({ label, icon, active, onClick, depth, badge, hasChildren, expanded, onToggle, statusColor }: {
   id: string; label: string; icon: ReactNode; active: boolean;
   onClick: () => void; depth: number; badge?: number;
   hasChildren?: boolean; expanded?: boolean; onToggle?: () => void;
@@ -2343,7 +2345,8 @@ function CatalogContextCard({ catalog }: { catalog: OscalCatalog | null }) {
    CATALOG PART TREE — recursive hierarchical rendering
    ═══════════════════════════════════════════════════════════════════════════ */
 
-// @ts-ignore: reserved for future catalog enrichment
+// @ts-expect-error: reserved for future catalog enrichment
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CatalogPartTree({ part, depth, paramMap }: { part: CatalogPart; depth: number; paramMap: Record<string, CatalogParam> }) {
   const subParts = part.parts ?? [];
   const partLabel = getCatalogLabel(part.props as { name: string; value: string; class?: string }[] | undefined);
@@ -2422,7 +2425,8 @@ function CatalogProseWithParams({ text, paramMap }: { text: string; paramMap: Re
    COLLAPSIBLE SECTION
    ═══════════════════════════════════════════════════════════════════════════ */
 
-// @ts-ignore: reserved for future use
+// @ts-expect-error: reserved for future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CollapsibleSection({ title, children }: { title: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -2443,7 +2447,8 @@ function CollapsibleSection({ title, children }: { title: string; children: Reac
    HELPER — get all controls flat from a catalog
    ═══════════════════════════════════════════════════════════════════════════ */
 
-// @ts-ignore: reserved for future catalog enrichment
+// @ts-expect-error: reserved for future catalog enrichment
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getAllCatalogControls(catalog: OscalCatalog): CatalogControl[] {
   const result: CatalogControl[] = [];
   function walkGroup(g: CatalogGroup) {

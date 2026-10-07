@@ -572,6 +572,16 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
   const [expanded, setExpanded] = useState(false);
   const control = useMemo(() => findCatalogControl(catalog, controlId), [catalog, controlId]);
 
+  const paramMap = useMemo(() => {
+    const map: Record<string, CatalogParam> = {};
+    if (!control) return map;
+    const parent = findParentCatalogControl(catalog, control.id);
+    if (parent) (parent.params ?? []).forEach((p) => { map[p.id] = p; });
+    (control.params ?? []).forEach((p) => { map[p.id] = p; });
+    (control.controls ?? []).forEach((enh) => (enh.params ?? []).forEach((p) => { map[p.id] = p; }));
+    return map;
+  }, [catalog, control]);
+
   if (!control) {
     return (
       <div style={{
@@ -590,15 +600,6 @@ function ControlDetailPanel({ controlId, catalog }: { controlId: string; catalog
   const allParts = control.parts ?? [];
   const params = control.params ?? [];
   const enhancements = control.controls ?? [];
-
-  const paramMap = useMemo(() => {
-    const map: Record<string, CatalogParam> = {};
-    const parent = findParentCatalogControl(catalog, control.id);
-    if (parent) (parent.params ?? []).forEach((p) => { map[p.id] = p; });
-    params.forEach((p) => { map[p.id] = p; });
-    enhancements.forEach((enh) => (enh.params ?? []).forEach((p) => { map[p.id] = p; }));
-    return map;
-  }, [catalog, control, params, enhancements]);
 
   const sectionParts: Record<string, CatalogPart[]> = {};
   PART_SECTIONS.forEach((s) => { sectionParts[s.name] = allParts.filter((p) => p.name === s.name); });
