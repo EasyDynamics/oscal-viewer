@@ -34,6 +34,7 @@ import MarkupBlock, { MarkupLine, MarkupLinks } from "../components/MarkupBlock"
 import { isWithdrawnStatusProp } from "../utils/oscalVisuals";
 import { catalogLinkDisplay, linkLabel, resourceLinkLabel, resourceLinkTooltip } from "../utils/linkDisplay";
 import { markupLineText } from "../utils/markup";
+import { indexCatalog, selectProfileControls, type CatalogIndex, type ControlSelector, type ProfileSelection } from "../utils/profileSelection";
 import type { OscalProp, OscalLink, Resource, CatalogMetadata, Catalog, Control, Part, Param, Group } from "../context/OscalContext";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -165,10 +166,10 @@ function parentControlId(enhId: string): string {
   return enhId.replace(/\.\d+$/, "");
 }
 
-/** Get display label for a control ID ("ac-2" → "AC-2", "ac-2.3" → "AC-2(3)") */
+/** Get display label for a control ID ("ac-2" → "AC-2", "ac-2.3" → "AC-2(3)", "s1.1.1" → "S1.1.1") */
 function controlLabel(id: string): string {
   const upper = id.toUpperCase();
-  const dotMatch = upper.match(/^(.+)\.(\d+)$/);
+  const dotMatch = upper.match(/^([A-Z]+-\d+)\.(\d+)$/);
   if (dotMatch) return `${dotMatch[1]}(${dotMatch[2]})`;
   return upper;
 }
@@ -226,71 +227,55 @@ function resolveImportHref(profile: Profile, importEntry: ProfileImport): {
 interface FamilyGroup {
   prefix: string;
   name: string;
-  controls: string[];      // non-enhancement control ids
-  enhancements: string[];  // enhancement ids
+  controls: string[];      // ids listed at the family level
+  enhancements: string[];  // ids listed under a selected parent control
+  children: Map<string, string[]>; // family-level id → its enhancements
   allIds: string[];        // all ids in order
 }
 
-/**
- * Resolve a family name from the catalog or fall back to hardcoded names.
- *
- * Fallback chain:
- * 1. If catalog is loaded, find a control with the given prefix and look up its group title
- * 2. Fall back to hardcoded FAMILY_NAMES mapping (NIST 800-53 standard names)
- * 3. Fall back to prefix.toUpperCase() if no mapping exists
- *
- * This allows custom catalogs with different family naming conventions to be displayed correctly.
- */
-function getFamilyNameFromCatalog(
-  catalog: Catalog | null,
-  prefix: string,
-  controlIds: string[]
-): string {
-  if (!catalog) {
-    return FAMILY_NAMES[prefix] || prefix.toUpperCase();
-  }
-
-  // Find any control with this prefix to locate its group
-  const controlWithPrefix = controlIds.find((id) => familyPrefix(id) === prefix);
-  if (!controlWithPrefix) {
-    return FAMILY_NAMES[prefix] || prefix.toUpperCase();
-  }
-
-  // Find the group this control belongs to
-  const group = findControlGroupInCatalog(catalog, controlWithPrefix);
-  if (group && group.title) {
-    return group.title;
-  }
-
-  // Fall back to hardcoded names
-  return FAMILY_NAMES[prefix] || prefix.toUpperCase();
+/** The enhancements listed under a family-level control. */
+function enhancementsOf(fg: FamilyGroup, cid: string): string[] {
+  return fg.children.get(cid) ?? [];
 }
 
-/** Build grouped family structure from a list of control IDs */
-function buildFamilyGroups(controlIds: string[], catalog?: Catalog | null): FamilyGroup[] {
-  const familyMap = new Map<string, { controls: string[]; enhancements: string[]; allIds: string[] }>();
+/** The family a selected control is listed in. */
+function familyOf(familyGroups: FamilyGroup[], cid: string): FamilyGroup | undefined {
+  return familyGroups.find((fg) => fg.allIds.includes(cid));
+}
+
+/**
+ * Group the selected controls into families. With a catalog, a family is the
+ * catalog's top-level group, and an enhancement goes under its outermost
+ * selected ancestor. Without one, the ids decide: "ac-2.3" is in family "ac",
+ * under "ac-2". A control whose parent isn't selected is listed at the family
+ * level, so it can still be reached.
+ */
+function buildFamilyGroups(controlIds: string[], catalog: CatalogIndex | null): FamilyGroup[] {
+  const selected = new Set(controlIds);
+  const families = new Map<string, FamilyGroup>();
 
   for (const id of controlIds) {
-    const fp = familyPrefix(id);
-    if (!familyMap.has(fp)) {
-      familyMap.set(fp, { controls: [], enhancements: [], allIds: [] });
+    const entry = catalog?.byId.get(id);
+    const group = entry?.topGroup;
+    const prefix = group?.id || familyPrefix(id);
+    let fg = families.get(prefix);
+    if (!fg) {
+      const name = group?.title || FAMILY_NAMES[prefix] || prefix.toUpperCase();
+      fg = { prefix, name, controls: [], enhancements: [], children: new Map(), allIds: [] };
+      families.set(prefix, fg);
     }
-    const entry = familyMap.get(fp)!;
-    entry.allIds.push(id);
-    if (isEnhancement(id)) {
-      entry.enhancements.push(id);
+    fg.allIds.push(id);
+    const ancestors = entry ? entry.ancestors : isEnhancement(id) ? [parentControlId(id)] : [];
+    const parent = ancestors.find((a) => selected.has(a));
+    if (parent) {
+      fg.enhancements.push(id);
+      fg.children.set(parent, [...enhancementsOf(fg, parent), id]);
     } else {
-      entry.controls.push(id);
+      fg.controls.push(id);
     }
   }
 
-  return Array.from(familyMap.entries()).map(([prefix, data]) => ({
-    prefix,
-    name: getFamilyNameFromCatalog(catalog ?? null, prefix, controlIds),
-    controls: data.controls,
-    enhancements: data.enhancements,
-    allIds: data.allIds,
-  }));
+  return [...families.values()];
 }
 
 /** Build a map from control-id to its alter entry */
@@ -361,29 +346,6 @@ function findControlInCatalog(catalog: Catalog, id: string): Control | undefined
     for (const enh of c.controls ?? []) {
       if (enh.id === id) return enh;
     }
-  }
-  return undefined;
-}
-
-/** Find the group a control belongs to */
-// @ts-ignore: reserved for future catalog enrichment
-function findControlGroupInCatalog(catalog: Catalog, controlId: string): Group | undefined {
-  function searchGroup(g: Group): Group | undefined {
-    for (const c of g.controls ?? []) {
-      if (c.id === controlId) return g;
-      for (const enh of c.controls ?? []) {
-        if (enh.id === controlId) return g;
-      }
-    }
-    for (const sg of g.groups ?? []) {
-      const found = searchGroup(sg);
-      if (found) return found;
-    }
-    return undefined;
-  }
-  for (const g of catalog.groups ?? []) {
-    const found = searchGroup(g);
-    if (found) return found;
   }
   return undefined;
 }
@@ -713,49 +675,21 @@ export default function ProfilePage() {
   /* ── Derived data ── */
   const catalog = oscal.catalog?.data as Catalog | null;
 
-  const controlIds = useMemo(() => {
-    if (!profile) return [];
+  const catalogIndex = useMemo(() => (catalog ? indexCatalog(catalog) : null), [catalog]);
 
-    const hasIncludeAll = profile.imports.some((imp) => imp["include-all"]);
+  // The controls the imports select from the loaded catalog. Without one,
+  // include-all falls back to the controls modify.alters names.
+  const selection = useMemo(
+    () => selectProfileControls(
+      profile?.imports,
+      catalogIndex,
+      (profile?.modify?.alters ?? []).map((a) => a["control-id"]).filter(Boolean),
+    ),
+    [profile, catalogIndex],
+  );
+  const controlIds = selection.ids;
 
-    if (hasIncludeAll) {
-      // include-all: pull every control ID from the catalog if loaded,
-      // otherwise fall back to control IDs referenced in modify.alters
-      if (catalog) {
-        const ids: string[] = [];
-        function collectFromGroup(g: Group) {
-          for (const c of g.controls ?? []) {
-            ids.push(c.id);
-            for (const enh of c.controls ?? []) ids.push(enh.id);
-          }
-          for (const sg of g.groups ?? []) collectFromGroup(sg);
-        }
-        for (const g of catalog.groups ?? []) collectFromGroup(g);
-        for (const c of catalog.controls ?? []) {
-          ids.push(c.id);
-          for (const enh of c.controls ?? []) ids.push(enh.id);
-        }
-        return ids;
-      }
-      // No catalog — derive from alters
-      return (profile.modify?.alters ?? [])
-        .map((a) => a["control-id"])
-        .filter(Boolean);
-    }
-
-    // Explicit include-controls
-    const ids: string[] = [];
-    for (const imp of profile.imports) {
-      if (imp["include-controls"]) {
-        for (const ic of imp["include-controls"]) {
-          if (ic["with-ids"]) ids.push(...ic["with-ids"]);
-        }
-      }
-    }
-    return ids;
-  }, [profile, catalog]);
-
-  const familyGroups = useMemo(() => buildFamilyGroups(controlIds, catalog), [controlIds, catalog]);
+  const familyGroups = useMemo(() => buildFamilyGroups(controlIds, catalogIndex), [controlIds, catalogIndex]);
 
   const alterMap = useMemo(
     () => buildAlterMap(profile?.modify?.alters ?? []),
@@ -774,7 +708,7 @@ export default function ProfilePage() {
       dc[`family-${fg.prefix}`] = true;
       for (const cid of fg.controls) {
         // Collapse controls that have enhancements
-        const enhs = fg.enhancements.filter((e) => parentControlId(e) === cid);
+        const enhs = enhancementsOf(fg, cid);
         if (enhs.length > 0) dc[`ctrl-${cid}`] = true;
       }
     }
@@ -824,7 +758,7 @@ export default function ProfilePage() {
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
             <ViewRouter view={view} profile={profile} familyGroups={familyGroups}
-              alterMap={alterMap} setParamMap={setParamMap} controlIds={controlIds} navigate={mobileNavigate} />
+              alterMap={alterMap} setParamMap={setParamMap} selection={selection} navigate={mobileNavigate} />
           </div>
         </div>
       );
@@ -912,7 +846,7 @@ export default function ProfilePage() {
             familyGroups={familyGroups}
             alterMap={alterMap}
             setParamMap={setParamMap}
-            controlIds={controlIds}
+            selection={selection}
             navigate={navigate}
           />
         </div>
@@ -1004,7 +938,7 @@ function SidebarTree({ familyGroups, alterMap, view, collapsed, searchTerm, navi
             />
             {!isCollapsed && fg.controls.map((cid) => {
               if (lowerSearch && !controlMatches(cid)) return null;
-              const enhs = fg.enhancements.filter((e) => parentControlId(e) === cid);
+              const enhs = enhancementsOf(fg, cid);
               const cKey = `ctrl-${cid}`;
               const isCtrlCollapsed = !!collapsed[cKey];
               const hasAlter = alterMap.has(cid);
@@ -1142,7 +1076,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
       isBranch: false,
     });
     for (const cid of fg.controls) {
-      const enhs = fg.enhancements.filter((e) => parentControlId(e) === cid);
+      const enhs = enhancementsOf(fg, cid);
       nodes.push({
         id: enhs.length > 0 ? `ctrl-${cid}` : `__ctrl-${cid}`,
         label: controlLabel(cid),
@@ -1156,8 +1090,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
   }
 
   function getControlChildren(cid: string): ProfileDrillNode[] {
-    const prefix = familyPrefix(cid);
-    const fg = familyGroups.find((f) => f.prefix === prefix);
+    const fg = familyOf(familyGroups, cid);
     if (!fg) return [];
     const nodes: ProfileDrillNode[] = [];
     // Control detail
@@ -1168,7 +1101,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
       isBranch: false,
       modBadge: alterMap.has(cid),
     });
-    const enhs = fg.enhancements.filter((e) => parentControlId(e) === cid);
+    const enhs = enhancementsOf(fg, cid);
     for (const enhId of enhs) {
       nodes.push({
         id: `__ctrl-${enhId}`,
@@ -1189,7 +1122,7 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
           results.push({
             id: `__ctrl-${cid}`,
             label: controlLabel(cid),
-            icon: isEnhancement(cid)
+            icon: fg.enhancements.includes(cid)
               ? <IcoTag size={14} style={{ color: colors.orange }} />
               : <IcoShield size={16} style={{ color: colors.brightBlue }} />,
             isBranch: false,
@@ -1288,10 +1221,10 @@ function ProfileMobileDrillDown({ familyGroups, alterMap, mobilePath, searchTerm
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function ViewRouter(props: ViewRouterProps) {
-  const { controlIds, navigate } = props;
+  const { selection, navigate } = props;
   // A `#fragment` link in prose ([AU-02](#au-2)) opens that control when the profile includes it.
   const resolveLink = (id: string) => {
-    if (!controlIds.includes(id)) return false;
+    if (!selection.ids.includes(id)) return false;
     navigate(`ctrl-${id}`);
     return true;
   };
@@ -1308,14 +1241,14 @@ interface ViewRouterProps {
   familyGroups: FamilyGroup[];
   alterMap: Map<string, Alter>;
   setParamMap: Map<string, SetParameter[]>;
-  controlIds: string[];
+  selection: ProfileSelection;
   navigate: (id: string) => void;
 }
 
-function ProfileView({ view, profile, familyGroups, alterMap, setParamMap, controlIds, navigate }: ViewRouterProps) {
-  if (view === "overview") return <OverviewView profile={profile} familyGroups={familyGroups} controlIds={controlIds} navigate={navigate} />;
+function ProfileView({ view, profile, familyGroups, alterMap, setParamMap, selection, navigate }: ViewRouterProps) {
+  if (view === "overview") return <OverviewView profile={profile} familyGroups={familyGroups} selection={selection} navigate={navigate} />;
   if (view === "metadata") return <MetadataView profile={profile} navigate={navigate} />;
-  if (view === "imports") return <ImportsView profile={profile} controlIds={controlIds} navigate={navigate} />;
+  if (view === "imports") return <ImportsView profile={profile} selection={selection} navigate={navigate} />;
 
   if (view.startsWith("family-")) {
     const prefix = view.replace("family-", "");
@@ -1325,7 +1258,8 @@ function ProfileView({ view, profile, familyGroups, alterMap, setParamMap, contr
 
   if (view.startsWith("ctrl-")) {
     const cid = view.replace("ctrl-", "");
-    return <ControlModView controlId={cid} alterMap={alterMap} setParamMap={setParamMap} profile={profile} navigate={navigate} />;
+    return <ControlModView controlId={cid} family={familyOf(familyGroups, cid)} selectedIds={selection.ids}
+      alterMap={alterMap} setParamMap={setParamMap} profile={profile} navigate={navigate} />;
   }
 
   return <NotFoundView navigate={navigate} />;
@@ -1477,10 +1411,10 @@ function DropZone({ onFile, error, sourceUrl }: { onFile: (f: File) => void; err
    OVERVIEW VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OverviewView({ profile, familyGroups, controlIds, navigate }: {
-  profile: Profile; familyGroups: FamilyGroup[]; controlIds: string[]; navigate: (id: string) => void;
+function OverviewView({ profile, familyGroups, selection, navigate }: {
+  profile: Profile; familyGroups: FamilyGroup[]; selection: ProfileSelection; navigate: (id: string) => void;
 }) {
-  const totalControls = controlIds.length;
+  const totalControls = selection.ids.length;
   const setParamCount = profile.modify?.["set-parameters"]?.length ?? 0;
   const alterCount = profile.modify?.alters?.length ?? 0;
 
@@ -1519,9 +1453,6 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
         <SectionLabel>Import Sources</SectionLabel>
         {profile.imports.map((imp, i) => {
           const resolved = resolveImportHref(profile, imp);
-          const selCount = imp["include-controls"]
-            ? imp["include-controls"].reduce((s, ic) => s + (ic["with-ids"]?.length ?? 0), 0)
-            : imp["include-all"] ? "ALL" : 0;
           return (
             <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${colors.bg}` }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
@@ -1533,7 +1464,7 @@ function OverviewView({ profile, familyGroups, controlIds, navigate }: {
                 </div>
               )}
               <div style={{ fontSize: 12, color: colors.cobalt, marginTop: 4 }}>
-                {typeof selCount === "number" ? `${selCount} controls selected` : selCount}
+                {importSelectionSummary(imp, selection.byImport[i] ?? [], selection.resolved)}
               </div>
             </div>
           );
@@ -1628,7 +1559,30 @@ function MetadataView({ profile, navigate }: { profile: Profile; navigate: (id: 
    IMPORTS VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ImportsView({ profile, controlIds, navigate }: { profile: Profile; controlIds: string[]; navigate: (id: string) => void }) {
+/** An import's include-controls or exclude-controls, in words: "Matching: s1.1.*; IDs: s2.1.1". */
+function describeSelectors(selectors: ControlSelector[] = []): string {
+  return selectors.map((sel) => {
+    const ids = sel["with-ids"] ?? [];
+    const patterns = (sel.matching ?? []).map((m) => m.pattern).filter(Boolean);
+    const parts: string[] = [];
+    if (ids.length > 0) parts.push(ids.length > 6 ? `${ids.length} IDs` : `IDs: ${ids.join(", ")}`);
+    if (patterns.length > 0) parts.push(`Matching: ${patterns.join(", ")}`);
+    if (sel["with-child-controls"] === "yes") parts.push("with child controls");
+    return parts.join(", ");
+  }).filter(Boolean).join("; ");
+}
+
+/** How many controls an import selects, and whether that waits on the catalog. */
+function importSelectionSummary(imp: ProfileImport, ids: string[], resolved: boolean): string {
+  if (!resolved && imp["include-all"]) return "All controls";
+  const count = `${ids.length} control${ids.length === 1 ? "" : "s"} selected`;
+  const needsCatalog = (imp["include-controls"] ?? []).some((sel) => (sel.matching?.length ?? 0) > 0)
+    || [...(imp["include-controls"] ?? []), ...(imp["exclude-controls"] ?? [])].some((sel) => sel["with-child-controls"] === "yes");
+  return !resolved && needsCatalog ? `${count} by ID; patterns and child controls need the catalog` : count;
+}
+
+function ImportsView({ profile, selection, navigate }: { profile: Profile; selection: ProfileSelection; navigate: (id: string) => void }) {
+  const controlIds = selection.ids;
   return (
     <div>
       <Breadcrumbs items={[{ id: "overview", label: "Overview" }, { id: "imports", label: "Imports" }]} navigate={navigate} />
@@ -1642,10 +1596,9 @@ function ImportsView({ profile, controlIds, navigate }: { profile: Profile; cont
             <MField label="Title" value={<MarkupLine text={resolved.title || "—"} />} />
             {resolved.url && <MField label="URL" value={resolved.url} mono />}
             {resolved.resourceUuid && <MField label="Resource UUID" value={resolved.resourceUuid} mono />}
-            <MField label="Selection Method" value={
-              imp["include-all"] ? "Include All" :
-              imp["include-controls"] ? "Include by ID" : "—"
-            } />
+            <MField label="Include" value={imp["include-all"] ? "All controls" : describeSelectors(imp["include-controls"]) || "—"} />
+            {imp["exclude-controls"] && <MField label="Exclude" value={describeSelectors(imp["exclude-controls"]) || "—"} />}
+            <MField label="Selected" value={importSelectionSummary(imp, selection.byImport[i] ?? [], selection.resolved)} />
           </Card>
         );
       })}
@@ -1713,7 +1666,7 @@ function FamilyView({ familyGroup: fg, alterMap, setParamMap, navigate }: {
         {fg.controls.map((cid) => {
           const hasAlter = alterMap.has(cid);
           const hasParams = setParamMap.has(cid);
-          const enhs = fg.enhancements.filter((e) => parentControlId(e) === cid);
+          const enhs = enhancementsOf(fg, cid);
           return (
             <div
               key={cid}
@@ -1757,8 +1710,11 @@ function FamilyView({ familyGroup: fg, alterMap, setParamMap, navigate }: {
    If no catalog is loaded, shows modifications-only fallback.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }: {
+function ControlModView({ controlId, family, selectedIds, alterMap, setParamMap, profile, navigate }: {
   controlId: string;
+  /** The family the sidebar lists this control in. */
+  family?: FamilyGroup;
+  selectedIds: string[];
   alterMap: Map<string, Alter>;
   setParamMap: Map<string, SetParameter[]>;
   profile: Profile;
@@ -1768,8 +1724,12 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
   const catalog = oscal.catalog?.data as Catalog | null;
   const alter = alterMap.get(controlId);
   const setParams = setParamMap.get(controlId) ?? [];
-  const fp = familyPrefix(controlId);
-  const famName = FAMILY_NAMES[fp] || fp.toUpperCase();
+  const fp = family?.prefix ?? familyPrefix(controlId);
+  const famName = family ? markupLineText(family.name) : FAMILY_NAMES[fp] || fp.toUpperCase();
+  // The control the sidebar lists this one under, if any.
+  const parentId = family
+    ? [...family.children].find(([, ids]) => ids.includes(controlId))?.[0]
+    : isEnhancement(controlId) ? parentControlId(controlId) : undefined;
 
   // Look up catalog control
   const catalogControl = catalog ? findControlInCatalog(catalog, controlId) : null;
@@ -1836,10 +1796,7 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
     { id: "overview", label: "Overview" },
     { id: `family-${fp}`, label: `${fp.toUpperCase()} ${famName}` },
   ];
-  if (isEnhancement(controlId)) {
-    const pid = parentControlId(controlId);
-    crumbs.push({ id: `ctrl-${pid}`, label: controlLabel(pid) });
-  }
+  if (parentId) crumbs.push({ id: `ctrl-${parentId}`, label: controlLabel(parentId) });
   crumbs.push({ id: `ctrl-${controlId}`, label: controlLabel(controlId) });
 
   // Control title from catalog
@@ -1847,8 +1804,8 @@ function ControlModView({ controlId, alterMap, setParamMap, profile, navigate }:
   const controlLbl = catalogControl ? getLabel(catalogControl.props) : "";
   const displayLabel = controlLbl ? `${controlLbl} ` : "";
 
-  // Enhancements from catalog
-  const enhancements = catalogControl?.controls ?? [];
+  // The catalog's enhancements that the profile selects
+  const enhancements = (catalogControl?.controls ?? []).filter((enh) => selectedIds.includes(enh.id));
 
   // Links from catalog
   const links = catalogControl?.links ?? [];
