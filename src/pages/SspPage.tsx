@@ -90,6 +90,7 @@ import {
   propDisplayName as sharedPropDisplayName,
   resolveComponentVisual,
 } from "../utils/oscalVisuals";
+import { indexCatalog, selectProfileControls, type ProfileImportSelection } from "../utils/profileSelection";
 import type {
   Catalog as OscalCatalog,
   Control as CatalogControl,
@@ -1394,21 +1395,8 @@ function findCatalogControl(catalog: OscalCatalog | null, controlId: string): Ca
   return undefined;
 }
 
-interface SspProfileIncludeControl {
-  "with-ids"?: string[];
-  matching?: { pattern: string }[];
-  "with-child-controls"?: "yes" | "no";
-}
-
-interface SspProfileImport {
-  href?: string;
-  "include-all"?: Record<string, never>;
-  "include-controls"?: SspProfileIncludeControl[];
-  "exclude-controls"?: SspProfileIncludeControl[];
-}
-
 interface SspProfileShape {
-  imports?: SspProfileImport[];
+  imports?: ProfileImportSelection[];
   modify?: { alters?: { "control-id"?: string }[] };
 }
 
@@ -1428,68 +1416,16 @@ function collectCatalogControlIds(catalog: OscalCatalog | null): string[] {
   return ids;
 }
 
-function childControlIds(catalog: OscalCatalog | null, controlId: string): string[] {
-  const control = findCatalogControl(catalog, controlId);
-  if (!control?.controls?.length) return [];
-  const ids: string[] = [];
-  const visit = (c: CatalogControl) => {
-    ids.push(c.id);
-    c.controls?.forEach(visit);
-  };
-  control.controls.forEach(visit);
-  return ids;
-}
-
-function addProfileControlSelection(target: Set<string>, selection: SspProfileIncludeControl, catalog: OscalCatalog | null) {
-  // Per OSCAL spec, the default for `with-child-controls` is "no" — child
-  // controls (enhancements) are NOT included unless the profile explicitly opts in.
-  const includeChildren = selection["with-child-controls"] === "yes";
-  selection["with-ids"]?.forEach((id) => {
-    target.add(id);
-    if (includeChildren) childControlIds(catalog, id).forEach((childId) => target.add(childId));
-  });
-  selection.matching?.forEach(({ pattern }) => {
-    try {
-      const re = new RegExp(pattern, "i");
-      collectCatalogControlIds(catalog).forEach((id) => {
-        if (re.test(id)) target.add(id);
-      });
-    } catch {
-      /* Ignore invalid profile regex patterns rather than breaking the viewer. */
-    }
-  });
-}
-
 function extractProfileControlIds(rawProfile: unknown, catalog: OscalCatalog | null): string[] {
   if (!rawProfile) return [];
   const wrapped = rawProfile as Record<string, unknown>;
   const profile = (wrapped.profile ?? wrapped) as SspProfileShape;
   if (!profile.imports?.length) return [];
 
-  const ids = new Set<string>();
-  if (profile.imports.some((imp) => imp["include-all"])) {
-    collectCatalogControlIds(catalog).forEach((id) => ids.add(id));
-  }
-
-  profile.imports.forEach((imp) => {
-    imp["include-controls"]?.forEach((selection) => addProfileControlSelection(ids, selection, catalog));
-  });
-
-  profile.imports.forEach((imp) => {
-    imp["exclude-controls"]?.forEach((selection) => {
-      const excluded = new Set<string>();
-      addProfileControlSelection(excluded, selection, catalog);
-      excluded.forEach((id) => ids.delete(id));
-    });
-  });
-
-  if (ids.size === 0) {
-    profile.modify?.alters?.forEach((alter) => {
-      if (alter["control-id"]) ids.add(alter["control-id"]);
-    });
-  }
-
-  return [...ids];
+  const { ids } = selectProfileControls(profile.imports, catalog ? indexCatalog(catalog) : null);
+  if (ids.length > 0) return ids;
+  // Nothing could be resolved (for example include-all without a catalog): fall back to the altered controls.
+  return [...new Set((profile.modify?.alters ?? []).flatMap((alter) => (alter["control-id"] ? [alter["control-id"]] : [])))];
 }
 
 /** Returns the set of controls expected to be implemented by the SSP.
