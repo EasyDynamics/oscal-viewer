@@ -4,10 +4,11 @@
 
 import { Link, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
-import { GitFork, Grid3X3, Shield, TriangleAlert, Upload } from "lucide-react";
+import { Grid3X3, Shield, TriangleAlert, Upload } from "lucide-react";
 import { alpha, colors, fonts, oscalModels, shadows, radii, brand } from "../theme/tokens";
 import useIsMobile from "../hooks/useIsMobile";
 import { useOscal, type Catalog } from "../context/OscalContext";
+import GitHubMark from "../components/GitHubMark";
 
 type UploadModelKey = "catalog" | "profile" | "component-definition" | "ssp" | "assessment-plan" | "assessment-results" | "poam";
 
@@ -214,9 +215,10 @@ export default function HomePage() {
             target="_blank"
             rel="noopener noreferrer"
             title="View on GitHub"
+            aria-label="View on GitHub"
             style={{ display: "inline-flex", marginLeft: 8, color: colors.navy }}
           >
-            <GitFork size={isMobile ? 20 : 24} />
+            <GitHubMark size={isMobile ? 20 : 24} />
           </a>
         </div>
         <p style={{ ...styles.subtitle, ...(isMobile ? { fontSize: 13, lineHeight: 1.4, marginBottom: 0 } : {}) }}>

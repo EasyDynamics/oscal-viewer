@@ -9,9 +9,10 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { useState, useEffect, useRef, type CSSProperties } from "react";
-import { CheckCircle2, Ellipsis, ExternalLink, GitFork, Link2, LoaderCircle, Settings, XCircle } from "lucide-react";
+import { CheckCircle2, Ellipsis, ExternalLink, Link2, LoaderCircle, Settings, XCircle } from "lucide-react";
 import { colors, fonts, radii, shadows, alpha } from "../theme/tokens";
 import type { ResolveStatus } from "../hooks/useImportResolver";
+import GitHubMark from "./GitHubMark";
 
 /* ── Types ── */
 
@@ -155,7 +156,7 @@ function WaitingDots({ size = 20 }: { size?: number }) {
 }
 
 function GitHubIcon({ size = 18 }: { size?: number }) {
-  return <GitFork size={size} style={{ flexShrink: 0 }} />;
+  return <GitHubMark size={size} />;
 }
 
 function OscalIoIcon({ size = 18 }: { size?: number }) {
